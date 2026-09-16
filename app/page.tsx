@@ -14,6 +14,14 @@ const RECENT_RECORD_LIMIT = 200;
 import { auth, db } from '@/lib/firebase';
 import { migrateLocalProfileToCloud } from '@/lib/cloud-sync';
 import {
+  clearActiveSetup,
+  isUnresolved,
+  loadActiveSetup,
+  pickNewer,
+  saveActiveSetup,
+} from '@/lib/active-setup-store';
+import { evaluatePendingOrder } from '@/lib/order-validity';
+import {
   GUEST_STATUS,
   failedStatus,
   formatLastSaved,
@@ -233,6 +241,43 @@ export default function Home() {
     }
   }, []);
 
+  /**
+   * What has become of an unresolved pending order: still waiting, past its
+   * window, invalidated, or overtaken by the move. Derived rather than stored,
+   * so it stays correct as price updates.
+   */
+  const pendingVerdict = useMemo(() => {
+    if (!activeSetup || !isUnresolved(activeSetup) || marketPrice === null) return null;
+    if (activeSetup.orderType.includes('INSTANT')) return null;
+    return evaluatePendingOrder(activeSetup, marketPrice);
+  }, [activeSetup, marketPrice]);
+
+  /**
+   * True once a restore has been attempted. Writing before that point would
+   * save the empty initial state over the setup we are about to read back,
+   * which is exactly how the order used to vanish on refresh.
+   */
+  const [setupHydrated, setSetupHydrated] = useState<boolean>(false);
+
+  /**
+   * Holds the open setup across a reload. It is cleared only once the user
+   * records an outcome, so an unresolved order can never vanish on refresh.
+   */
+  useEffect(() => {
+    if (!setupHydrated) return;
+    saveActiveSetup(activeSetup);
+  }, [activeSetup, setupHydrated]);
+
+  // Mirror it to the cloud so the same order follows the user to another device.
+  useEffect(() => {
+    if (!setupHydrated || !currentUser) return;
+    const ref = doc(db, 'users', currentUser.uid);
+    const payload = activeSetup && isUnresolved(activeSetup) ? activeSetup : null;
+    setDoc(ref, { activeSetup: payload, updatedAt: new Date().toISOString() }, { merge: true }).catch(
+      (err) => console.warn('Could not mirror the open setup to the cloud:', err)
+    );
+  }, [activeSetup, currentUser, setupHydrated]);
+
   // Load User Data from Firestore or LocalStorage
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -292,6 +337,15 @@ export default function Home() {
             if (data.selectedBroker) {
               setSelectedBroker(data.selectedBroker as BrokerId);
             }
+            // Restore an order the user never resolved, preferring whichever
+            // copy is newer between this browser and the cloud.
+            const restored = pickNewer(
+              (data.activeSetup as InstitutionalTradingSetup | null) ?? null,
+              loadActiveSetup()
+            );
+            if (restored && isUnresolved(restored)) {
+              setActiveSetup(restored);
+            }
           }
 
           // Fetch user's historical self-learning records from Firestore
@@ -307,11 +361,16 @@ export default function Home() {
           }
         } catch (err) {
           console.warn('Notice loading user cloud document:', err);
+        } finally {
+          setSetupHydrated(true);
         }
       } else {
         // Guest trader: everything lives in this browser.
         setSyncStatus(GUEST_STATUS);
         applyLocalProfile(readLocalProfile());
+        const restored = loadActiveSetup();
+        if (restored) setActiveSetup(restored);
+        setSetupHydrated(true);
       }
     });
 
@@ -670,6 +729,9 @@ export default function Home() {
           const newEquity = Math.max(0, parseFloat((equity + (newRecord.profitOrLossDollars || 0)).toFixed(2)));
           setEquity(newEquity);
 
+          // The trade is resolved, so the held copy is no longer needed.
+          clearActiveSetup();
+
           // Update active setup status
           setActiveSetup({
             ...activeSetup,
@@ -828,6 +890,33 @@ export default function Home() {
             </span>
           </span>
         </div>
+
+        {/* An unresolved order whose window has closed. It is deliberately kept
+            on screen: the user still has to record the outcome so the engine
+            learns from it. */}
+        {pendingVerdict && pendingVerdict.state !== 'waiting' && (
+          <div
+            id="pending-order-status-banner"
+            className="p-4 rounded-xl border bg-amber-500/15 border-amber-500/40 text-amber-300 flex items-start gap-3"
+          >
+            <div className="p-2 rounded-lg bg-black/20 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-sm">
+                {pendingVerdict.state === 'expired'
+                  ? 'This pending order has passed its validity window'
+                  : pendingVerdict.state === 'invalidated'
+                  ? 'This pending order was invalidated before it filled'
+                  : 'Price reached the target without filling this order'}
+              </div>
+              <div className="text-xs opacity-90 mt-0.5">{pendingVerdict.reason}</div>
+              <div className="text-xs opacity-75 mt-1">
+                It stays here until you record the outcome below, so the learning engine can use it.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Whether the trading record actually reached the cloud. A rejected
             write used to leave the screen looking entirely normal. */}
