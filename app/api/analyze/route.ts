@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
-import {
-  calculateXAUUSDLotSize,
-  getForexFactoryHighImpactEvents,
-  getICTKillZoneStatus,
-  recalculateEngineWeights,
-  filterUpcomingEconomicEvents,
-} from '@/lib/market-engine';
+import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
+import { getEconomicCalendar, filterUpcoming, minutesToNextHighImpact } from '@/lib/economic-calendar';
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, STYLE_PROFILES } from '@/lib/signal-engine';
@@ -57,12 +52,13 @@ export async function POST(request: Request) {
     const marketPrice = snapshot.price;
     const engineWeights = recalculateEngineWeights(input.pastLearningRecords, input.tradingStyle);
     const killZone = getICTKillZoneStatus();
-    const economicEvents = filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents());
-
+    // A calendar the app cannot actually see must not move the stop loss, so
+    // an unconfigured or unreachable provider yields no events and no news
+    // adjustment at all.
+    const calendar = await getEconomicCalendar();
+    const economicEvents = filterUpcoming(calendar.events);
     const highImpact = economicEvents.filter((e) => e.impact === 'High');
-    const minutesToNextEvent = highImpact.length
-      ? Math.max(0, (new Date(highImpact[0].scheduledTimestamp).getTime() - Date.now()) / 60000)
-      : null;
+    const minutesToNextEvent = minutesToNextHighImpact(calendar.events);
 
     // Deterministic, tested engine owns every price level.
     const decision = buildSignal({
@@ -254,6 +250,8 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       entryOutOfReach: decision.entryOutOfReach,
       actualRiskDollars: lotCalculation.actualRiskDollars,
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
+      calendarConfigured: calendar.configured,
+      calendarMessage: calendar.message,
       dataStatus: snapshot.status,
       dataSource: snapshot.source,
       dataAgeSeconds: Math.round(snapshot.ageMs / 1000),

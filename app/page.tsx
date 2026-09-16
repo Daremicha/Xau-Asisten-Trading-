@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+
+/**
+ * Most recent trades to load and to send for analysis. The learning engine
+ * halves a trade's weight every twenty positions back, so beyond this the
+ * contribution is negligible while the Firestore read cost and request payload
+ * would keep growing with every trade ever taken.
+ */
+const RECENT_RECORD_LIMIT = 200;
 import { auth, db } from '@/lib/firebase';
 import { migrateLocalProfileToCloud } from '@/lib/cloud-sync';
 import {
@@ -40,12 +48,7 @@ import {
   AccountType,
   BrokerId,
 } from '@/lib/types';
-import {
-  getICTKillZoneStatus,
-  getForexFactoryHighImpactEvents,
-  filterUpcomingEconomicEvents,
-  recalculateEngineWeights,
-} from '@/lib/market-engine';
+import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
 import {
   evaluatePriceProximity,
   getNotificationPermission,
@@ -174,7 +177,10 @@ export default function Home() {
   // Session context. Memoised so a price tick does not rebuild these arrays and
   // restart the timers in the calendar and session components every few seconds.
   const killZone = useMemo(() => getICTKillZoneStatus(), []);
-  const economicEvents = useMemo(() => filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents()), []);
+  // The calendar now comes from the analysis response, which reflects whatever
+  // provider is actually configured. Nothing is generated on the client.
+  const economicEvents = useMemo(() => activeSetup?.economicEvents ?? [], [activeSetup]);
+  const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
 
   // Whether the user's data actually reached the cloud. Firestore rejections
   // used to vanish into the console, leaving the screen looking normal while
@@ -290,7 +296,9 @@ export default function Home() {
 
           // Fetch user's historical self-learning records from Firestore
           const recRef = collection(db, 'users', user.uid, 'learning_records');
-          const recSnap = await getDocs(recRef);
+          const recSnap = await getDocs(
+            query(recRef, orderBy('timestamp', 'desc'), limit(RECENT_RECORD_LIMIT))
+          );
           if (!recSnap.empty) {
             const loadedRecords: SelfLearningMemoryRecord[] = [];
             recSnap.forEach((d) => loadedRecords.push(d.data() as SelfLearningMemoryRecord));
@@ -528,7 +536,7 @@ export default function Home() {
           accountType,
           brokerId: selectedBroker,
           userId: currentUser?.uid || 'guest',
-          pastLearningRecords: learningRecords,
+          pastLearningRecords: learningRecords.slice(-RECENT_RECORD_LIMIT),
         }),
       });
 
@@ -543,6 +551,7 @@ export default function Home() {
         if (data.engineWeights) {
           setEngineWeights(data.engineWeights);
         }
+        setCalendarMessage(data.calendarConfigured ? null : (data.calendarMessage ?? null));
 
         // Save setup to Firestore if user is authenticated
         if (currentUser) {
@@ -562,14 +571,21 @@ export default function Home() {
   // Convert Pending Limit Order to Instant Market Order at Current Live Price
   const handleConvertToMarketOrder = (newEntryPrice: number) => {
     if (!activeSetup) return;
-    const slPips = Math.max(10, Math.round(Math.abs(newEntryPrice - activeSetup.stopLoss) * 10));
-    const riskDollars = activeSetup.riskDollarAmount;
-    const contractSize = activeSetup.contractSpecs?.contractSizeOz || 100;
-    const pipValuePerLot = contractSize === 1 ? 0.1 : 10.0;
-    const rawLot = riskDollars / (slPips * pipValuePerLot);
-    const minLot = activeSetup.accountType === 'Cent' ? 0.1 : 0.01;
-    const maxLot = activeSetup.accountType === 'Cent' ? 1000.0 : 100.0;
-    const adjustedLot = Math.min(maxLot, Math.max(minLot, Math.floor(rawLot * 100) / 100));
+
+    // Use the same calculator as the analysis path. The ad-hoc arithmetic that
+    // lived here ignored the Pro round-turn commission and used a different
+    // minimum lot for Cent accounts, so the two paths disagreed.
+    const lotCalculation = calculateXAUUSDLotSize(
+      equity,
+      activeSetup.riskPercentage,
+      newEntryPrice,
+      activeSetup.stopLoss,
+      activeSetup.accountType,
+      activeSetup.tradingStyle,
+      activeSetup.brokerId ?? 'EXNESS'
+    );
+    const slPips = lotCalculation.stopLossPips;
+    const adjustedLot = lotCalculation.lotSize;
 
     const tpDistance = Math.abs(activeSetup.takeProfit1 - activeSetup.entryPrice);
     const isBuy = activeSetup.orderType.includes('BUY');
@@ -580,6 +596,8 @@ export default function Home() {
       entryPrice: newEntryPrice,
       stopLossPips: slPips,
       recommendedLotSize: adjustedLot,
+      actualRiskDollars: lotCalculation.actualRiskDollars,
+      exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       takeProfit1: isBuy
         ? parseFloat((newEntryPrice + tpDistance).toFixed(2))
         : parseFloat((newEntryPrice - tpDistance).toFixed(2)),
@@ -594,7 +612,9 @@ export default function Home() {
         `Converted to instant Market Order at $${newEntryPrice.toFixed(2)}`,
         `Adjusted Lot Size: ${adjustedLot.toFixed(2)} ${activeSetup.contractSpecs?.lotUnit || 'Lots'}`,
         `Stop Loss preserved at $${activeSetup.stopLoss.toFixed(2)} (${slPips} pips)`,
-        `Risk budget strictly preserved at $${riskDollars.toFixed(2)}`,
+        lotCalculation.exceedsRiskBudget
+          ? `WARNING: the broker minimum lot risks $${lotCalculation.actualRiskDollars.toFixed(2)}, above your $${lotCalculation.riskDollars.toFixed(2)} budget`
+          : `Risk held at $${lotCalculation.actualRiskDollars.toFixed(2)}`,
       ],
     };
 
@@ -999,10 +1019,7 @@ export default function Home() {
 
           {/* Right Column: Forex Factory Economic Calendar & Upcoming News (WIB) */}
           <div className="lg:col-span-6 space-y-6">
-            <EconomicCalendar
-              events={activeSetup ? activeSetup.economicEvents : economicEvents}
-              theme={theme}
-            />
+            <EconomicCalendar events={economicEvents} notice={calendarMessage} theme={theme} />
           </div>
         </div>
 
@@ -1010,6 +1027,7 @@ export default function Home() {
         <SelfLearningDashboard
           learningRecords={learningRecords}
           engineWeights={engineWeights}
+          tradingStyle={tradingStyle}
           theme={theme}
         />
       </main>
