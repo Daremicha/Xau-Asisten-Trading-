@@ -146,6 +146,11 @@ export default function Home() {
   const [isEquityLocked, setIsEquityLocked] = useState<boolean>(false);
   const [riskPercentage, setRiskPercentage] = useState<number>(1.0);
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>('Intraday');
+  // Read inside the auth listener, which must not resubscribe when the style changes.
+  const tradingStyleRef = React.useRef<TradingStyle>('Intraday');
+  useEffect(() => {
+    tradingStyleRef.current = tradingStyle;
+  }, [tradingStyle]);
   const [accountType, setAccountType] = useState<AccountType>('Standard');
 
   // Active Setup & Analysis State
@@ -218,7 +223,7 @@ export default function Home() {
     if (profile.selectedBroker) setSelectedBroker(profile.selectedBroker);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
-      setEngineWeights(recalculateEngineWeights(profile.learningRecords));
+      setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
     }
   }, []);
 
@@ -290,7 +295,7 @@ export default function Home() {
             const loadedRecords: SelfLearningMemoryRecord[] = [];
             recSnap.forEach((d) => loadedRecords.push(d.data() as SelfLearningMemoryRecord));
             setLearningRecords(loadedRecords);
-            setEngineWeights(recalculateEngineWeights(loadedRecords));
+            setEngineWeights(recalculateEngineWeights(loadedRecords, tradingStyleRef.current));
           }
         } catch (err) {
           console.warn('Notice loading user cloud document:', err);
@@ -638,7 +643,7 @@ export default function Home() {
           setLearningRecords(updatedRecords);
 
           // Recalculate weights with the newly acquired experience
-          const newWeights = recalculateEngineWeights(updatedRecords);
+          const newWeights = recalculateEngineWeights(updatedRecords, tradingStyle);
           setEngineWeights(newWeights);
 
           // Update active balance according to trade outcome (0 change for MISSED)

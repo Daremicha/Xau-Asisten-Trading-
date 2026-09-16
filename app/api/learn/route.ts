@@ -37,30 +37,44 @@ export async function POST(request: Request) {
     }
     const dollarResult = parseFloat(grossResult.toFixed(2));
 
-    // Default institutional post-mortem evaluation
+    // Default institutional post-mortem, written from this trade's own numbers
+    // so two records never read identically. The previous version emitted the
+    // same three sentences for every missed order.
+    const distancePips = parseFloat((priceDiff * 10).toFixed(1));
+    const plannedRiskPips = parseFloat((Math.abs(setup.entryPrice - setup.stopLoss) * 10).toFixed(1));
+    const riskShare = plannedRiskPips > 0 ? distancePips / plannedRiskPips : 0;
+
     let primaryFactor = isProfit
-      ? 'Institutional Liquidity Expansion'
+      ? `Target delivered ${distancePips} pips from entry`
       : isMissed
-      ? 'Pending Order Missed: Shallow FVG Mitigation & Price Runaway'
-      : 'Stop Hunt & Deeper Liquidity Swept Prior to Reversal';
+      ? `Pending order never filled, price held ${distancePips} pips away`
+      : `Stop taken ${distancePips} pips against entry`;
 
     let institutionalFlowExplanation = isProfit
-      ? `The institutional order block at ${setup.entryPrice.toFixed(2)} held firmly as large smart money participants defended their unfilled orders. Fair Value Gap (FVG) served as a strong institutional magnet, resulting in rapid mitigation and expansion towards target liquidity at ${closedPrice.toFixed(2)}.`
+      ? `Entry at ${setup.entryPrice.toFixed(2)} was defended and price expanded ${distancePips} pips to ${closedPrice.toFixed(
+          2
+        )}, delivering ${riskShare.toFixed(2)} times the ${plannedRiskPips} pip risk that was committed.`
       : isMissed
-      ? `Market price reversed at the 50% Fair Value Gap mean threshold without dipping deeply enough to pick up the resting pending limit order at ${setup.entryPrice.toFixed(2)}. Aggressive institutional momentum pushed price directly towards target liquidity without full OB mitigation.`
-      : `Market swept liquidity below the identified Order Block to capitalize on concentrated retail stop loss orders. The high-timeframe liquidity pool was deeper than anticipated, resulting in stop out at ${closedPrice.toFixed(2)} before the genuine institutional move crystallized.`;
+      ? `Price turned ${distancePips} pips short of the resting order at ${setup.entryPrice.toFixed(
+          2
+        )}, reversing from ${closedPrice.toFixed(2)} without offering the fill. The level was read correctly; the entry simply sat deeper than the market was willing to retrace.`
+      : `Price traded through the ${plannedRiskPips} pip invalidation at ${setup.stopLoss.toFixed(
+          2
+        )}, closing the position at ${closedPrice.toFixed(2)}. The structural level failed to hold on this attempt.`;
 
     let liquidityBehavior = isProfit
-      ? 'Clean sweep of opposing Asian session liquidity followed by decisive institutional displacement.'
+      ? `Opposing liquidity was cleared and the move ran ${distancePips} pips without reclaiming the entry zone.`
       : isMissed
-      ? 'Front-running liquidity injection: Buyers/Sellers stepped in early at the discount boundary before filling deep book orders.'
-      : 'Judas swing extended past standard 1.25x ATR volatility envelope during active session.';
+      ? `Buyers stepped in ${distancePips} pips above the order, so the deeper pool went untouched.`
+      : `The sweep extended past the planned ${plannedRiskPips} pip buffer before any reversal developed.`;
 
     let strategyEvolutionLesson = isProfit
-      ? `Reinforce confluence weight for ${setup.tradingStyle || 'Intraday'} setups that align with Kill Zones and unmitigated FVGs on ${setup.accountType || 'Standard'} account. Maintain the ${setup.riskRewardRatio ?? '1:2'} reward discipline.`
+      ? `The ${setup.tradingStyle || 'Intraday'} entry was placed correctly on a ${setup.accountType || 'Standard'} account. Keep the ${plannedRiskPips} pip invalidation and the current entry depth.`
       : isMissed
-      ? `Calibrate pending limit buffer: Shift entry placement to the 50% FVG Consequent Encroachment (CE) level rather than the extreme OB boundary, or consider instant market execution when momentum divergence is strong.`
-      : `Refine ${setup.tradingStyle || 'Intraday'} entry criteria: Mandate strict structural confirmation prior to order trigger, and widen stop loss buffer by 15% to clear broker spread spikes.`;
+      ? `Place the next ${setup.tradingStyle || 'Intraday'} entry roughly ${Math.ceil(
+          distancePips * 0.75
+        )} pips shallower, or take the fill at market when momentum is already in the intended direction.`
+      : `Widen the ${setup.tradingStyle || 'Intraday'} invalidation beyond ${plannedRiskPips} pips, or wait for the level to be confirmed before committing risk.`;
 
     let fvgWeightDelta = isProfit ? 0.02 : isMissed ? 0.03 : -0.01;
     let orderBlockWeightDelta = isProfit ? 0.02 : isMissed ? -0.01 : 0.01;
@@ -141,6 +155,7 @@ Respond strictly in valid JSON format:
         liquidityBehavior,
       },
       strategyEvolutionLesson,
+      tradingStyle: setup.tradingStyle,
       adaptiveWeightAdjustments: {
         fvgWeightDelta,
         orderBlockWeightDelta,

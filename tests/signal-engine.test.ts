@@ -7,6 +7,7 @@ import {
   STYLE_PROFILES,
   type SignalInputs,
 } from '../lib/signal-engine';
+import { calculateXAUUSDLotSize } from '../lib/market-engine';
 import type {
   AdaptiveStrategyEngineWeights,
   SmcStructure,
@@ -440,5 +441,74 @@ describe('the entry must be reachable, not merely correct', () => {
     expect(d.stopLoss).toBeLessThan(d.entryPrice);
     expect(d.takeProfit1).toBeGreaterThan(d.entryPrice);
     expect(d.takeProfit3).toBeGreaterThan(d.takeProfit2);
+  });
+});
+
+describe('the learned entry buffer moves entries closer', () => {
+  test('a buffer learned from missed orders shifts the entry toward price', () => {
+    const without = buildSignal(inputs());
+    const withBuffer = buildSignal(
+      inputs({ weights: { ...BASE_WEIGHTS, entryBufferPips: 30 } })
+    );
+    expect(withBuffer.entryDistancePips).toBeLessThan(without.entryDistancePips);
+  });
+
+  test('a bigger buffer moves it further', () => {
+    const small = buildSignal(inputs({ weights: { ...BASE_WEIGHTS, entryBufferPips: 10 } }));
+    const large = buildSignal(inputs({ weights: { ...BASE_WEIGHTS, entryBufferPips: 40 } }));
+    expect(large.entryDistancePips).toBeLessThan(small.entryDistancePips);
+  });
+
+  test('the buffer can never push a long entry above live price', () => {
+    for (const pips of [50, 200, 5000]) {
+      const d = buildSignal(inputs({ weights: { ...BASE_WEIGHTS, entryBufferPips: pips } }));
+      expect(d.entryPrice).toBeLessThanOrEqual(PRICE);
+      expect(d.stopLoss).toBeLessThan(d.entryPrice);
+      expect(d.takeProfit1).toBeGreaterThan(d.entryPrice);
+    }
+  });
+
+  test('the buffer can never push a short entry below live price', () => {
+    const d = buildSignal({ ...bearishInputs(), weights: { ...BASE_WEIGHTS, entryBufferPips: 5000 } });
+    expect(d.entryPrice).toBeGreaterThanOrEqual(PRICE);
+    expect(d.stopLoss).toBeGreaterThan(d.entryPrice);
+  });
+
+  test('no buffer leaves the entry exactly where the level sits', () => {
+    expect(buildSignal(inputs({ weights: { ...BASE_WEIGHTS, entryBufferPips: 0 } })).entryPrice).toBe(
+      buildSignal(inputs()).entryPrice
+    );
+  });
+});
+
+describe('lot sizing reports the risk actually taken', () => {
+  test('a normal account risks what the budget allows', () => {
+    const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4190, 'Standard', 'Intraday', 'EXNESS');
+    expect(calc.exceedsRiskBudget).toBe(false);
+    expect(calc.actualRiskDollars).toBeLessThanOrEqual(calc.riskDollars);
+  });
+
+  test('a balance too small for the minimum lot is flagged, not glossed over', () => {
+    // The reported screen: $10 cent account, 1% budget, a 180 pip stop. The
+    // minimum 0.01 lot risks $0.18, which is 1.8%, not the 1% displayed.
+    const calc = calculateXAUUSDLotSize(10, 1, 4200, 4182, 'Cent', 'Intraday', 'EXNESS');
+    expect(calc.lotSize).toBe(0.01);
+    expect(calc.riskDollars).toBeCloseTo(0.1, 2);
+    expect(calc.actualRiskDollars).toBeCloseTo(0.18, 2);
+    expect(calc.exceedsRiskBudget).toBe(true);
+  });
+
+  test('the actual risk always matches lot times stop distance', () => {
+    for (const account of ['Standard', 'Cent', 'Pro'] as const) {
+      const calc = calculateXAUUSDLotSize(5000, 2, 4200, 4185, account, 'Intraday', 'EXNESS');
+      const perLot = account === 'Cent' ? 15 : 15 * 100 + calc.contractSpecs.commissionPerLot;
+      expect(calc.actualRiskDollars).toBeCloseTo(calc.lotSize * perLot, 1);
+    }
+  });
+
+  test('a zero balance is handled without dividing by zero', () => {
+    const calc = calculateXAUUSDLotSize(0, 1, 4200, 4190, 'Standard', 'Intraday', 'EXNESS');
+    expect(calc.actualRiskDollars).toBe(0);
+    expect(calc.exceedsRiskBudget).toBe(false);
   });
 });

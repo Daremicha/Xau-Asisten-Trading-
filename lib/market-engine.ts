@@ -1,3 +1,4 @@
+import { deriveAdaptiveWeights } from './learning-engine';
 import {
   ForexFactoryEvent,
   AdaptiveStrategyEngineWeights,
@@ -73,7 +74,16 @@ export function calculateXAUUSDLotSize(
   brokerId: BrokerId = 'EXNESS'
 ): {
   lotSize: number;
+  /** The risk the user asked for. */
   riskDollars: number;
+  /**
+   * What the recommended lot actually risks. When the broker's minimum lot is
+   * larger than the budget allows, this exceeds riskDollars, and saying so
+   * matters more than the tidy number the user asked for.
+   */
+  actualRiskDollars: number;
+  /** True when the minimum lot forces more risk than the budget allows. */
+  exceedsRiskBudget: boolean;
   stopLossPips: number;
   priceDistance: number;
   contractSpecs: ContractSpecification;
@@ -84,6 +94,8 @@ export function calculateXAUUSDLotSize(
     return {
       lotSize: 0.01,
       riskDollars: 0,
+      actualRiskDollars: 0,
+      exceedsRiskBudget: false,
       stopLossPips: 0,
       priceDistance: 0,
       contractSpecs: specs,
@@ -107,10 +119,13 @@ export function calculateXAUUSDLotSize(
     rawLot = riskDollars / lossPerCentLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(500.0, rawLot));
+    const actualRiskDollars = parseFloat((lotSize * lossPerCentLot).toFixed(2));
 
     return {
       lotSize,
       riskDollars,
+      actualRiskDollars,
+      exceedsRiskBudget: actualRiskDollars > riskDollars + 0.005,
       stopLossPips,
       priceDistance: parseFloat(validDistance.toFixed(2)),
       contractSpecs: specs,
@@ -123,10 +138,13 @@ export function calculateXAUUSDLotSize(
     rawLot = riskDollars / dollarLossPerProLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(50.0, rawLot));
+    const actualRiskDollars = parseFloat((lotSize * dollarLossPerProLot).toFixed(2));
 
     return {
       lotSize,
       riskDollars,
+      actualRiskDollars,
+      exceedsRiskBudget: actualRiskDollars > riskDollars + 0.005,
       stopLossPips,
       priceDistance: parseFloat(validDistance.toFixed(2)),
       contractSpecs: specs,
@@ -138,10 +156,13 @@ export function calculateXAUUSDLotSize(
   rawLot = riskDollars / dollarLossPerStandardLot;
   rawLot = Math.floor(rawLot * 100) / 100;
   const lotSize = Math.max(0.01, Math.min(50.0, rawLot));
+  const actualRiskDollars = parseFloat((lotSize * dollarLossPerStandardLot).toFixed(2));
 
   return {
     lotSize,
     riskDollars,
+    actualRiskDollars,
+    exceedsRiskBudget: actualRiskDollars > riskDollars + 0.005,
     stopLossPips,
     priceDistance: parseFloat(validDistance.toFixed(2)),
     contractSpecs: specs,
@@ -446,67 +467,15 @@ export function filterUpcomingEconomicEvents(events: ForexFactoryEvent[]): Forex
 }
 
 /**
- * Calculates adaptive weights from stored self-learning records.
+ * Adaptive weights for the current history.
+ *
+ * Delegates to the learning engine, which weights evidence by recency, scales
+ * every adjustment by how much data supports it, and keeps the confluence
+ * weights a proper distribution. Kept here so existing callers need no change.
  */
 export function recalculateEngineWeights(
-  records: SelfLearningMemoryRecord[]
+  records: SelfLearningMemoryRecord[],
+  style?: TradingStyle
 ): AdaptiveStrategyEngineWeights {
-  const baseWeights: AdaptiveStrategyEngineWeights = {
-    orderBlockWeight: 0.28,
-    fairValueGapWeight: 0.24,
-    liquiditySweepWeight: 0.22,
-    newsImpactWeight: 0.14,
-    indicatorConfluenceWeight: 0.12,
-    atrBufferFactor: 1.25,
-    totalAnalysesLearned: records.length,
-    historicalWinRate: 0,
-  };
-
-  if (records.length === 0) {
-    return baseWeights;
-  }
-
-  const wins = records.filter((r) => r.outcome === 'TP').length;
-  const losses = records.filter((r) => r.outcome === 'SL').length;
-  const triggered = wins + losses;
-  // With no resolved trade there is no win rate to report. Zero is honest; a
-  // flattering default would misrepresent an untested engine.
-  baseWeights.historicalWinRate =
-    triggered > 0 ? parseFloat(((wins / triggered) * 100).toFixed(1)) : 0;
-
-  // Incorporate delta learning from past outcomes (TP, SL, and MISSED)
-  let totalFvgDelta = 0;
-  let totalObDelta = 0;
-  let totalNewsDelta = 0;
-  let accumulatedAtrBuffer = 1.25;
-
-  records.forEach((record) => {
-    if (record.adaptiveWeightAdjustments) {
-      totalFvgDelta += record.adaptiveWeightAdjustments.fvgWeightDelta || 0;
-      totalObDelta += record.adaptiveWeightAdjustments.orderBlockWeightDelta || 0;
-      totalNewsDelta += record.adaptiveWeightAdjustments.newsFilterWeightDelta || 0;
-      // Honour the multiplier the post mortem asked for, then nudge further on
-      // a stop out so repeated noise stop outs progressively widen the buffer.
-      const askedFor = record.adaptiveWeightAdjustments.atrBufferMultiplier;
-      if (typeof askedFor === 'number' && askedFor > 1) {
-        accumulatedAtrBuffer = Math.min(2.5, accumulatedAtrBuffer * ((askedFor - 1) * 0.25 + 1));
-      }
-      if (record.outcome === 'SL') {
-        // Broaden ATR buffer slightly when market noise causes premature stop outs
-        accumulatedAtrBuffer = Math.min(2.5, accumulatedAtrBuffer + 0.05);
-      } else if (record.outcome === 'MISSED') {
-        // When price misses the pending order, the limit order was set too deep.
-        // Increase Fair Value Gap 50% equilibrium weight and normalize entry tolerance
-        totalFvgDelta += 0.02;
-        totalObDelta -= 0.01;
-      }
-    }
-  });
-
-  baseWeights.fairValueGapWeight = Math.max(0.1, Math.min(0.4, baseWeights.fairValueGapWeight + totalFvgDelta));
-  baseWeights.orderBlockWeight = Math.max(0.1, Math.min(0.4, baseWeights.orderBlockWeight + totalObDelta));
-  baseWeights.newsImpactWeight = Math.max(0.05, Math.min(0.3, baseWeights.newsImpactWeight + totalNewsDelta));
-  baseWeights.atrBufferFactor = parseFloat(Math.min(2.5, accumulatedAtrBuffer).toFixed(2));
-
-  return baseWeights;
+  return deriveAdaptiveWeights(records, style);
 }

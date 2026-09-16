@@ -258,18 +258,30 @@ export function selectEntry(
   const candidates: EntryCandidate[] = [];
   const isLong = direction === 'long';
 
+  // Orders that kept missing taught the engine how many pips too deep they sat.
+  // Every candidate is pulled that much toward price, but never past it.
+  const learnedBuffer = Math.max(0, weights.entryBufferPips ?? 0) / 10;
+  const pullTowardPrice = (level: number) => {
+    const shifted = isLong ? level + learnedBuffer : level - learnedBuffer;
+    return isLong ? Math.min(shifted, price) : Math.max(shifted, price);
+  };
+
   // A level is only usable if it sits on the retracement side of price.
   const obNear = isLong ? exec.orderBlock.high : exec.orderBlock.low;
   const obMid = (exec.orderBlock.high + exec.orderBlock.low) / 2;
   if (isLong ? obNear < price : obNear > price) {
     candidates.push({
-      price: round2(obMid),
+      price: round2(pullTowardPrice(obMid)),
       anchor: 'Order Block',
       weight: weights.orderBlockWeight,
-      detail: `Entry at the mean threshold of the ${exec.orderBlock.type}.`,
+      detail: `Entry at the mean threshold of the ${exec.orderBlock.type}.${
+        learnedBuffer > 0
+          ? ` Pulled ${priceToPips(learnedBuffer)} pips toward price, learned from orders that did not fill.`
+          : ''
+      }`,
     });
     candidates.push({
-      price: round2(obNear),
+      price: round2(pullTowardPrice(obNear)),
       anchor: 'Order Block',
       // The edge is a shallower fill, so it carries slightly less conviction.
       weight: weights.orderBlockWeight * 0.9,
@@ -282,13 +294,13 @@ export function selectEntry(
     const fvgMid = (exec.fairValueGap.top + exec.fairValueGap.bottom) / 2;
     if (isLong ? fvgNear < price : fvgNear > price) {
       candidates.push({
-        price: round2(fvgMid),
+        price: round2(pullTowardPrice(fvgMid)),
         anchor: 'Fair Value Gap',
         weight: weights.fairValueGapWeight,
         detail: `Entry at the 50 percent consequent encroachment of the ${exec.fairValueGap.type}.`,
       });
       candidates.push({
-        price: round2(fvgNear),
+        price: round2(pullTowardPrice(fvgNear)),
         anchor: 'Fair Value Gap',
         weight: weights.fairValueGapWeight * 0.9,
         detail: `Entry at the near edge of the ${exec.fairValueGap.type}, which fills earlier than its 50 percent level.`,

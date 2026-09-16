@@ -615,6 +615,17 @@ Ready for direct execution in MetaTrader 5.`;
                     ${setup.riskDollarAmount.toFixed(2)} ({setup.riskPercentage}%)
                   </strong>
                 </div>
+                {/* The broker's minimum lot can risk more than the budget allows.
+                    Showing only the budget would understate the real exposure. */}
+                {setup.exceedsRiskBudget && typeof setup.actualRiskDollars === 'number' && (
+                  <div className="text-rose-400">
+                    Actual risk:{' '}
+                    <strong>${setup.actualRiskDollars.toFixed(2)}</strong>
+                    <span className="text-[10px] block leading-snug mt-0.5">
+                      Broker minimum lot exceeds your budget. Lower the stop distance or raise the balance.
+                    </span>
+                  </div>
+                )}
                 <div>
                   Risk-to-Reward:{' '}
                   <strong className="text-emerald-500 font-bold">{setup.riskRewardRatio}</strong>

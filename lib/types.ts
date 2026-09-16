@@ -272,6 +272,8 @@ export interface SelfLearningMemoryRecord {
     liquidityBehavior: string;
   };
   strategyEvolutionLesson: string;
+  /** Style the trade was taken with, so learning can be segmented by it. */
+  tradingStyle?: TradingStyle;
   adaptiveWeightAdjustments: {
     fvgWeightDelta: number;
     orderBlockWeightDelta: number;
@@ -313,6 +315,10 @@ export interface InstitutionalTradingSetup {
   stopLossPips: number;
   recommendedLotSize: number;
   riskDollarAmount: number;
+  /** What the recommended lot actually risks, which can exceed the budget when
+   *  the broker's minimum lot is larger than the budget allows. */
+  actualRiskDollars?: number;
+  exceedsRiskBudget?: boolean;
   riskPercentage: number;
   multiTimeframeAlignment: {
     d1: SmcStructure;
@@ -348,4 +354,6 @@ export interface AdaptiveStrategyEngineWeights {
   atrBufferFactor: number; // e.g. 1.25x ATR
   totalAnalysesLearned: number;
   historicalWinRate: number;
+  /** Pips to pull entries closer to price, learned from orders that never filled. */
+  entryBufferPips?: number;
 }
