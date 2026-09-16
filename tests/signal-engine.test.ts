@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { Candle } from '../lib/candles';
-import { buildSignal, resolveOrderType, STYLE_PROFILES, type SignalInputs } from '../lib/signal-engine';
+import {
+  buildSignal,
+  maxEntryDistance,
+  resolveOrderType,
+  STYLE_PROFILES,
+  type SignalInputs,
+} from '../lib/signal-engine';
 import type {
   AdaptiveStrategyEngineWeights,
   SmcStructure,
@@ -320,5 +326,119 @@ describe('the style ceiling is absolute', () => {
       if (d.direction === 'long') expect(d.takeProfit1).toBeGreaterThan(d.entryPrice);
       else expect(d.takeProfit1).toBeLessThan(d.entryPrice);
     }
+  });
+});
+
+describe('the entry must be reachable, not merely correct', () => {
+  /**
+   * Places a bullish FVG whose midpoint sits a chosen distance below price,
+   * like a rally that ran away from its own imbalance. halfWidth stays small
+   * enough that the whole gap remains below price.
+   */
+  function withFvgAt(
+    distanceBelow: number,
+    style: 'Scalping' | 'Intraday' | 'Swing' = 'Intraday',
+    halfWidth = Math.min(1.5, distanceBelow / 3)
+  ) {
+    const far = structure('H1', 'Bullish', true);
+    far.fairValueGap = {
+      detected: true,
+      type: 'Bullish FVG',
+      top: PRICE - distanceBelow + halfWidth,
+      bottom: PRICE - distanceBelow - halfWidth,
+      status: 'Open',
+    };
+    // Push the order block out of the way so the gap is the only candidate.
+    far.orderBlock = { ...far.orderBlock, high: PRICE + 50, low: PRICE + 40 };
+    return inputs({
+      tradingStyle: style,
+      structures: {
+        d1: structure('D1', 'Bullish', true),
+        h4: structure('H4', 'Bullish', true),
+        h1: far,
+        m15: structure('M15', 'Bullish', true),
+      },
+    });
+  }
+
+  test('a level far below price is not silently used as an intraday entry', () => {
+    // The reported case: market 4338, the H1 imbalance midpoint at 4306, an
+    // order 315 pips away that would not fill inside the session.
+    const d = buildSignal(withFvgAt(31.5, 'Intraday', 11.5));
+    expect(d.entryOutOfReach).toBe(true);
+    expect(d.rationale).toContain('may not fill');
+  });
+
+  test('when nothing is in reach it still picks the closest level available', () => {
+    // Gap spans PRICE-43 to PRICE-20. Its midpoint is 31.5 away, its near edge
+    // only 20, so the near edge is what gets quoted.
+    const d = buildSignal(withFvgAt(31.5, 'Intraday', 11.5));
+    expect(d.entryPrice).toBeCloseTo(PRICE - 20, 2);
+    expect(d.entryDistancePips).toBeCloseTo(200, 0);
+  });
+
+  test('when the midpoint is out of reach the near edge is used instead', () => {
+    // Gap from PRICE-14 to PRICE-2: midpoint is 8 away, near edge only 2.
+    const near = structure('H1', 'Bullish', true);
+    near.fairValueGap = { detected: true, type: 'Bullish FVG', top: PRICE - 2, bottom: PRICE - 14, status: 'Open' };
+    near.orderBlock = { ...near.orderBlock, high: PRICE + 50, low: PRICE + 40 };
+    const d = buildSignal(
+      inputs({
+        tradingStyle: 'Scalping',
+        structures: {
+          d1: structure('D1', 'Bullish', true),
+          h4: structure('H4', 'Bullish', true),
+          h1: near,
+          m15: structure('M15', 'Bullish', true),
+        },
+      })
+    );
+    expect(d.entryOutOfReach).toBe(false);
+    expect(d.entryPrice).toBeCloseTo(PRICE - 2, 2);
+    expect(d.rationale).toContain('near edge');
+  });
+
+  test('a swing trade tolerates a distance an intraday trade rejects', () => {
+    expect(buildSignal(withFvgAt(22, 'Intraday')).entryOutOfReach).toBe(true);
+    expect(buildSignal(withFvgAt(22, 'Swing')).entryOutOfReach).toBe(false);
+  });
+
+  test('a scalp rejects a distance an intraday trade accepts', () => {
+    // At ATR 8 the scalp reach is 6.40 and the intraday reach is 12.00, so a
+    // level 9 dollars away separates the two styles.
+    expect(buildSignal(withFvgAt(9, 'Scalping')).entryOutOfReach).toBe(true);
+    expect(buildSignal(withFvgAt(9, 'Intraday')).entryOutOfReach).toBe(false);
+  });
+
+  test('reach scales with volatility, so a quiet market is not over-restricted', () => {
+    const calm = maxEntryDistance(STYLE_PROFILES.Intraday, 2);
+    const wild = maxEntryDistance(STYLE_PROFILES.Intraday, 30);
+    expect(wild).toBeGreaterThan(calm);
+    // The floor keeps a very quiet market tradeable.
+    expect(calm).toBe(STYLE_PROFILES.Intraday.minEntryReachDollars);
+  });
+
+  test('an unreachable entry is reported with less conviction', () => {
+    const reachable = buildSignal(withFvgAt(6));
+    const unreachable = buildSignal(withFvgAt(31.5));
+    expect(unreachable.confidenceScore).toBeLessThan(reachable.confidenceScore);
+  });
+
+  test('the distance to the entry is always reported', () => {
+    const d = buildSignal(withFvgAt(9, 'Swing'));
+    expect(d.entryDistancePips).toBeCloseTo(90, 0);
+  });
+
+  test('a normal setup is not flagged', () => {
+    const d = buildSignal(inputs());
+    expect(d.entryOutOfReach).toBe(false);
+    expect(d.rationale).not.toContain('may not fill');
+  });
+
+  test('order geometry survives an out of reach entry', () => {
+    const d = buildSignal(withFvgAt(31.5));
+    expect(d.stopLoss).toBeLessThan(d.entryPrice);
+    expect(d.takeProfit1).toBeGreaterThan(d.entryPrice);
+    expect(d.takeProfit3).toBeGreaterThan(d.takeProfit2);
   });
 });
