@@ -1,0 +1,8 @@
+{
+  "name": "Remix Asisten Trading XAUUSD ",
+  "description": "Asisten Trading XAUUSD ",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
