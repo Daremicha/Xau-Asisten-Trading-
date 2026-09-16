@@ -512,3 +512,69 @@ describe('lot sizing reports the risk actually taken', () => {
     expect(calc.exceedsRiskBudget).toBe(false);
   });
 });
+
+describe('EMA structure and RSI genuinely steer the signal', () => {
+  /** Reads a named confluence factor out of a decision. */
+  const factor = (d: ReturnType<typeof buildSignal>, name: string) =>
+    d.factors.find((f) => f.name === name)!;
+
+  test('EMA 50 is no longer ignored: the stack is read, not just EMA 200', () => {
+    const stacked = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE - 4, ema200: PRICE - 14 } }));
+    const pullback = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE + 4, ema200: PRICE - 14 } }));
+    // Same EMA 200 relationship, different EMA 50, so the vote must differ.
+    expect(factor(stacked, 'EMA structure').direction).not.toBe(
+      factor(pullback, 'EMA structure').direction
+    );
+  });
+
+  test('a fully stacked uptrend votes strongly long', () => {
+    const d = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE - 4, ema200: PRICE - 14 } }));
+    expect(factor(d, 'EMA structure').direction).toBe(1);
+    expect(factor(d, 'EMA structure').detail).toContain('stacked uptrend');
+  });
+
+  test('a fully stacked downtrend votes strongly short', () => {
+    const d = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE + 4, ema200: PRICE + 14 } }));
+    expect(factor(d, 'EMA structure').direction).toBe(-1);
+  });
+
+  test('a pullback inside an uptrend is recognised as a retracement, not a reversal', () => {
+    const d = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE + 2, ema200: PRICE - 14 } }));
+    const v = factor(d, 'EMA structure');
+    expect(v.direction).toBeGreaterThan(0);
+    expect(v.direction).toBeLessThan(1);
+    expect(v.detail).toContain('retracement inside an uptrend');
+  });
+
+  test('an overbought RSI argues against buying, not for it', () => {
+    const d = buildSignal(inputs({ indicators: { ...INDICATORS, rsi14: 78 } }));
+    expect(factor(d, 'RSI').direction).toBeLessThan(0);
+    expect(factor(d, 'RSI').detail).toContain('overbought');
+  });
+
+  test('an oversold RSI argues against selling', () => {
+    const d = buildSignal(inputs({ indicators: { ...INDICATORS, rsi14: 22 } }));
+    expect(factor(d, 'RSI').direction).toBeGreaterThan(0);
+  });
+
+  test('RSI between the extremes is graded, not a single threshold', () => {
+    const mild = buildSignal(inputs({ indicators: { ...INDICATORS, rsi14: 55 } }));
+    const strong = buildSignal(inputs({ indicators: { ...INDICATORS, rsi14: 65 } }));
+    expect(factor(strong, 'RSI').direction).toBeGreaterThan(factor(mild, 'RSI').direction);
+  });
+
+  test('a divergence shifts the RSI vote', () => {
+    const plain = buildSignal(inputs({ indicators: { ...INDICATORS, rsi14: 50, rsiCondition: 'Neutral' } }));
+    const diverging = buildSignal(
+      inputs({ indicators: { ...INDICATORS, rsi14: 50, rsiCondition: 'Bullish Divergence' } })
+    );
+    expect(factor(diverging, 'RSI').direction).toBeGreaterThan(factor(plain, 'RSI').direction);
+  });
+
+  test('all three indicator readings are reported separately to the user', () => {
+    const d = buildSignal(inputs());
+    for (const name of ['EMA structure', 'RSI', 'Stochastic']) {
+      expect(d.factors.some((f) => f.name === name)).toBe(true);
+    }
+  });
+});

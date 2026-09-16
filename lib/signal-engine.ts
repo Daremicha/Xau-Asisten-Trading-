@@ -190,17 +190,78 @@ export function scoreConfluence(inputs: SignalInputs): {
     detail: pools.sweepDetail ?? 'No pool taken.',
   });
 
-  const emaVote = indicators.trendFromEma === 'Bullish' ? 1 : indicators.trendFromEma === 'Bearish' ? -1 : 0;
-  const rsiVote = indicators.rsi14 > 55 ? 0.5 : indicators.rsi14 < 45 ? -0.5 : 0;
+  // Moving average structure, read as a stack rather than a single line. EMA 50
+  // was computed and then ignored; the relationship between the two averages,
+  // and where price sits against each, is the part that carries information.
+  const aboveFast = price > indicators.ema50;
+  const aboveSlow = price > indicators.ema200;
+  const fastAboveSlow = indicators.ema50 > indicators.ema200;
+
+  let emaVote = 0;
+  let emaDescription: string;
+  if (aboveFast && aboveSlow && fastAboveSlow) {
+    emaVote = 1;
+    emaDescription = 'Price above both averages with EMA 50 over EMA 200, a fully stacked uptrend.';
+  } else if (!aboveFast && !aboveSlow && !fastAboveSlow) {
+    emaVote = -1;
+    emaDescription = 'Price below both averages with EMA 50 under EMA 200, a fully stacked downtrend.';
+  } else if (aboveSlow && !aboveFast) {
+    // Pulling back inside the stack: the trend holds but momentum has paused.
+    emaVote = 0.4;
+    emaDescription = 'Price has pulled back below EMA 50 while holding above EMA 200, a retracement inside an uptrend.';
+  } else if (!aboveSlow && aboveFast) {
+    emaVote = -0.4;
+    emaDescription = 'Price has bounced above EMA 50 while capped below EMA 200, a retracement inside a downtrend.';
+  } else {
+    emaVote = fastAboveSlow ? 0.2 : -0.2;
+    emaDescription = 'The moving averages disagree with price, so trend structure is unresolved.';
+  }
+  factors.push({
+    name: 'EMA structure',
+    direction: emaVote,
+    weight: weights.indicatorConfluenceWeight,
+    detail: `${emaDescription} EMA 50 ${indicators.ema50.toFixed(2)}, EMA 200 ${indicators.ema200.toFixed(2)}.`,
+  });
+
+  // RSI, graded rather than a single threshold, and read against the trend.
+  // An extreme reading argues against chasing the move, not for it.
+  const rsi = indicators.rsi14;
+  let rsiVote: number;
+  let rsiDescription: string;
+  if (rsi >= 70) {
+    rsiVote = -0.6;
+    rsiDescription = `RSI ${rsi.toFixed(1)} is overbought, which argues against buying an extended move.`;
+  } else if (rsi <= 30) {
+    rsiVote = 0.6;
+    rsiDescription = `RSI ${rsi.toFixed(1)} is oversold, which argues against selling an extended move.`;
+  } else {
+    // Between the extremes it is a momentum reading, scaled by distance from 50.
+    rsiVote = ((rsi - 50) / 20) * 0.6;
+    rsiDescription = `RSI ${rsi.toFixed(1)} leans ${rsi > 50 ? 'bullish' : rsi < 50 ? 'bearish' : 'neutral'}.`;
+  }
+  if (indicators.rsiCondition === 'Bullish Divergence') {
+    rsiVote += 0.5;
+    rsiDescription += ' A bullish divergence is present.';
+  } else if (indicators.rsiCondition === 'Bearish Divergence') {
+    rsiVote -= 0.5;
+    rsiDescription += ' A bearish divergence is present.';
+  }
+  factors.push({
+    name: 'RSI',
+    direction: rsiVote,
+    weight: weights.indicatorConfluenceWeight,
+    detail: rsiDescription,
+  });
+
   const stochVote =
     indicators.stochasticSignal === 'Oversold Cross' ? 0.5 : indicators.stochasticSignal === 'Overbought Cross' ? -0.5 : 0;
   factors.push({
-    name: 'Indicator confluence',
-    direction: emaVote + rsiVote + stochVote,
-    weight: weights.indicatorConfluenceWeight,
-    detail: `Price ${indicators.trendFromEma} against EMA200 ${indicators.ema200.toFixed(
-      2
-    )}, RSI ${indicators.rsi14.toFixed(1)}, stochastic ${indicators.stochasticSignal}.`,
+    name: 'Stochastic',
+    direction: stochVote,
+    weight: weights.indicatorConfluenceWeight * 0.6,
+    detail: `Stochastic ${indicators.stochasticK.toFixed(1)} over ${indicators.stochasticD.toFixed(
+      1
+    )}, reading ${indicators.stochasticSignal}.`,
   });
 
   // Discount favours longs, premium favours shorts.
