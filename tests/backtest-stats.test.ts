@@ -176,3 +176,17 @@ describe('learning curve', () => {
     expect(rollingWinRate([win(10), loss(-10)], 20)).toHaveLength(0);
   });
 });
+
+describe('a cent account average that used to read zero', () => {
+  test('an average under one cent is reported, not rounded away', () => {
+    // The user's own run: 6.55 dollars over 1457 filled trades is 0.45 cent a
+    // trade, which two decimal rounding turned into "+0.00 Cent" beside a net
+    // of +655 Cent.
+    const trades = Array.from({ length: 1457 }, (_, i) =>
+      trade({ sequence: i + 1, netDollars: 6.55 / 1457, outcome: 'TP' })
+    );
+    const stats = summariseTrades(trades, 9.1);
+    expect(stats.expectancyDollars).toBe(0.0045);
+    expect(stats.netDollars).toBeCloseTo(6.55, 3);
+  });
+});

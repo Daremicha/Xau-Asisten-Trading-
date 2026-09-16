@@ -8,6 +8,7 @@
  */
 
 import { BacktestResult, BacktestTrade } from './backtest-engine';
+import { roundMoney } from './trade-result';
 
 export interface BacktestStats {
   /** Orders the engine produced, filled or not. */
@@ -39,6 +40,13 @@ export interface BacktestStats {
 function round(value: number, places = 2): number {
   return parseFloat(value.toFixed(places));
 }
+
+/**
+ * Percentages and ratios round to two places; money does not. Two decimals of
+ * a dollar is a whole unit on a cent account, which is how an average of 0.45
+ * cent a trade came to be displayed as zero.
+ */
+const money = roundMoney;
 
 export function summariseTrades(trades: BacktestTrade[], startingEquity: number): BacktestStats {
   const filled = trades.filter((t) => t.filled);
@@ -80,17 +88,17 @@ export function summariseTrades(trades: BacktestTrade[], startingEquity: number)
     losses: losses.length,
     winRate: filled.length ? round((wins.length / filled.length) * 100, 1) : null,
     missRate: trades.length ? round((missed / trades.length) * 100, 1) : null,
-    netDollars: round(net),
+    netDollars: money(net),
     returnPercent: startingEquity > 0 ? round((net / startingEquity) * 100, 2) : 0,
     profitFactor: grossLoss > 0 ? round(grossProfit / grossLoss) : null,
-    expectancyDollars: filled.length ? round(net / filled.length) : null,
+    expectancyDollars: filled.length ? money(net / filled.length) : null,
     expectancyR: filled.length
       ? round(filled.reduce((acc, t) => acc + t.rMultiple, 0) / filled.length)
       : null,
     maxDrawdownPercent: round(maxDd, 1),
     worstLosingStreak: worstStreak,
     averageHoldingHours: filled.length ? round(holdSum / filled.length, 1) : null,
-    finalEquity: round(startingEquity + net),
+    finalEquity: money(startingEquity + net),
   };
 }
 
@@ -123,7 +131,7 @@ export function comparePhases(result: BacktestResult): PhaseComparison {
       : null;
   const expectancyDelta =
     firstStats.expectancyDollars !== null && secondStats.expectancyDollars !== null
-      ? round(secondStats.expectancyDollars - firstStats.expectancyDollars)
+      ? money(secondStats.expectancyDollars - firstStats.expectancyDollars)
       : null;
 
   // Ten filled trades a side is the least that can support any statement at
@@ -177,14 +185,14 @@ export function compareRuns(control: BacktestResult, adaptive: BacktestResult): 
   const controlStats = summariseTrades(control.trades, control.summary.startingEquity);
   const adaptiveStats = summariseTrades(adaptive.trades, adaptive.summary.startingEquity);
 
-  const netDelta = round(adaptiveStats.netDollars - controlStats.netDollars);
+  const netDelta = money(adaptiveStats.netDollars - controlStats.netDollars);
   const winRateDelta =
     controlStats.winRate !== null && adaptiveStats.winRate !== null
       ? round(adaptiveStats.winRate - controlStats.winRate, 1)
       : null;
   const expectancyDelta =
     controlStats.expectancyDollars !== null && adaptiveStats.expectancyDollars !== null
-      ? round(adaptiveStats.expectancyDollars - controlStats.expectancyDollars)
+      ? money(adaptiveStats.expectancyDollars - controlStats.expectancyDollars)
       : null;
 
   // A difference smaller than a tenth of a percent of the starting balance is

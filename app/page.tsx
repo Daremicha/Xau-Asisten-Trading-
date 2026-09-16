@@ -22,6 +22,7 @@ import {
 } from '@/lib/active-setup-store';
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
 import { trackPosition } from '@/lib/position-tracker';
+import { roundMoney } from '@/lib/trade-result';
 import PositionStatusCard from '@/components/PositionStatusCard';
 import {
   GUEST_STATUS,
@@ -883,7 +884,8 @@ export default function Home() {
           setEngineWeights(newWeights);
 
           // Update active balance according to trade outcome (0 change for MISSED)
-          const newEquity = Math.max(0, parseFloat((equity + (newRecord.profitOrLossDollars || 0)).toFixed(2)));
+          // Four decimals, because two is a whole unit on a cent account.
+          const newEquity = Math.max(0, roundMoney(equity + (newRecord.profitOrLossDollars || 0)));
           setEquity(newEquity);
 
           // The trade is resolved, so the held copy is no longer needed.

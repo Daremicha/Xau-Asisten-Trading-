@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { computeTradeResult, contractMultiplier } from '../lib/trade-result';
+import { computeTradeResult, contractMultiplier, roundMoney } from '../lib/trade-result';
 import type { InstitutionalTradingSetup } from '../lib/types';
 
 type ResultSetup = Parameters<typeof computeTradeResult>[0];
@@ -84,5 +84,22 @@ describe('trade result', () => {
       'SL'
     );
     expect(result.dollars).toBe(-100.7);
+  });
+});
+
+describe('precision small enough for a cent account', () => {
+  test('money keeps four decimals, because two is a whole cent unit', () => {
+    expect(roundMoney(0.27364)).toBe(0.2736);
+    expect(roundMoney(0.004495)).toBe(0.0045);
+  });
+
+  test('a cent trade is not flattened to a whole cent', () => {
+    // 0.01 lots on one ounce moved 27.36, which is 27.36 cent, not 27.00.
+    const result = computeTradeResult(
+      setup({ accountType: 'Cent', recommendedLotSize: 0.01, entryPrice: 4300 }),
+      4327.36,
+      'TP'
+    );
+    expect(result.dollars).toBe(0.2736);
   });
 });

@@ -237,10 +237,12 @@ describe('replay', () => {
   });
 
   test('equity is the running sum of the results', () => {
+    // Four decimals, matching what the engine keeps: two would be a whole unit
+    // on a cent account and the sum would drift away from the ledger.
     let equity = 5000;
     for (const trade of result.trades) {
-      equity = parseFloat((equity + trade.netDollars).toFixed(2));
-      expect(trade.equityAfter).toBeCloseTo(equity, 2);
+      equity = parseFloat((equity + trade.netDollars).toFixed(4));
+      expect(trade.equityAfter).toBeCloseTo(equity, 4);
     }
   });
 
