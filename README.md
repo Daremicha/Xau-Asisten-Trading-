@@ -174,6 +174,14 @@ adjust the adaptive weights, which change the entry anchor, the stop buffer and
 how each confluence is weighted on the next signal. A per-style stop ceiling
 keeps a long losing run from turning an intraday setup into a swing trade.
 
+**Learning chases fills only when fills pay.** Orders that never filled tell the
+engine its entries sit too deep, and it answers by moving them closer to price.
+That only helps when an average filled trade makes money: a missed order costs
+nothing, so filling more of a losing setup is worse than missing it. The engine
+measures the money result of an average fill and leaves entries at their levels
+when it is negative. The correction is also capped at 40% of the style's maximum
+stop, so an entry can never be dragged off the level that justified it.
+
 **Missing data is reported, never invented.** If no provider answers, the app
 says so and refuses to build a signal rather than showing a made up price.
 
@@ -215,6 +223,23 @@ from there. The choice is stored with your profile and can be reverted.
 - Historical economic releases are not available to the app, so the news shield
   is inactive for the whole replay.
 - Slippage, execution gaps over the weekend and swap are not modelled.
+
+### Choosing which setups are worth taking
+
+The report ends with a breakdown of the run by the conviction each setup scored
+when it was taken: signals, fills, strike rate, average result and net, per
+band. It is the cheapest honest answer to "should the engine trade less" —
+the trades already happened, so grouping them by their score shows which bands
+paid for themselves and which funded the losses, with no extra replay.
+
+Underneath it, the report states what refusing everything below each floor
+would have left. If a floor looks worth it, set the same number in **Only trade
+conviction above** under Capital & Account Configuration and re-run the
+backtest to trade it properly, with sizing and compounding applied.
+
+With a floor set, a live analysis that finds nothing good enough says so and
+offers no order, naming the score it reached and why. Skipping costs nothing; a
+weak fill does not.
 
 ### History depth
 

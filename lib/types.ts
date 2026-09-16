@@ -284,6 +284,17 @@ export interface SelfLearningMemoryRecord {
   };
 }
 
+/** Why the engine declined to produce a setup, so the screen can say so. */
+export interface SkippedSetup {
+  reason: 'below-conviction';
+  convictionScore: number;
+  band: 'Low' | 'Moderate' | 'High';
+  threshold: number;
+  direction: 'long' | 'short';
+  notes: string[];
+  rationale: string;
+}
+
 /**
  * A trade the user has finished with: the closed setup plus the record the
  * learning engine kept. Held only so the screen can show what just happened

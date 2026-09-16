@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   comparePhases,
   compareRuns,
+  convictionBreakdown,
+  netAboveThreshold,
   rollingWinRate,
   summariseTrades,
 } from '../lib/backtest-stats';
@@ -30,6 +32,7 @@ function trade(overrides: Partial<BacktestTrade> = {}): BacktestTrade {
     rMultiple: 1.3,
     equityAfter: 5132,
     confidenceScore: 60,
+    convictionScore: 60,
     holdingHours: 1,
     ...overrides,
   };
@@ -93,6 +96,8 @@ function result(trades: BacktestTrade[], startingEquity = 5000): BacktestResult 
       riskPercentage: 1,
       adaptive: true,
       skipped: 0,
+      minConviction: 0,
+      belowConviction: 0,
     },
     trades,
     equityCurve: [],
@@ -188,5 +193,44 @@ describe('a cent account average that used to read zero', () => {
     const stats = summariseTrades(trades, 9.1);
     expect(stats.expectancyDollars).toBe(0.0045);
     expect(stats.netDollars).toBeCloseTo(6.55, 3);
+  });
+});
+
+describe('which conviction bands actually paid', () => {
+  const trades = [
+    trade({ convictionScore: 30, netDollars: -50, outcome: 'SL' }),
+    trade({ convictionScore: 35, netDollars: -70, outcome: 'SL' }),
+    trade({ convictionScore: 45, netDollars: 20, outcome: 'TP' }),
+    trade({ convictionScore: 60, netDollars: 90, outcome: 'TP' }),
+    trade({ convictionScore: 75, netDollars: 120, outcome: 'TP' }),
+    trade({ convictionScore: 80, filled: false, outcome: 'MISSED', netDollars: 0 }),
+  ];
+
+  test('each band reports only its own trades', () => {
+    const buckets = convictionBreakdown(trades);
+    expect(buckets.map((b) => b.signals)).toEqual([2, 1, 1, 2]);
+    expect(buckets[0].netDollars).toBe(-120);
+    expect(buckets[0].winRate).toBe(0);
+    expect(buckets[3].filled).toBe(1);
+    expect(buckets[3].winRate).toBe(100);
+  });
+
+  test('a band with no trades reports nothing rather than zero percent', () => {
+    const buckets = convictionBreakdown([trade({ convictionScore: 80, netDollars: 10 })]);
+    expect(buckets[0].signals).toBe(0);
+    expect(buckets[0].winRate).toBeNull();
+    expect(buckets[0].expectancyDollars).toBeNull();
+  });
+
+  test('a threshold drops everything below it', () => {
+    // The losers sit under 40, so refusing them turns -120 into the rest.
+    expect(netAboveThreshold(trades, 0)).toBe(110);
+    expect(netAboveThreshold(trades, 40)).toBe(230);
+    expect(netAboveThreshold(trades, 70)).toBe(120);
+    expect(netAboveThreshold(trades, 101)).toBe(0);
+  });
+
+  test('an unfilled order contributes nothing at any threshold', () => {
+    expect(netAboveThreshold([trades[5]], 0)).toBe(0);
   });
 });

@@ -35,6 +35,11 @@ export interface ValidatedAnalyzeRequest {
   userId: string;
   pastLearningRecords: SelfLearningMemoryRecord[];
   /**
+   * Lowest conviction the user is willing to trade, zero to one hundred. Zero
+   * accepts every setup, which is how the engine behaved before the filter.
+   */
+  minConviction: number;
+  /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
    */
@@ -60,6 +65,11 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
 
   const equity = isFiniteNumber(b.equity) ? b.equity : 1000;
   if (equity <= 0) errors.push('equity must be greater than zero.');
+
+  const minConviction = isFiniteNumber(b.minConviction) ? b.minConviction : 0;
+  if (minConviction < 0 || minConviction > 100) {
+    errors.push('minConviction must be between 0 and 100.');
+  }
 
   const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 1.0;
   if (riskPercentage <= 0 || riskPercentage > 100) {
@@ -102,6 +112,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       brokerId: (b.brokerId as BrokerId) ?? 'EXNESS',
       userId: typeof b.userId === 'string' && b.userId.length > 0 ? b.userId : 'guest',
       pastLearningRecords: (b.pastLearningRecords as SelfLearningMemoryRecord[]) ?? [],
+      minConviction,
       priorWeights,
     },
     errors: [],

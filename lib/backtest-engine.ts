@@ -63,6 +63,12 @@ export interface BacktestConfig {
   /** Bars to wait after a trade closes before looking for the next setup. */
   cooldownBars?: number;
   /**
+   * Lowest conviction worth trading, zero to one hundred. A setup scoring below
+   * it is skipped rather than taken, which is what a trader does when nothing
+   * on the chart is good enough. Zero takes everything.
+   */
+  minConviction?: number;
+  /**
    * Bars of history required before the first decision. Defaults to what the
    * timeframe needs; pinning it makes two runs over different slice lengths
    * directly comparable.
@@ -103,6 +109,8 @@ export interface BacktestTrade {
   rMultiple: number;
   equityAfter: number;
   confidenceScore: number;
+  /** Conviction the setup scored when it was taken, for quality analysis. */
+  convictionScore: number;
   /** Hours the order was on the book or in the market. */
   holdingHours: number;
 }
@@ -129,6 +137,10 @@ export interface BacktestRunSummary {
   adaptive: boolean;
   /** Decisions where the data did not support a setup at all. */
   skipped: number;
+  /** Conviction floor the run traded with. */
+  minConviction: number;
+  /** Setups the conviction floor rejected. */
+  belowConviction: number;
 }
 
 export interface BacktestResult {
@@ -397,6 +409,8 @@ export function createBacktest(config: BacktestConfig): Runner {
   let sequence = 0;
   let decisions = 0;
   let skipped = 0;
+  let belowConviction = 0;
+  const minConviction = Math.max(0, Math.min(100, config.minConviction ?? 0));
 
   const trades: BacktestTrade[] = [];
   const records: SelfLearningMemoryRecord[] = [];
@@ -457,6 +471,14 @@ export function createBacktest(config: BacktestConfig): Runner {
       dataStale: false,
       proposalRejected: false,
     });
+    // Nothing on this chart is good enough, so nothing is traded. Skipping is
+    // free; a bad fill is not.
+    if (conviction.convictionScore < minConviction) {
+      belowConviction += 1;
+      cursor = i + cooldownBars;
+      return;
+    }
+
     const riskUsed = effectiveRiskPercentage(riskPercentage, conviction.multiplier);
     const lot = calculateXAUUSDLotSize(
       equity,
@@ -517,6 +539,7 @@ export function createBacktest(config: BacktestConfig): Runner {
         rMultiple: 0,
         equityAfter: equity,
         confidenceScore: decision.confidenceScore,
+        convictionScore: conviction.convictionScore,
         holdingHours: parseFloat(((missBar.time - bar.time) / 3_600_000).toFixed(2)),
       };
       trades.push(trade);
@@ -569,6 +592,7 @@ export function createBacktest(config: BacktestConfig): Runner {
         lot.actualRiskDollars > 0 ? parseFloat((net / lot.actualRiskDollars).toFixed(2)) : 0,
       equityAfter: equity,
       confidenceScore: decision.confidenceScore,
+      convictionScore: conviction.convictionScore,
       holdingHours: parseFloat(((exitBar.time - fillBar.time) / 3_600_000).toFixed(2)),
     };
 
@@ -612,6 +636,8 @@ export function createBacktest(config: BacktestConfig): Runner {
           riskPercentage,
           adaptive,
           skipped,
+          minConviction,
+          belowConviction,
         },
         trades,
         equityCurve,

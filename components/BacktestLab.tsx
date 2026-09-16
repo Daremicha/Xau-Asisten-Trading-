@@ -27,7 +27,7 @@ import {
 import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } from '@/lib/backtest-client';
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
-import { rollingWinRate } from '@/lib/backtest-stats';
+import { convictionBreakdown, netAboveThreshold, rollingWinRate } from '@/lib/backtest-stats';
 import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 
@@ -47,6 +47,8 @@ interface BacktestLabProps {
 }
 
 const MONTH_CHOICES = [6, 12, 24];
+/** Conviction floors offered: off, then the three band boundaries. */
+const QUALITY_CHOICES = [0, 40, 55, 70];
 
 function formatDate(ms: number | null): string {
   if (ms === null) return '—';
@@ -68,6 +70,7 @@ export default function BacktestLab({
   const isDark = theme === 'dark';
   const [months, setMonths] = useState<number>(24);
   const [interval, setInterval] = useState<HistoryInterval>('15min');
+  const [minConviction, setMinConviction] = useState<number>(0);
   const [progress, setProgress] = useState<BacktestProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -89,6 +92,7 @@ export default function BacktestLab({
         brokerId,
         equity,
         riskPercentage,
+        minConviction,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -146,6 +150,22 @@ export default function BacktestLab({
     [result]
   );
 
+  /**
+   * Which conviction bands paid for themselves, measured on the fixed
+   * parameter run because that is the configuration a live account would use.
+   */
+  const quality = useMemo(() => {
+    if (!result) return null;
+    const buckets = convictionBreakdown(result.control.trades);
+    const floors = QUALITY_CHOICES.map((floor) => ({
+      floor,
+      net: netAboveThreshold(result.control.trades, floor),
+      trades: result.control.trades.filter((t) => t.filled && t.convictionScore >= floor).length,
+    }));
+    const best = floors.reduce((a, b) => (b.net > a.net ? b : a), floors[0]);
+    return { buckets, floors, best };
+  }, [result]);
+
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
 
   const panel = isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200';
@@ -186,7 +206,7 @@ export default function BacktestLab({
       </div>
 
       {/* Run configuration */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className={`border rounded-xl p-3 ${panel}`}>
           <div className={`text-[11px] mb-1.5 ${muted}`}>History to replay</div>
           <div className="flex gap-1.5">
@@ -235,6 +255,33 @@ export default function BacktestLab({
           </div>
           <p className={`text-[10px] mt-1.5 ${muted}`}>
             Structure is always read M15 → H1 → H4 → D1. This is the candle fills and exits are measured on.
+          </p>
+        </div>
+
+        <div className={`border rounded-xl p-3 ${panel}`}>
+          <div className={`text-[11px] mb-1.5 ${muted}`}>Only trade conviction above</div>
+          <div className="flex gap-1.5">
+            {QUALITY_CHOICES.map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                id={`backtest-quality-${choice}`}
+                disabled={running}
+                onClick={() => setMinConviction(choice)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                  minConviction === choice
+                    ? 'bg-sky-500/15 border-sky-500/60 text-sky-400'
+                    : isDark
+                    ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {choice === 0 ? 'All' : choice}
+              </button>
+            ))}
+          </div>
+          <p className={`text-[10px] mt-1.5 ${muted}`}>
+            Skipping a weak setup costs nothing. The breakdown below shows which bands paid.
           </p>
         </div>
 
@@ -309,6 +356,10 @@ export default function BacktestLab({
               </span>
             </div>
             <p className={muted}>
+              {result.control.summary.minConviction > 0 &&
+                `Only setups scoring ${result.control.summary.minConviction} or above were traded; ${result.control.summary.belowConviction.toLocaleString(
+                  'en-US'
+                )} were refused. `}
               Source: {result.coverage.provider ?? 'unknown'}.{' '}
               {result.coverage.complete
                 ? 'The provider supplied the whole period requested.'
@@ -555,6 +606,78 @@ export default function BacktestLab({
                     <Area type="monotone" dataKey="winRate" stroke="#10b981" strokeWidth={2} fill="none" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Which setups were worth taking */}
+          {quality && (
+            <div className={`border rounded-xl p-3 ${panel}`}>
+              <div className={`text-xs mb-2 ${strong}`}>
+                Which conviction bands paid, on the fixed parameter run
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className={muted}>
+                      <th className="text-left font-medium py-1">Conviction</th>
+                      <th className="text-right font-medium py-1">Signals</th>
+                      <th className="text-right font-medium py-1">Filled</th>
+                      <th className="text-right font-medium py-1">Won</th>
+                      <th className="text-right font-medium py-1">Per trade</th>
+                      <th className="text-right font-medium py-1">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {quality.buckets.map((bucket) => (
+                      <tr
+                        key={bucket.label}
+                        className={isDark ? 'border-t border-slate-800' : 'border-t border-slate-100'}
+                      >
+                        <td className={`py-1 font-sans ${muted}`}>{bucket.label}</td>
+                        <td className={`py-1 text-right ${muted}`}>{bucket.signals}</td>
+                        <td className={`py-1 text-right ${muted}`}>{bucket.filled}</td>
+                        <td className={`py-1 text-right ${strong}`}>
+                          {bucket.winRate === null ? '—' : `${bucket.winRate}%`}
+                        </td>
+                        <td
+                          className={`py-1 text-right ${
+                            bucket.expectancyDollars === null
+                              ? muted
+                              : bucket.expectancyDollars > 0
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                          }`}
+                        >
+                          {bucket.expectancyDollars === null ? '—' : money(bucket.expectancyDollars, true)}
+                        </td>
+                        <td
+                          className={`py-1 text-right font-bold ${
+                            bucket.netDollars > 0 ? 'text-emerald-400' : bucket.netDollars < 0 ? 'text-rose-400' : muted
+                          }`}
+                        >
+                          {money(bucket.netDollars, true)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className={`mt-2 text-[11px] leading-relaxed ${muted}`}>
+                Refusing everything below a floor would have left:{' '}
+                {quality.floors.map((f, i) => (
+                  <span key={f.floor}>
+                    {i > 0 && ' • '}
+                    <span className={f.floor === quality.best.floor ? 'text-emerald-400 font-bold' : ''}>
+                      {f.floor === 0 ? 'all setups' : `${f.floor}+`} {money(f.net, true)} from {f.trades} trades
+                    </span>
+                  </span>
+                ))}
+                .{' '}
+                {quality.best.floor === 0
+                  ? 'Taking everything was the best of these over this period, so a floor would not have helped.'
+                  : `A floor of ${quality.best.floor} was the best of these over this period. Set it above and re-run to trade it properly, with compounding and position sizing applied.`}
               </div>
             </div>
           )}
