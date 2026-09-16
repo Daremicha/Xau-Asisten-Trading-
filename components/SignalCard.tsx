@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { formatTimeLeft } from '@/lib/order-validity';
 import {
   InstitutionalTradingSetup,
   OrderExecutionType,
@@ -190,6 +191,25 @@ Ready for direct execution in MetaTrader 5.`;
   const distancePips = setup && currentPrice !== null ? parseFloat((Math.abs(currentPrice - setup.entryPrice) * 10).toFixed(1)) : 0;
 
   // Determine if price has run away towards TP without filling limit order
+  // A ticking clock, so the countdown below is derived rather than stored.
+  // Storing it would mean writing state from inside an effect on every tick.
+  const [nowMs, setNowMs] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    // Set once after mount so the server and client render the same first pass.
+    const first = setTimeout(() => setNowMs(Date.now()), 0);
+    return () => {
+      clearInterval(id);
+      clearTimeout(first);
+    };
+  }, []);
+
+  const pendingMinutesLeft = (() => {
+    if (!setup?.validUntil || nowMs === null) return null;
+    const deadline = new Date(setup.validUntil).getTime();
+    return Number.isFinite(deadline) ? (deadline - nowMs) / 60000 : null;
+  })();
+
   const priceRanPastTarget =
     currentPrice !== null &&
     ((setup?.orderType.includes('BUY') && currentPrice >= setup.takeProfit1) ||
@@ -540,14 +560,31 @@ Ready for direct execution in MetaTrader 5.`;
                 {/* How far price must travel to fill this order. Without it, a
                     level far from market looks the same as one about to fill. */}
                 {currentPrice !== null && !setup.orderType.includes('INSTANT') && (
-                  <div
-                    className={`text-[10px] font-mono mt-1 ${
-                      distancePips > 150 ? 'text-rose-400' : isDark ? 'text-slate-500' : 'text-slate-500'
-                    }`}
-                  >
-                    {distancePips} pips from market
-                    {distancePips > 150 ? ' • may not fill today' : ''}
-                  </div>
+                  <>
+                    <div
+                      className={`text-[10px] font-mono mt-1 ${
+                        distancePips > 150 ? 'text-rose-400' : isDark ? 'text-slate-500' : 'text-slate-500'
+                      }`}
+                    >
+                      {distancePips} pips from market
+                      {distancePips > 150 ? ' • may not fill today' : ''}
+                    </div>
+                    {/* A pending order is not valid forever. This is the point
+                        past which the structure it reads no longer describes
+                        the market. */}
+                    {setup.validUntil && setup.status === 'ACTIVE' && (
+                      <div
+                        className={`text-[10px] font-mono mt-0.5 ${
+                          pendingMinutesLeft !== null && pendingMinutesLeft <= 0
+                            ? 'text-rose-400'
+                            : 'text-amber-400'
+                        }`}
+                        title={setup.validityBasis}
+                      >
+                        {pendingMinutesLeft === null ? '' : formatTimeLeft(pendingMinutesLeft)}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -637,9 +674,31 @@ Ready for direct execution in MetaTrader 5.`;
                 <div>
                   Risk Budget:{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
-                    ${setup.riskDollarAmount.toFixed(2)} ({setup.riskPercentage}%)
+                    ${setup.riskDollarAmount.toFixed(2)} ({setup.effectiveRiskPercentage ?? setup.riskPercentage}%)
                   </strong>
                 </div>
+                {/* Why this lot and not a bigger one. The risk percentage the
+                    user set is a ceiling for the strongest setups, so a weaker
+                    read deliberately commits less of it. */}
+                {typeof setup.convictionScore === 'number' && (
+                  <div
+                    className={
+                      setup.convictionBand === 'High'
+                        ? 'text-emerald-400'
+                        : setup.convictionBand === 'Moderate'
+                        ? 'text-amber-400'
+                        : 'text-slate-400'
+                    }
+                    title={setup.convictionNotes?.join(' ')}
+                  >
+                    Conviction: <strong>{setup.convictionBand}</strong> ({setup.convictionScore}/100)
+                    {setup.convictionMultiplier !== undefined && setup.convictionMultiplier < 1 && (
+                      <span className="text-[10px] block leading-snug mt-0.5">
+                        Sized at {Math.round(setup.convictionMultiplier * 100)}% of your {setup.riskPercentage}% budget.
+                      </span>
+                    )}
+                  </div>
+                )}
                 {/* The broker's minimum lot can risk more than the budget allows.
                     Showing only the budget would understate the real exposure. */}
                 {setup.exceedsRiskBudget && typeof setup.actualRiskDollars === 'number' && (
