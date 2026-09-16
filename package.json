@@ -10,7 +10,8 @@
     "clean": "next clean",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "check:feed": "bun run scripts/check-feed.ts"
+    "check:feed": "bun run scripts/check-feed.ts",
+    "check:firebase": "bun run scripts/check-firebase.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
