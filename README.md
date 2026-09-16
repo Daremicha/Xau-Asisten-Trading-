@@ -42,12 +42,11 @@ Before clicking Deploy, open **Environment Variables** and add:
 
 Then deploy. This is the step that replaces editing a file.
 
-### 4. Let Firebase accept your new address
+### 4. Optional: enable Google sign-in
 
-Google sign-in will fail until you do this. In the
-[Firebase Console](https://console.firebase.google.com), open your project, then
-**Authentication → Settings → Authorized domains**, and add the domain Vercel
-gave you, for example `your-app.vercel.app`.
+The app works without it, so you can skip this and come back later. If you do
+want sign-in, see "Signing in is optional" below, which also covers what to do
+when Firebase says you lack permission to change the project.
 
 ### 5. Check it
 
@@ -82,6 +81,47 @@ Only if you have [Bun](https://bun.sh) installed.
 
 `check:feed` calls the real provider and says plainly whether a live gold price
 came back, listing what to check when it does not.
+
+## Signing in is optional
+
+The app is fully usable without an account. As a guest, your locked equity,
+risk settings and learning history are saved in the browser you are using.
+Signing in with Google adds cloud sync across devices, nothing else.
+
+### If the Google sign-in button reports an unauthorised domain
+
+This means the address your app is served from is not on the authorised list of
+the Firebase project it points at. The repository ships with the project it was
+generated in, and **you may not have permission to change that project's
+settings**. The Firebase Console says so directly: "To manage settings, ask a
+project owner for the necessary permission."
+
+You have three options.
+
+**Keep using it as a guest.** Nothing else in the app depends on signing in.
+Dismiss the message and carry on.
+
+**Authorise the domain, if you own the project.** Firebase Console,
+Authentication, Settings, Authorized domains, then add your deployment domain.
+
+**Point the app at your own Firebase project.** Create a free project at
+[console.firebase.google.com](https://console.firebase.google.com), enable
+Google sign-in under Authentication, create a Firestore database, then set these
+variables in your hosting platform. No file in the repository needs editing.
+
+| Variable | Where to find it |
+| --- | --- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Project settings, Your apps, SDK setup |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | same place |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | same place |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | same place |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | same place |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | same place |
+
+The override only takes effect when the key, project id, app id and auth domain
+are all present, so a half filled set cannot break a working app. Copy the rules
+in `firestore.rules` into your new project so each user can only read and write
+their own records.
 
 ## Data provider quota
 
