@@ -2,8 +2,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { migrateLocalProfileToCloud } from '@/lib/cloud-sync';
+import {
+  LOCAL_KEYS,
+  alreadyMigrated,
+  hasLocalDataWorthMigrating,
+  markMigrated,
+  readLocalProfile,
+  type LocalProfile,
+} from '@/lib/local-store';
 import Header from '@/components/Header';
 import EquityManager from '@/components/EquityManager';
 import TradingSessionZone from '@/components/TradingSessionZone';
@@ -154,6 +163,26 @@ export default function Home() {
   const killZone = useMemo(() => getICTKillZoneStatus(), []);
   const economicEvents = useMemo(() => filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents()), []);
 
+  // One-time transfer of guest work into a freshly signed-in account.
+  const [isMigrating, setIsMigrating] = useState<boolean>(false);
+  const [migrationNotice, setMigrationNotice] = useState<string | null>(null);
+
+  /** Applies a browser-stored profile to component state. */
+  const applyLocalProfile = useCallback((profile: LocalProfile) => {
+    if (profile.equity !== null) setEquity(profile.equity);
+    if (profile.initialEquity !== null) setInitialEquity(profile.initialEquity);
+    else if (profile.equity !== null) setInitialEquity(profile.equity);
+    if (profile.isEquityLocked !== null) setIsEquityLocked(profile.isEquityLocked);
+    if (profile.riskPercentage !== null) setRiskPercentage(profile.riskPercentage);
+    if (profile.tradingStyle) setTradingStyle(profile.tradingStyle);
+    if (profile.accountType) setAccountType(profile.accountType);
+    if (profile.selectedBroker) setSelectedBroker(profile.selectedBroker);
+    if (profile.learningRecords.length > 0) {
+      setLearningRecords(profile.learningRecords);
+      setEngineWeights(recalculateEngineWeights(profile.learningRecords));
+    }
+  }, []);
+
   // Load User Data from Firestore or LocalStorage
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -164,6 +193,28 @@ export default function Home() {
         try {
           const userDocRef = doc(db, 'users', user.uid);
           const snap = await getDoc(userDocRef);
+
+          // First sign-in on an account with no cloud record yet. Carry the
+          // guest work up rather than leaving it stranded in this browser,
+          // which would split the trade history in two permanently.
+          if (!snap.exists() && !alreadyMigrated(user.uid)) {
+            const local = readLocalProfile();
+            if (hasLocalDataWorthMigrating(local)) {
+              setIsMigrating(true);
+              const migrated = await migrateLocalProfileToCloud(user.uid, local);
+              setIsMigrating(false);
+              if (migrated) {
+                applyLocalProfile(local);
+                markMigrated(user.uid);
+                setMigrationNotice(
+                  `Your guest data was copied to this account: ${local.learningRecords.length} recorded trade${
+                    local.learningRecords.length === 1 ? '' : 's'
+                  } and your saved balance.`
+                );
+                return;
+              }
+            }
+          }
 
           if (snap.exists()) {
             const data = snap.data();
@@ -205,39 +256,15 @@ export default function Home() {
           console.warn('Notice loading user cloud document:', err);
         }
       } else {
-        // Fallback to localStorage for guest trader
-        const localEquity = localStorage.getItem('xauusd_locked_equity');
-        const localInitial = localStorage.getItem('xauusd_initial_equity');
-        const localLocked = localStorage.getItem('xauusd_is_equity_locked');
-        const localRisk = localStorage.getItem('xauusd_risk_pct');
-        const localRecords = localStorage.getItem('xauusd_learning_records');
-        const localStyle = localStorage.getItem('xauusd_trading_style') as TradingStyle | null;
-        const localAccount = localStorage.getItem('xauusd_account_type') as AccountType | null;
-        const localBroker = localStorage.getItem('xauusd_selected_broker') as BrokerId | null;
-
-        if (localEquity) setEquity(parseFloat(localEquity));
-        if (localInitial) setInitialEquity(parseFloat(localInitial));
-        else if (localEquity) setInitialEquity(parseFloat(localEquity));
-        if (localLocked) setIsEquityLocked(localLocked === 'true');
-        if (localRisk) setRiskPercentage(parseFloat(localRisk));
-        if (localStyle) setTradingStyle(localStyle);
-        if (localAccount) setAccountType(localAccount);
-        if (localBroker) setSelectedBroker(localBroker);
-
-        if (localRecords) {
-          try {
-            const parsed: SelfLearningMemoryRecord[] = JSON.parse(localRecords);
-            setLearningRecords(parsed);
-            setEngineWeights(recalculateEngineWeights(parsed));
-          } catch (e) {
-            console.warn('Error reading local learning memory:', e);
-          }
-        }
+        // Guest trader: everything lives in this browser.
+        applyLocalProfile(readLocalProfile());
       }
     });
 
     return () => unsubscribe();
-  }, []);
+    // applyLocalProfile is stable, so listing it does not resubscribe the
+    // auth listener on every render.
+  }, [applyLocalProfile]);
 
   /**
    * Pulls the real XAUUSD quote and the structural read derived from live
@@ -349,16 +376,16 @@ export default function Home() {
         console.warn('Error saving locked equity to Firestore:', err);
       }
     } else {
-      localStorage.setItem('xauusd_locked_equity', amount.toString());
-      localStorage.setItem('xauusd_initial_equity', amount.toString());
-      localStorage.setItem('xauusd_is_equity_locked', 'true');
-      localStorage.setItem('xauusd_selected_broker', selectedBroker);
+      localStorage.setItem(LOCAL_KEYS.equity, amount.toString());
+      localStorage.setItem(LOCAL_KEYS.initialEquity, amount.toString());
+      localStorage.setItem(LOCAL_KEYS.isLocked, 'true');
+      localStorage.setItem(LOCAL_KEYS.broker, selectedBroker);
     }
   };
 
   const handleResetBaseline = () => {
     setInitialEquity(equity);
-    localStorage.setItem('xauusd_initial_equity', equity.toString());
+    localStorage.setItem(LOCAL_KEYS.initialEquity, equity.toString());
     if (currentUser) {
       const userDocRef = doc(db, 'users', currentUser.uid);
       setDoc(userDocRef, { initialEquity: equity, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
@@ -376,7 +403,7 @@ export default function Home() {
         console.warn('Error saving broker preference:', e);
       }
     } else {
-      localStorage.setItem('xauusd_selected_broker', broker);
+      localStorage.setItem(LOCAL_KEYS.broker, broker);
     }
   };
 
@@ -391,7 +418,7 @@ export default function Home() {
         console.warn('Error saving risk percentage:', e);
       }
     } else {
-      localStorage.setItem('xauusd_risk_pct', pct.toString());
+      localStorage.setItem(LOCAL_KEYS.riskPct, pct.toString());
     }
   };
 
@@ -406,7 +433,7 @@ export default function Home() {
         console.warn('Error saving trading style:', e);
       }
     } else {
-      localStorage.setItem('xauusd_trading_style', style);
+      localStorage.setItem(LOCAL_KEYS.style, style);
     }
   };
 
@@ -421,7 +448,7 @@ export default function Home() {
         console.warn('Error saving account tier:', e);
       }
     } else {
-      localStorage.setItem('xauusd_account_type', acc);
+      localStorage.setItem(LOCAL_KEYS.account, acc);
     }
   };
 
@@ -441,8 +468,8 @@ export default function Home() {
           console.warn('Error resetting equity:', e);
         }
       } else {
-        localStorage.setItem('xauusd_is_equity_locked', 'false');
-        localStorage.setItem('xauusd_locked_equity', '5000');
+        localStorage.setItem(LOCAL_KEYS.isLocked, 'false');
+        localStorage.setItem(LOCAL_KEYS.equity, '5000');
       }
     }
   };
@@ -487,8 +514,8 @@ export default function Home() {
         // Save setup to Firestore if user is authenticated
         if (currentUser) {
           try {
-            const setupRef = collection(db, 'users', currentUser.uid, 'analyses');
-            await addDoc(setupRef, data.setup);
+            // Keyed by the setup's own id so a retry cannot create a duplicate.
+            await setDoc(doc(db, 'users', currentUser.uid, 'analyses', data.setup.id), data.setup);
           } catch (e) {
             console.warn('Could not save analysis to cloud:', e);
           }
@@ -604,8 +631,9 @@ export default function Home() {
           // Save learning record to cloud Firestore or local storage
           if (currentUser) {
             try {
-              const recRef = collection(db, 'users', currentUser.uid, 'learning_records');
-              await addDoc(recRef, newRecord);
+              // Same key as the guest migration uses, so a record copied up
+              // earlier is updated rather than stored twice.
+              await setDoc(doc(db, 'users', currentUser.uid, 'learning_records', newRecord.id), newRecord);
 
               const userDocRef = doc(db, 'users', currentUser.uid);
               await setDoc(
@@ -624,8 +652,8 @@ export default function Home() {
               console.warn('Error saving self-learning record:', e);
             }
           } else {
-            localStorage.setItem('xauusd_learning_records', JSON.stringify(updatedRecords));
-            localStorage.setItem('xauusd_locked_equity', newEquity.toString());
+            localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(updatedRecords));
+            localStorage.setItem(LOCAL_KEYS.equity, newEquity.toString());
           }
         }
       }
@@ -725,6 +753,41 @@ export default function Home() {
           <div className="text-xs text-slate-500 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
             <span>Live data source: {feedSource}. Refreshed about once a minute to stay inside the free data quota.</span>
+          </div>
+        )}
+
+        {/* Guest data being copied into a newly signed-in account. */}
+        {isMigrating && (
+          <div className="p-4 rounded-xl border bg-sky-500/15 border-sky-500/40 text-sky-300 flex items-center gap-3">
+            <RefreshCw className="w-5 h-5 animate-spin shrink-0" />
+            <div>
+              <div className="font-bold text-sm">Copying your data to this account</div>
+              <div className="text-xs opacity-90 mt-0.5">
+                Your balance and recorded trades are being saved to the cloud. This happens once.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {migrationNotice && (
+          <div className="p-4 rounded-xl border bg-emerald-500/15 border-emerald-500/40 text-emerald-300 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-black/20 shrink-0">
+                <BellRing className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-sm">Data transferred</div>
+                <div className="text-xs opacity-90 mt-0.5">{migrationNotice}</div>
+              </div>
+            </div>
+            <button
+              id="dismiss-migration-notice-btn"
+              type="button"
+              onClick={() => setMigrationNotice(null)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-current hover:bg-white/10 cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 

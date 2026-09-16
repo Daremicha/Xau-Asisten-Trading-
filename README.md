@@ -82,46 +82,80 @@ Only if you have [Bun](https://bun.sh) installed.
 `check:feed` calls the real provider and says plainly whether a live gold price
 came back, listing what to check when it does not.
 
-## Signing in is optional
+## Signing in and cloud sync
 
-The app is fully usable without an account. As a guest, your locked equity,
-risk settings and learning history are saved in the browser you are using.
-Signing in with Google adds cloud sync across devices, nothing else.
+The app works without an account. As a guest, your locked balance, risk settings
+and trade history live in the browser you are using. Signing in with Google adds
+cloud sync, so the same data follows you to another device.
 
-### If the Google sign-in button reports an unauthorised domain
+**Your guest data is not lost when you sign in.** The first time you sign in on
+an account that has no cloud record yet, the app copies your saved balance and
+every recorded trade up to the cloud, tells you how many it moved, and remembers
+that it has done so. Records are stored under their own id, so the transfer
+cannot duplicate a trade even if it runs again.
 
-This means the address your app is served from is not on the authorised list of
-the Firebase project it points at. The repository ships with the project it was
-generated in, and **you may not have permission to change that project's
-settings**. The Firebase Console says so directly: "To manage settings, ask a
-project owner for the necessary permission."
+### Setting up your own Firebase project
 
-You have three options.
+The project bundled with this repository was created by Google AI Studio. If you
+do not own it, its console will tell you "To manage settings, ask a project owner
+for the necessary permission", and you will not be able to authorise your own
+domain. Creating your own project takes a few minutes and gives you full control.
 
-**Keep using it as a guest.** Nothing else in the app depends on signing in.
-Dismiss the message and carry on.
+**1. Create the project.** Go to
+[console.firebase.google.com](https://console.firebase.google.com), choose
+**Add project**, give it a name, and finish the wizard. Google Analytics is not
+needed.
 
-**Authorise the domain, if you own the project.** Firebase Console,
-Authentication, Settings, Authorized domains, then add your deployment domain.
+**2. Register a web app.** On the project overview, click the web icon `</>`,
+give the app a nickname, and register it. Firebase then shows a `firebaseConfig`
+block. Keep that page open.
 
-**Point the app at your own Firebase project.** Create a free project at
-[console.firebase.google.com](https://console.firebase.google.com), enable
-Google sign-in under Authentication, create a Firestore database, then set these
-variables in your hosting platform. No file in the repository needs editing.
+**3. Turn on Google sign-in.** Go to **Authentication → Get started →
+Sign-in method**, choose **Google**, enable it, pick a support email, and save.
 
-| Variable | Where to find it |
+**4. Create the database.** Go to **Firestore Database → Create database**. Pick
+a region close to you. Start in production mode.
+
+**5. Apply the security rules.** Open the **Rules** tab and replace what is there
+with the contents of `firestore.rules` from this repository, then publish. These
+rules let each signed-in person read and write only their own records.
+
+**6. Authorise your site.** Go to **Authentication → Settings → Authorized
+domains** and add the domain your app is served from, such as
+`your-app.vercel.app`. Add `localhost` too if you run it locally.
+
+**7. Give the values to your app.** From the `firebaseConfig` block in step 2,
+copy each value into the matching variable. On Vercel these go in the project's
+Environment Variables, then redeploy. Locally they go in `.env.local`.
+
+| Variable | Field in `firebaseConfig` |
 | --- | --- |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Project settings, Your apps, SDK setup |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | same place |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | same place |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | same place |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | same place |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | same place |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | `apiKey` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `authDomain` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `projectId` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | `appId` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `storageBucket` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
 
-The override only takes effect when the key, project id, app id and auth domain
-are all present, so a half filled set cannot break a working app. Copy the rules
-in `firestore.rules` into your new project so each user can only read and write
-their own records.
+**8. Check your work.**
+
+```bash
+bun run check:firebase
+```
+
+It reports which values are missing and whether they came from the same project,
+which is where this usually goes wrong. The first four in the table are
+required; a partial set is ignored and the app silently falls back to the
+bundled project.
+
+These values are public by design. They appear in every browser that loads the
+app. The security rules, not secrecy, are what protect your data.
+
+### If sign-in still fails
+
+The app now explains the reason on screen instead of doing nothing. The most
+common message is an unauthorised domain, which means step 6 is missing or the
+domain does not match exactly.
 
 ## Data provider quota
 
@@ -155,6 +189,7 @@ says so and refuses to build a signal rather than showing a made up price.
 | Command | What it does |
 | --- | --- |
 | `bun run check:feed` | Verifies the market data connection |
+| `bun run check:firebase` | Verifies the Firebase configuration |
 | `bun run dev` | Starts the development server |
 | `bun run build` | Production build |
 | `bun run start` | Serves the production build |
