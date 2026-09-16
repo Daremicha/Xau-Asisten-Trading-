@@ -27,6 +27,58 @@ export const PRIOR_WEIGHTS = {
   entryBufferPips: 0,
 } as const;
 
+/**
+ * The beliefs a run starts from.
+ *
+ * Normally this is PRIOR_WEIGHTS, the engine's own defaults. A backtest can
+ * hand over the parameters it ended on instead, so live trading starts from
+ * what two years of replay actually supported rather than from the defaults,
+ * and then keeps learning from real trades on top of that.
+ */
+export type PriorWeights = {
+  orderBlockWeight: number;
+  fairValueGapWeight: number;
+  liquiditySweepWeight: number;
+  newsImpactWeight: number;
+  indicatorConfluenceWeight: number;
+  atrBufferFactor: number;
+  entryBufferPips: number;
+};
+
+/**
+ * Makes a supplied prior safe to start from: the confluence weights are
+ * rescaled into a proper distribution and the rest are clamped into the bounds
+ * the engine enforces anyway. Anything unusable falls back to the defaults, so
+ * a corrupt stored prior can never distort live analysis.
+ */
+export function normalisePrior(candidate: Partial<PriorWeights> | null | undefined): PriorWeights {
+  if (!candidate || typeof candidate !== 'object') return { ...PRIOR_WEIGHTS };
+
+  const pick = (key: keyof PriorWeights): number | null => {
+    const value = candidate[key];
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  };
+
+  const confluence = {
+    orderBlockWeight: pick('orderBlockWeight') ?? PRIOR_WEIGHTS.orderBlockWeight,
+    fairValueGapWeight: pick('fairValueGapWeight') ?? PRIOR_WEIGHTS.fairValueGapWeight,
+    liquiditySweepWeight: pick('liquiditySweepWeight') ?? PRIOR_WEIGHTS.liquiditySweepWeight,
+    newsImpactWeight: pick('newsImpactWeight') ?? PRIOR_WEIGHTS.newsImpactWeight,
+    indicatorConfluenceWeight:
+      pick('indicatorConfluenceWeight') ?? PRIOR_WEIGHTS.indicatorConfluenceWeight,
+  };
+
+  const atr = pick('atrBufferFactor');
+  const buffer = pick('entryBufferPips');
+
+  return {
+    ...normaliseConfluence(confluence),
+    atrBufferFactor:
+      atr === null ? PRIOR_WEIGHTS.atrBufferFactor : Math.max(ATR_BUFFER_MIN, Math.min(ATR_BUFFER_MAX, atr)),
+    entryBufferPips: buffer === null ? 0 : Math.min(MAX_ENTRY_BUFFER_PIPS, buffer),
+  };
+}
+
 /** Trades older than this many positions back count half as much. */
 const RECENCY_HALF_LIFE = 20;
 /** Evidence needed before adjustments reach roughly half their full size. */
@@ -180,8 +232,12 @@ export interface AdaptiveWeightsWithEvidence extends AdaptiveStrategyEngineWeigh
  */
 export function deriveAdaptiveWeights(
   allRecords: SelfLearningMemoryRecord[],
-  style?: TradingStyle
+  style?: TradingStyle,
+  startingPrior?: Partial<PriorWeights> | null
 ): AdaptiveWeightsWithEvidence {
+  // Everything below shrinks toward this. It is the engine's own defaults
+  // unless a backtest has handed over what it ended on.
+  const prior = normalisePrior(startingPrior);
   // Segment by style only when the segment can carry its own conclusion.
   const segment =
     style === undefined
@@ -201,15 +257,15 @@ export function deriveAdaptiveWeights(
     newsImpactWeight: number;
     indicatorConfluenceWeight: number;
   } = {
-    orderBlockWeight: PRIOR_WEIGHTS.orderBlockWeight,
-    fairValueGapWeight: PRIOR_WEIGHTS.fairValueGapWeight,
-    liquiditySweepWeight: PRIOR_WEIGHTS.liquiditySweepWeight,
-    newsImpactWeight: PRIOR_WEIGHTS.newsImpactWeight,
-    indicatorConfluenceWeight: PRIOR_WEIGHTS.indicatorConfluenceWeight,
+    orderBlockWeight: prior.orderBlockWeight,
+    fairValueGapWeight: prior.fairValueGapWeight,
+    liquiditySweepWeight: prior.liquiditySweepWeight,
+    newsImpactWeight: prior.newsImpactWeight,
+    indicatorConfluenceWeight: prior.indicatorConfluenceWeight,
   };
 
-  let atrBufferFactor: number = PRIOR_WEIGHTS.atrBufferFactor;
-  let entryBufferPips = 0;
+  let atrBufferFactor: number = prior.atrBufferFactor;
+  let entryBufferPips = prior.entryBufferPips;
 
   if (evidence.sampleSize > 0) {
     const c = evidence.confidence;
@@ -236,7 +292,10 @@ export function deriveAdaptiveWeights(
 
     if (evidence.medianMissPips !== null && evidence.medianMissPips > 0) {
       // Close most of the observed gap, scaled by how sure we are of it.
-      entryBufferPips = Math.min(MAX_ENTRY_BUFFER_PIPS, evidence.medianMissPips * 0.75 * c);
+      entryBufferPips = Math.min(
+        MAX_ENTRY_BUFFER_PIPS,
+        Math.max(prior.entryBufferPips, evidence.medianMissPips * 0.75 * c)
+      );
       if (entryBufferPips >= 1) {
         adjustments.push(
           `Pending orders missed by a median of ${evidence.medianMissPips} pips, so entries move ${entryBufferPips.toFixed(
@@ -251,19 +310,19 @@ export function deriveAdaptiveWeights(
     if (evidence.smoothedWinRate !== null && evidence.triggeredCount > 0) {
       const target =
         evidence.smoothedWinRate < 45
-          ? PRIOR_WEIGHTS.atrBufferFactor + 0.9
+          ? prior.atrBufferFactor + 0.9
           : evidence.smoothedWinRate > 65
-          ? PRIOR_WEIGHTS.atrBufferFactor - 0.35
-          : PRIOR_WEIGHTS.atrBufferFactor;
+          ? prior.atrBufferFactor - 0.35
+          : prior.atrBufferFactor;
 
       atrBufferFactor = Math.max(
         ATR_BUFFER_MIN,
-        Math.min(ATR_BUFFER_MAX, shrinkToward(PRIOR_WEIGHTS.atrBufferFactor, target, c, 1.25))
+        Math.min(ATR_BUFFER_MAX, shrinkToward(prior.atrBufferFactor, target, c, 1.25))
       );
 
-      if (Math.abs(atrBufferFactor - PRIOR_WEIGHTS.atrBufferFactor) >= 0.02) {
+      if (Math.abs(atrBufferFactor - prior.atrBufferFactor) >= 0.02) {
         adjustments.push(
-          atrBufferFactor > PRIOR_WEIGHTS.atrBufferFactor
+          atrBufferFactor > prior.atrBufferFactor
             ? `Strike rate of ${evidence.smoothedWinRate}% suggests stops sit inside the noise, so the buffer widened to ${atrBufferFactor.toFixed(2)}x ATR.`
             : `Strike rate of ${evidence.smoothedWinRate}% suggests stops are wider than needed, so the buffer tightened to ${atrBufferFactor.toFixed(2)}x ATR.`
         );

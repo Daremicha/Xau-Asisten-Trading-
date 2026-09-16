@@ -1,4 +1,4 @@
-import { deriveAdaptiveWeights } from './learning-engine';
+import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
 import {
   AdaptiveStrategyEngineWeights,
   SelfLearningMemoryRecord,
@@ -298,12 +298,13 @@ export function getGlobalTradingSessions(): TradingSessionInfo[] {
 /**
  * Detects current Institutional Market Session & ICT Kill Zones.
  */
-export function getICTKillZoneStatus(): {
+export function getICTKillZoneStatus(now: Date = new Date()): {
   currentZone: 'London Open' | 'New York Open' | 'London Close' | 'Asian Session' | 'Off-Hours';
   isHighVolatilityTiming: boolean;
   description: string;
 } {
-  const now = new Date();
+  // The moment is a parameter so a backtest can ask what the session was at a
+  // historical candle instead of what it is right now.
   const utcDay = now.getUTCDay();
   const utcHours = now.getUTCHours();
   const utcMinutes = now.getUTCMinutes();
@@ -371,7 +372,8 @@ export function getICTKillZoneStatus(): {
  */
 export function recalculateEngineWeights(
   records: SelfLearningMemoryRecord[],
-  style?: TradingStyle
+  style?: TradingStyle,
+  startingPrior?: Partial<PriorWeights> | null
 ): AdaptiveStrategyEngineWeights {
-  return deriveAdaptiveWeights(records, style);
+  return deriveAdaptiveWeights(records, style, startingPrior);
 }

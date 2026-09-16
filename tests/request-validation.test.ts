@@ -57,6 +57,7 @@ describe('analysis request validation', () => {
       brokerId: 'HFM',
       userId: 'abc',
       pastLearningRecords: [],
+      priorWeights: null,
     });
   });
 });
@@ -130,5 +131,37 @@ describe('an automatically closed order carries why it closed', () => {
       setup: goodSetup, outcome: 'MISSED', closedPrice: 4210, missCause: '', autoResolved: true,
     });
     expect(value!.missCause).toBeUndefined();
+  });
+});
+
+describe('a backtested prior on an analysis request', () => {
+  test('a sane prior is carried through', () => {
+    const { value } = validateAnalyzeBody({
+      equity: 5000,
+      priorWeights: {
+        orderBlockWeight: 0.4,
+        fairValueGapWeight: 0.2,
+        liquiditySweepWeight: 0.2,
+        newsImpactWeight: 0.1,
+        indicatorConfluenceWeight: 0.1,
+        atrBufferFactor: 1.6,
+        entryBufferPips: 20,
+      },
+    });
+    expect(value?.priorWeights?.atrBufferFactor).toBe(1.6);
+    expect(value?.priorWeights?.orderBlockWeight).toBeCloseTo(0.4, 3);
+  });
+
+  test('a corrupt prior degrades to the engine defaults rather than failing', () => {
+    const { value, errors } = validateAnalyzeBody({ equity: 5000, priorWeights: { atrBufferFactor: 'wide' } });
+    expect(errors).toEqual([]);
+    expect(value?.priorWeights?.atrBufferFactor).toBe(1.25);
+  });
+
+  test('no prior means no prior, not an empty object', () => {
+    const { value } = validateAnalyzeBody({ equity: 5000 });
+    expect(value?.priorWeights).toBeNull();
+    const fromArray = validateAnalyzeBody({ equity: 5000, priorWeights: [] });
+    expect(fromArray.value?.priorWeights).toBeNull();
   });
 });
