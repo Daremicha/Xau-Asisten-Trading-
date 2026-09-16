@@ -28,7 +28,11 @@ export default function SelfLearningDashboard({
   // A strike rate with no triggered trades is not zero information, it is no
   // information. The previous code printed a flattering 80.0% instead.
   const evidence = summariseEvidence(learningRecords);
-  const winRate = evidence.winRate === null ? null : evidence.winRate.toFixed(1);
+  // The smoothed rate is the headline, because the raw one reports a single
+  // win as a perfect 100% strike rate, which is the last thing a trader should
+  // be shown before sizing their next position. The raw figure and the sample
+  // size sit underneath so nothing is hidden.
+  const winRate = evidence.smoothedWinRate === null ? null : evidence.smoothedWinRate.toFixed(1);
   // Computed with the same style segmentation as the weights shown below, so
   // the explanation always describes the bars the user is looking at.
   const adjustments = deriveAdaptiveWeights(learningRecords, tradingStyle).adjustments;
@@ -120,7 +124,7 @@ export default function SelfLearningDashboard({
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {winRate === null
               ? 'No order has filled and resolved yet'
-              : `From ${triggered} triggered order${triggered === 1 ? '' : 's'}`}
+              : `${wins} of ${triggered} triggered (raw ${evidence.winRate?.toFixed(1)}%), adjusted for sample size`}
           </div>
         </div>
 

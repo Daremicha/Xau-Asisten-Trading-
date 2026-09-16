@@ -110,14 +110,16 @@ export default function Header({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
         {/* Brand & Market Identity */}
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-black text-xl shadow-inner">
+        {/* min-w-0 so the title can truncate on a narrow screen instead of
+            pushing the controls past the right edge of the viewport. */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-black text-xl shadow-inner shrink-0">
             <TrendingUp className="w-6 h-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1
-                className={`text-lg sm:text-xl font-bold tracking-tight ${
+                className={`text-lg sm:text-xl font-bold tracking-tight truncate ${
                   isDark ? 'text-white' : 'text-slate-900'
                 }`}
               >
@@ -196,7 +198,7 @@ export default function Header({
         </div>
 
         {/* Theme Toggle, Notifications, Broker Badge & Authentication Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Active Broker Mini Badge */}
           <div
             className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium ${
