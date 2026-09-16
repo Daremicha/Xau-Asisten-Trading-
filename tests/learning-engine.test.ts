@@ -3,6 +3,7 @@ import {
   PRIOR_WEIGHTS,
   confidenceFrom,
   deriveAdaptiveWeights,
+  entryBufferCeiling,
   normaliseConfluence,
   normalisePrior,
   recencyWeight,
@@ -333,5 +334,81 @@ describe('starting from a backtested prior', () => {
     const stopOuts = Array.from({ length: 30 }, () => record('SL', { style: 'Intraday' }));
     const weights = deriveAdaptiveWeights(stopOuts, 'Intraday', prior);
     expect(weights.atrBufferFactor).toBeGreaterThan(1.0);
+  });
+});
+
+describe('chasing fills only when fills are worth having', () => {
+  /** A filled trade whose money result can be set, which is what decides this. */
+  function filled(outcome: 'TP' | 'SL', dollars: number): SelfLearningMemoryRecord {
+    return { ...record(outcome), profitOrLossDollars: dollars };
+  }
+
+  test('an average filled trade that loses money stops the entry chase', () => {
+    // The case the two year replay produced: half the orders never filled, and
+    // the ones that did lost money. The old engine answered by pulling entries
+    // closer, which filled more of the losers.
+    const history = [
+      ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
+      ...Array.from({ length: 20 }, () => filled('SL', -18)),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.entryBufferPips).toBe(0);
+    expect(weights.adjustments.join(' ')).toContain('stay at their levels');
+  });
+
+  test('an average filled trade that makes money keeps the chase', () => {
+    const history = [
+      ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
+      ...Array.from({ length: 20 }, () => filled('TP', 27)),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.entryBufferPips).toBeGreaterThan(0);
+    expect(weights.adjustments.join(' ')).toContain('closer to price');
+  });
+
+  test('a losing fill record also stops the weight shift toward the shallower level', () => {
+    const losing = deriveAdaptiveWeights(
+      [
+        ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
+        ...Array.from({ length: 20 }, () => filled('SL', -18)),
+      ],
+      'Intraday'
+    );
+    expect(losing.adjustments.join(' ')).not.toContain('shallower level');
+  });
+
+  test('expectancy is reported per filled trade, ignoring the misses', () => {
+    const evidence = summariseEvidence([
+      filled('TP', 30),
+      filled('SL', -10),
+      record('MISSED', { missPips: 100 }),
+    ]);
+    // Recency weighted, so not exactly ten, but between the two results.
+    expect(evidence.expectancyDollars).toBeGreaterThan(0);
+    expect(evidence.expectancyDollars).toBeLessThan(30);
+  });
+
+  test('no filled trade means no expectancy, not zero', () => {
+    expect(summariseEvidence([record('MISSED', { missPips: 100 })]).expectancyDollars).toBeNull();
+  });
+});
+
+describe('an entry may not be dragged off its own level', () => {
+  test('the ceiling follows the risk the style allows', () => {
+    // 40% of the style's maximum stop: a scalp risking at most 70 pips cannot
+    // have its entry moved 120.
+    expect(entryBufferCeiling('Scalping')).toBe(28);
+    expect(entryBufferCeiling('Intraday')).toBe(72);
+    expect(entryBufferCeiling('Swing')).toBe(120);
+    expect(entryBufferCeiling(undefined)).toBe(120);
+  });
+
+  test('a huge run of misses cannot exceed the style ceiling', () => {
+    const history = [
+      ...Array.from({ length: 200 }, () => record('MISSED', { missPips: 5000 })),
+      ...Array.from({ length: 50 }, () => ({ ...record('TP'), profitOrLossDollars: 50 })),
+    ];
+    expect(deriveAdaptiveWeights(history, 'Intraday').entryBufferPips).toBeLessThanOrEqual(72);
+    expect(deriveAdaptiveWeights(history, 'Scalping').entryBufferPips).toBeLessThanOrEqual(28);
   });
 });

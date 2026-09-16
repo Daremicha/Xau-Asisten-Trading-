@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   Briefcase,
+  Filter,
   Info,
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
@@ -23,8 +24,11 @@ interface EquityManagerProps {
   tradingStyle: TradingStyle;
   accountType: AccountType;
   selectedBroker: BrokerId;
+  /** Lowest conviction worth trading. Zero takes every setup. */
+  minConviction: number;
   onLockEquity: (initialAmount: number) => void;
   onChangeRiskPct: (pct: number) => void;
+  onChangeMinConviction: (score: number) => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
   onChangeAccountType: (account: AccountType) => void;
   onChangeBroker: (broker: BrokerId) => void;
@@ -39,8 +43,10 @@ export default function EquityManager({
   tradingStyle,
   accountType,
   selectedBroker = 'EXNESS',
+  minConviction,
   onLockEquity,
   onChangeRiskPct,
+  onChangeMinConviction,
   onChangeTradingStyle,
   onChangeAccountType,
   onChangeBroker,
@@ -154,6 +160,46 @@ export default function EquityManager({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Signal quality floor. Skipping a weak setup costs nothing, which is
+          why this sits beside the risk budget rather than buried in a menu. */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-2.5 rounded-xl border ${
+          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}
+      >
+        <span
+          className={`text-[11px] px-1 font-medium flex items-center gap-1.5 shrink-0 ${
+            isDark ? 'text-slate-400' : 'text-slate-600'
+          }`}
+        >
+          <Filter className="w-3 h-3" /> Only trade conviction above:
+        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[0, 40, 55, 70].map((score) => (
+            <button
+              key={score}
+              type="button"
+              id={`conviction-btn-${score}`}
+              onClick={() => onChangeMinConviction(score)}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                minConviction === score
+                  ? 'bg-sky-500 text-slate-950 shadow-sm'
+                  : isDark
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+              }`}
+            >
+              {score === 0 ? 'Take all' : score}
+            </button>
+          ))}
+        </div>
+        <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          {minConviction === 0
+            ? 'Every setup the engine produces is offered.'
+            : `Setups scoring under ${minConviction} are declined instead of traded. Test a floor in the Backtest Lab first.`}
+        </span>
       </div>
 
       {/* Selectors Row: Trading Style, Account Type & Broker */}

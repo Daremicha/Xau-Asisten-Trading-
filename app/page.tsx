@@ -56,6 +56,7 @@ import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
+  SkippedSetup,
   TimeframeType,
   SelfLearningMemoryRecord,
   AdaptiveStrategyEngineWeights,
@@ -194,6 +195,14 @@ export default function Home() {
    * which belong in a report rather than in the user's stored profile.
    */
   const [backtestResult, setBacktestResult] = useState<BacktestJobResult | null>(null);
+  /**
+   * Lowest conviction worth trading. Zero, the default, takes every setup the
+   * engine produces, which is how it behaved before the backtest showed which
+   * bands were paying for themselves.
+   */
+  const [minConviction, setMinConviction] = useState<number>(0);
+  /** Set when the engine declined a setup for scoring below that floor. */
+  const [skippedSetup, setSkippedSetup] = useState<SkippedSetup | null>(null);
 
   // Self-Learning Engine Memory & Weights
   const [learningRecords, setLearningRecords] = useState<SelfLearningMemoryRecord[]>([]);
@@ -262,6 +271,7 @@ export default function Home() {
     if (profile.accountType) setAccountType(profile.accountType);
     if (profile.selectedBroker) setSelectedBroker(profile.selectedBroker);
     if (profile.backtestPrior) setBacktestPrior(profile.backtestPrior);
+    if (profile.minConviction !== null) setMinConviction(profile.minConviction);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
       setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
@@ -395,6 +405,9 @@ export default function Home() {
             }
             if (data.selectedBroker) {
               setSelectedBroker(data.selectedBroker as BrokerId);
+            }
+            if (typeof data.minConviction === 'number' && data.minConviction >= 0 && data.minConviction <= 100) {
+              setMinConviction(data.minConviction);
             }
             if (data.backtestPrior && typeof data.backtestPrior === 'object') {
               setBacktestPrior(normalisePrior(data.backtestPrior as Partial<PriorWeights>));
@@ -611,6 +624,32 @@ export default function Home() {
   };
 
   /**
+   * Sets the lowest conviction worth trading. Above zero the engine declines a
+   * weak setup outright rather than offering it, which is what the backtest's
+   * conviction breakdown is there to help choose.
+   */
+  const handleChangeMinConviction = (score: number) => {
+    setMinConviction(score);
+    setSkippedSetup(null);
+
+    try {
+      localStorage.setItem(LOCAL_KEYS.minConviction, score.toString());
+    } catch {
+      // A browser refusing storage simply forgets the floor on reload.
+    }
+
+    if (currentUser) {
+      void saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { minConviction: score, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
+    }
+  };
+
+  /**
    * Adopts, or drops, the parameters a backtest ended on. They become the point
    * the live learning engine shrinks toward instead of its built-in defaults;
    * real trades keep adjusting from there.
@@ -742,6 +781,7 @@ export default function Home() {
           brokerId: selectedBroker,
           userId: currentUser?.uid || 'guest',
           pastLearningRecords: learningRecords.slice(-RECENT_RECORD_LIMIT),
+          minConviction,
           // What the engine shrinks toward. Null keeps its own defaults.
           priorWeights: backtestPrior,
         }),
@@ -753,10 +793,17 @@ export default function Home() {
         if (res.status === 503) setFeedStatus('unavailable');
         return;
       }
+      // The engine looked and found nothing worth trading at the user's floor.
+      if (!data.setup && data.skipped) {
+        setSkippedSetup(data.skipped as SkippedSetup);
+        return;
+      }
+
       if (data.setup) {
         setActiveSetup(data.setup);
         // A new setup replaces the previous trade's receipt.
         setLastOutcome(null);
+        setSkippedSetup(null);
         if (data.engineWeights) {
           setEngineWeights(data.engineWeights);
         }
@@ -1212,6 +1259,7 @@ export default function Home() {
           <div className="lg:col-span-6 space-y-6">
             <SignalCard
               setup={activeSetup}
+              skipped={skippedSetup}
               lastOutcome={lastOutcome}
               accountType={accountType}
               isAnalyzing={isAnalyzing}
@@ -1248,8 +1296,10 @@ export default function Home() {
           tradingStyle={tradingStyle}
           accountType={accountType}
           selectedBroker={selectedBroker}
+          minConviction={minConviction}
           onLockEquity={handleLockEquity}
           onChangeRiskPct={handleChangeRiskPercentage}
+          onChangeMinConviction={handleChangeMinConviction}
           onChangeTradingStyle={handleChangeTradingStyle}
           onChangeAccountType={handleChangeAccountType}
           onChangeBroker={handleChangeBroker}

@@ -21,6 +21,8 @@ export const LOCAL_KEYS = {
   migratedFor: 'xauusd_migrated_to_uid',
   /** Starting parameters adopted from a backtest, if the user accepted one. */
   backtestPrior: 'xauusd_backtest_prior',
+  /** Lowest conviction the user is willing to trade. */
+  minConviction: 'xauusd_min_conviction',
 } as const;
 
 export interface LocalProfile {
@@ -34,6 +36,8 @@ export interface LocalProfile {
   learningRecords: SelfLearningMemoryRecord[];
   /** Parameters adopted from a backtest, already sanitised. Null when none. */
   backtestPrior: PriorWeights | null;
+  /** Conviction floor, or null when the user has not set one. */
+  minConviction: number | null;
 }
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
@@ -103,6 +107,10 @@ export function readLocalProfile(): LocalProfile {
     selectedBroker: broker,
     learningRecords,
     backtestPrior,
+    minConviction: (() => {
+      const value = readNumber(LOCAL_KEYS.minConviction);
+      return value !== null && value >= 0 && value <= 100 ? value : null;
+    })(),
   };
 }
 

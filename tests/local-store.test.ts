@@ -193,3 +193,22 @@ describe('an adopted backtest prior', () => {
     expect(readLocalProfile().backtestPrior).toBeNull();
   });
 });
+
+describe('the conviction floor', () => {
+  test('is read back when set', () => {
+    installStorage({ [LOCAL_KEYS.minConviction]: '55' });
+    expect(readLocalProfile().minConviction).toBe(55);
+  });
+
+  test('zero is a real choice, not a missing one', () => {
+    installStorage({ [LOCAL_KEYS.minConviction]: '0' });
+    expect(readLocalProfile().minConviction).toBe(0);
+  });
+
+  test('a value outside the range is ignored rather than applied', () => {
+    installStorage({ [LOCAL_KEYS.minConviction]: '500' });
+    expect(readLocalProfile().minConviction).toBeNull();
+    installStorage({ [LOCAL_KEYS.minConviction]: 'high' });
+    expect(readLocalProfile().minConviction).toBeNull();
+  });
+});

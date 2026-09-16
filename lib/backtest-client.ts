@@ -65,6 +65,8 @@ export interface BacktestJobOptions {
   brokerId: BrokerId;
   equity: number;
   riskPercentage: number;
+  /** Lowest conviction worth trading, zero to one hundred. Zero takes everything. */
+  minConviction?: number;
   onProgress?: (update: BacktestProgressUpdate) => void;
   signal?: AbortSignal;
 }
@@ -218,6 +220,7 @@ async function replay(
     brokerId: options.brokerId,
     startingEquity: options.equity,
     riskPercentage: options.riskPercentage,
+    minConviction: options.minConviction,
     adaptive,
   });
 

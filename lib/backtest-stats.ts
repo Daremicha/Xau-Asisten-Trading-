@@ -228,3 +228,66 @@ export function rollingWinRate(trades: BacktestTrade[], window = 20): Array<{ se
   }
   return points;
 }
+
+/** Conviction bands, chosen to match the Low / Moderate / High labels. */
+export const CONVICTION_BANDS: Array<{ label: string; min: number; max: number }> = [
+  { label: 'Below 40', min: 0, max: 40 },
+  { label: '40 to 54', min: 40, max: 55 },
+  { label: '55 to 69', min: 55, max: 70 },
+  { label: '70 and above', min: 70, max: 101 },
+];
+
+export interface ConvictionBucket {
+  label: string;
+  min: number;
+  signals: number;
+  filled: number;
+  winRate: number | null;
+  netDollars: number;
+  expectancyDollars: number | null;
+}
+
+/**
+ * Splits the run by the conviction each setup scored when it was taken.
+ *
+ * This is the cheapest honest answer to "should the engine trade less": the
+ * trades already happened, so grouping them by the score they had at entry
+ * shows exactly which bands paid for themselves and which ones funded the
+ * losses, without replaying anything.
+ */
+export function convictionBreakdown(trades: BacktestTrade[]): ConvictionBucket[] {
+  return CONVICTION_BANDS.map((band) => {
+    const inBand = trades.filter(
+      (t) => t.convictionScore >= band.min && t.convictionScore < band.max
+    );
+    const filled = inBand.filter((t) => t.filled);
+    const wins = filled.filter((t) => t.netDollars > 0).length;
+    const net = filled.reduce((acc, t) => acc + t.netDollars, 0);
+
+    return {
+      label: band.label,
+      min: band.min,
+      signals: inBand.length,
+      filled: filled.length,
+      winRate: filled.length ? round((wins / filled.length) * 100, 1) : null,
+      netDollars: money(net),
+      expectancyDollars: filled.length ? money(net / filled.length) : null,
+    };
+  });
+}
+
+/**
+ * What the run would have earned had it refused everything below a threshold.
+ *
+ * Trades are independent of each other in this engine, so dropping the weak
+ * ones is a sum over what is left. Compounding would differ slightly, which is
+ * why this is reported as evidence for choosing a floor rather than as a second
+ * backtest result.
+ */
+export function netAboveThreshold(trades: BacktestTrade[], threshold: number): number {
+  return money(
+    trades
+      .filter((t) => t.filled && t.convictionScore >= threshold)
+      .reduce((acc, t) => acc + t.netDollars, 0)
+  );
+}

@@ -15,6 +15,7 @@
  */
 
 import { AdaptiveStrategyEngineWeights, SelfLearningMemoryRecord, TradingStyle } from './types';
+import { STYLE_PROFILES } from './signal-engine';
 
 /** The engine's starting beliefs, used before evidence and shrunk toward. */
 export const PRIOR_WEIGHTS = {
@@ -88,8 +89,27 @@ const MAX_WEIGHT_DRIFT = 0.18;
 /** Bounds on the learned stop buffer. */
 const ATR_BUFFER_MIN = 0.8;
 const ATR_BUFFER_MAX = 2.5;
-/** Bound on how far entries may be pulled toward price, in pips. */
+/** Hard bound on how far entries may be pulled toward price, in pips. */
 const MAX_ENTRY_BUFFER_PIPS = 120;
+
+/**
+ * Share of the style's own stop ceiling that an entry may be dragged away from
+ * the level that justified it.
+ *
+ * A flat 120 pip allowance let an intraday entry move two thirds of its maximum
+ * risk distance, at which point the order no longer sits at the order block or
+ * gap it was derived from: it just sits near price. A backtest over two years
+ * of real candles showed exactly that, filling a third more orders and earning
+ * less than the control while tripling the drawdown.
+ */
+const MAX_BUFFER_SHARE_OF_STOP = 0.4;
+
+/** The furthest an entry may be pulled toward price for a given style. */
+export function entryBufferCeiling(style?: TradingStyle): number {
+  const profile = style ? STYLE_PROFILES[style] : undefined;
+  if (!profile) return MAX_ENTRY_BUFFER_PIPS;
+  return Math.min(MAX_ENTRY_BUFFER_PIPS, profile.maxStopDollars * 10 * MAX_BUFFER_SHARE_OF_STOP);
+}
 
 export interface LearningEvidence {
   /** Every record considered. */
@@ -106,6 +126,15 @@ export interface LearningEvidence {
   missRate: number | null;
   /** Typical distance by which pending orders missed, in pips. */
   medianMissPips: number | null;
+  /**
+   * Recency weighted money result of an average filled trade.
+   *
+   * This is the number that decides whether chasing fills is worth anything. An
+   * order that never filled cost nothing; a bad fill cost real money. Pulling
+   * entries closer to price converts misses into fills, so it only pays when a
+   * filled trade is worth having in the first place.
+   */
+  expectancyDollars: number | null;
   /** Zero to one. How much the engine should trust its own adjustments. */
   confidence: number;
 }
@@ -147,6 +176,7 @@ export function summariseEvidence(records: SelfLearningMemoryRecord[]): Learning
   let weightedTriggered = 0;
   let weightedMissed = 0;
   let weightedTotal = 0;
+  let weightedPnl = 0;
   const missDistances: number[] = [];
 
   ordered.forEach((record, index) => {
@@ -157,8 +187,10 @@ export function summariseEvidence(records: SelfLearningMemoryRecord[]): Learning
     if (record.outcome === 'TP') {
       weightedWins += w;
       weightedTriggered += w;
+      weightedPnl += w * (Number.isFinite(record.profitOrLossDollars) ? record.profitOrLossDollars : 0);
     } else if (record.outcome === 'SL') {
       weightedTriggered += w;
+      weightedPnl += w * (Number.isFinite(record.profitOrLossDollars) ? record.profitOrLossDollars : 0);
     } else if (record.outcome === 'MISSED') {
       weightedMissed += w;
       // How far price stayed from the resting order. This is the number that
@@ -190,6 +222,8 @@ export function summariseEvidence(records: SelfLearningMemoryRecord[]): Learning
       const m = median(missDistances);
       return m === null ? null : parseFloat(m.toFixed(1));
     })(),
+    expectancyDollars:
+      weightedTriggered > 0 ? parseFloat((weightedPnl / weightedTriggered).toFixed(4)) : null,
     confidence: parseFloat(confidenceFrom(effective).toFixed(3)),
   };
 }
@@ -270,9 +304,18 @@ export function deriveAdaptiveWeights(
   if (evidence.sampleSize > 0) {
     const c = evidence.confidence;
 
+    // Whether a filled trade is worth having at all. Everything below that
+    // converts misses into fills depends on this: a missed order costs nothing,
+    // so filling more of them only helps when the fills make money.
+    //
+    // No fill yet means no evidence either way, and refusing to move would
+    // leave an engine that has never entered a trade unable to learn how. That
+    // case still chases; a measured loss per fill does not.
+    const fillsPay = evidence.expectancyDollars === null || evidence.expectancyDollars > 0;
+
     // Orders that never fill mean entries sit too deep. Shift weight toward the
     // shallower level, and pull entries closer by the distance actually missed.
-    if (evidence.missRate !== null && evidence.missRate > 25) {
+    if (evidence.missRate !== null && evidence.missRate > 25 && fillsPay) {
       confluence.fairValueGapWeight = shrinkToward(
         confluence.fairValueGapWeight,
         confluence.fairValueGapWeight + 0.2,
@@ -290,17 +333,34 @@ export function deriveAdaptiveWeights(
       );
     }
 
-    if (evidence.medianMissPips !== null && evidence.medianMissPips > 0) {
-      // Close most of the observed gap, scaled by how sure we are of it.
+    if (evidence.medianMissPips !== null && evidence.medianMissPips > 0 && fillsPay) {
+      // Close most of the observed gap, scaled by how sure we are of it, and
+      // never far enough to leave the level the entry was derived from.
+      const ceiling = entryBufferCeiling(style);
       entryBufferPips = Math.min(
-        MAX_ENTRY_BUFFER_PIPS,
+        ceiling,
         Math.max(prior.entryBufferPips, evidence.medianMissPips * 0.75 * c)
       );
       if (entryBufferPips >= 1) {
         adjustments.push(
-          `Pending orders missed by a median of ${evidence.medianMissPips} pips, so entries move ${entryBufferPips.toFixed(
-            0
-          )} pips closer to price.`
+          `${
+            evidence.expectancyDollars === null
+              ? 'No order has filled yet'
+              : `Filled trades are paying ${evidence.expectancyDollars.toFixed(2)} on average`
+          } and orders missed by a median of ${
+            evidence.medianMissPips
+          } pips, so entries move ${entryBufferPips.toFixed(0)} pips closer to price.`
+        );
+      }
+    } else if (evidence.medianMissPips !== null && evidence.medianMissPips > 0 && !fillsPay) {
+      // The old engine pulled entries closer here regardless, which filled more
+      // of the very setups that were losing money.
+      entryBufferPips = 0;
+      if (evidence.triggeredCount >= 5) {
+        adjustments.push(
+          `Orders are missing by a median of ${evidence.medianMissPips} pips, but a filled trade currently loses ${Math.abs(
+            evidence.expectancyDollars ?? 0
+          ).toFixed(2)} on average, so entries stay at their levels rather than chasing price.`
         );
       }
     }

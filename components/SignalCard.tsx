@@ -7,6 +7,7 @@ import { computeTradeResult } from '@/lib/trade-result';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
+  SkippedSetup,
   OrderExecutionType,
   TradingStyle,
   AccountType,
@@ -28,6 +29,7 @@ import {
   XCircle,
   AlertTriangle,
   Clock,
+  Filter,
   Info,
 } from 'lucide-react';
 
@@ -35,6 +37,8 @@ interface SignalCardProps {
   setup: InstitutionalTradingSetup | null;
   /** The trade that just closed, shown once the setup itself has left the card. */
   lastOutcome?: ClosedTrade | null;
+  /** Set when the engine declined to offer a setup at the user's quality floor. */
+  skipped?: SkippedSetup | null;
   /** Unit the balance is denominated in, so money reads like the terminal does. */
   accountType?: AccountType;
   isAnalyzing: boolean;
@@ -50,6 +54,7 @@ interface SignalCardProps {
 export default function SignalCard({
   setup,
   lastOutcome = null,
+  skipped = null,
   accountType = 'Standard',
   isAnalyzing,
   onRunAnalysis,
@@ -881,6 +886,47 @@ Ready for direct execution in MetaTrader 5.`;
                 })()}
               </div>
             </div>
+          </div>
+        ) : skipped ? (
+          /* The engine looked and judged nothing here worth the risk. Saying so
+             is the honest answer; offering a weak setup anyway is not. */
+          <div
+            id="quality-floor-notice"
+            className={`border rounded-xl p-6 space-y-3 ${
+              isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Filter className="w-5 h-5 text-sky-400" />
+              <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                Nothing worth trading right now
+              </h3>
+            </div>
+
+            <div className={`text-center font-mono text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              Best available setup scored{' '}
+              <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                {skipped.convictionScore}/100
+              </strong>{' '}
+              ({skipped.band}), under your floor of{' '}
+              <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>{skipped.threshold}</strong>.
+            </div>
+
+            {skipped.notes.length > 0 && (
+              <ul className={`text-xs space-y-1 max-w-md mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {skipped.notes.slice(0, 4).map((note, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="text-sky-400">&bull;</span>
+                    <span>{note}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+              Skipping costs nothing. Run the analysis again later, or lower the floor in Capital &amp;
+              Account Configuration.
+            </p>
           </div>
         ) : lastOutcome ? (
           /* The trade is closed and gone from the card. What is left is the

@@ -57,6 +57,7 @@ describe('analysis request validation', () => {
       brokerId: 'HFM',
       userId: 'abc',
       pastLearningRecords: [],
+      minConviction: 0,
       priorWeights: null,
     });
   });
@@ -163,5 +164,22 @@ describe('a backtested prior on an analysis request', () => {
     expect(value?.priorWeights).toBeNull();
     const fromArray = validateAnalyzeBody({ equity: 5000, priorWeights: [] });
     expect(fromArray.value?.priorWeights).toBeNull();
+  });
+});
+
+describe('the conviction floor on an analysis request', () => {
+  test('a floor inside the range is carried through', () => {
+    expect(validateAnalyzeBody({ equity: 5000, minConviction: 55 }).value?.minConviction).toBe(55);
+  });
+
+  test('no floor means take everything', () => {
+    expect(validateAnalyzeBody({ equity: 5000 }).value?.minConviction).toBe(0);
+  });
+
+  test('a floor outside zero to one hundred is refused', () => {
+    expect(validateAnalyzeBody({ equity: 5000, minConviction: 140 }).errors.join(' ')).toContain(
+      'minConviction'
+    );
+    expect(validateAnalyzeBody({ equity: 5000, minConviction: -5 }).value).toBeNull();
   });
 });

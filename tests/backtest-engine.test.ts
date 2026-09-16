@@ -305,3 +305,42 @@ describe('replay', () => {
     }
   });
 });
+
+describe('a conviction floor', () => {
+  const candles = walk(6000);
+
+  test('refusing weak setups leaves only the strong ones', () => {
+    const all = runBacktest(config(candles, { warmupBars: 1400 }));
+    const picky = runBacktest(config(candles, { warmupBars: 1400, minConviction: 60 }));
+
+    expect(picky.trades.length).toBeLessThan(all.trades.length);
+    for (const trade of picky.trades) {
+      expect(trade.convictionScore).toBeGreaterThanOrEqual(60);
+    }
+    expect(picky.summary.minConviction).toBe(60);
+    expect(picky.summary.belowConviction).toBeGreaterThan(0);
+  });
+
+  test('a floor of zero changes nothing', () => {
+    const open = runBacktest(config(candles, { warmupBars: 1400, minConviction: 0 }));
+    const none = runBacktest(config(candles, { warmupBars: 1400 }));
+    expect(open.trades.length).toBe(none.trades.length);
+    expect(open.summary.belowConviction).toBe(0);
+  });
+
+  test('a floor nothing can reach produces no trades rather than an error', () => {
+    // A short series: rejecting every setup means re-analysing every cooldown
+    // for the whole run, which is the slowest path the engine has.
+    const impossible = runBacktest(config(walk(2200), { warmupBars: 1400, minConviction: 100 }));
+    expect(impossible.trades).toHaveLength(0);
+    expect(impossible.summary.belowConviction).toBeGreaterThan(0);
+  });
+
+  test('every trade records the conviction it was taken on', () => {
+    const run = runBacktest(config(candles, { warmupBars: 1400 }));
+    for (const trade of run.trades) {
+      expect(trade.convictionScore).toBeGreaterThanOrEqual(0);
+      expect(trade.convictionScore).toBeLessThanOrEqual(100);
+    }
+  });
+});

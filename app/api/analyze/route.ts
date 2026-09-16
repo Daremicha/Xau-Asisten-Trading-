@@ -265,6 +265,25 @@ Reply with JSON only:
       dataStale: snapshot.status === 'stale',
       proposalRejected: proposalOutcome.attempted && !proposalOutcome.accepted,
     });
+    // A quality floor the user set. Nothing on the chart being good enough is a
+    // real answer, and a cheaper one than a bad trade: skipping costs nothing.
+    if (conviction.convictionScore < input.minConviction) {
+      return NextResponse.json({
+        success: true,
+        setup: null,
+        skipped: {
+          reason: 'below-conviction',
+          convictionScore: conviction.convictionScore,
+          band: conviction.band,
+          threshold: input.minConviction,
+          direction: decision.direction,
+          notes: conviction.notes,
+          rationale: decision.rationale,
+        },
+        dataStatus: snapshot.status,
+      });
+    }
+
     const riskPercentUsed = effectiveRiskPercentage(input.riskPercentage, conviction.multiplier);
 
     // Sized from the order that will actually be placed, which may be the
