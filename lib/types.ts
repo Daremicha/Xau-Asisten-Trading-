@@ -284,6 +284,16 @@ export interface SelfLearningMemoryRecord {
   };
 }
 
+/**
+ * A trade the user has finished with: the closed setup plus the record the
+ * learning engine kept. Held only so the screen can show what just happened
+ * after the setup itself leaves the signal card.
+ */
+export interface ClosedTrade {
+  setup: InstitutionalTradingSetup;
+  record: SelfLearningMemoryRecord;
+}
+
 export type EngineProvider = 'gemini' | 'openai' | 'claude' | 'algorithmic';
 
 /** Outcome of checking a language model's proposed order against real structure. */

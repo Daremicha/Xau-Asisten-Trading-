@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesis } from '@/lib/gen-engine';
 import { SelfLearningMemoryRecord } from '@/lib/types';
 import { validateLearnBody } from '@/lib/request-validation';
+import { computeTradeResult } from '@/lib/trade-result';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,19 +24,10 @@ export async function POST(request: Request) {
     const isProfit = outcome === 'TP';
     const isMissed = outcome === 'MISSED';
     const priceDiff = Math.abs(closedPrice - setup.entryPrice);
-    // A missed order was never filled, so it moved neither pips nor money.
-    const pipsResult = isMissed ? 0 : parseFloat((priceDiff * 10).toFixed(1)) * (isProfit ? 1 : -1);
 
-    // Account-aware P&L calculation (Zero P&L for missed trades since order was not filled)
-    const contractMultiplier = setup.accountType === 'Cent' || setup.contractSpecs?.contractSizeOz === 1 ? 1 : 100;
-    let grossResult = isMissed
-      ? 0
-      : setup.recommendedLotSize * contractMultiplier * priceDiff * (isProfit ? 1 : -1);
-    if (setup.accountType === 'Pro' && !isMissed) {
-      const commissionCost = (setup.contractSpecs?.commissionPerLot || 6.0) * setup.recommendedLotSize;
-      grossResult -= commissionCost;
-    }
-    const dollarResult = parseFloat(grossResult.toFixed(2));
+    // Shared with the signal card's outcome buttons, so what the user is shown
+    // before the click is exactly what gets recorded after it.
+    const { pips: pipsResult, dollars: dollarResult } = computeTradeResult(setup, closedPrice, outcome);
 
     // Default institutional post-mortem, written from this trade's own numbers
     // so two records never read identically. The previous version emitted the
