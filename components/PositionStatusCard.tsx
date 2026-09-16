@@ -4,6 +4,7 @@ import React from 'react';
 import { CheckCircle2, Clock, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import { InstitutionalTradingSetup } from '@/lib/types';
 import { LivePosition } from '@/lib/position-tracker';
+import { formatAccountMoney } from '@/lib/account-display';
 
 interface PositionStatusCardProps {
   setup: InstitutionalTradingSetup;
@@ -95,8 +96,7 @@ export default function PositionStatusCard({
           </div>
 
           <div className="font-mono font-black text-lg leading-tight mt-0.5">
-            {profitable ? '+' : ''}
-            ${(position.floatingDollars ?? 0).toFixed(2)}
+            {formatAccountMoney(position.floatingDollars ?? 0, setup.accountType, { signed: true })}
           </div>
           <div className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             {profitable ? '+' : ''}

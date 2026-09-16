@@ -26,7 +26,9 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from 'recharts';
-import { SelfLearningMemoryRecord, InstitutionalTradingSetup } from '@/lib/types';
+import { AccountType, SelfLearningMemoryRecord, InstitutionalTradingSetup } from '@/lib/types';
+import { formatAccountMoney, formatAccountTick } from '@/lib/account-display';
+import { computeTradeResult } from '@/lib/trade-result';
 
 interface PortfolioGrowthCardProps {
   currentEquity: number;
@@ -34,6 +36,8 @@ interface PortfolioGrowthCardProps {
   isEquityLocked: boolean;
   learningRecords: SelfLearningMemoryRecord[];
   activeSetup: InstitutionalTradingSetup | null;
+  /** Denomination of the user's account, so figures read like their terminal. */
+  accountType?: AccountType;
   onResetBaseline?: () => void;
   theme?: 'dark' | 'light';
 }
@@ -57,9 +61,10 @@ interface CustomTooltipProps {
     };
   }>;
   isDark?: boolean;
+  accountType?: AccountType;
 }
 
-function CustomTooltip({ active, payload, isDark = true }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, isDark = true, accountType = 'Standard' }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const data = payload[0].payload;
   const isWin = data.outcome === 'TP';
@@ -96,7 +101,7 @@ function CustomTooltip({ active, payload, isDark = true }: CustomTooltipProps) {
         <div className="flex justify-between items-center">
           <span className="opacity-70">Balance / Equity:</span>
           <span className="font-bold text-sm text-amber-400">
-            ${data.equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatAccountMoney(data.equity, accountType)}
           </span>
         </div>
 
@@ -128,6 +133,7 @@ export default function PortfolioGrowthCard({
   initialEquity,
   learningRecords,
   activeSetup,
+  accountType = 'Standard',
   onResetBaseline,
   theme = 'dark',
 }: PortfolioGrowthCardProps) {
@@ -153,10 +159,8 @@ export default function PortfolioGrowthCard({
   };
 
 
-  const formatUSDSimple = (val: number) =>
-    val.toLocaleString('en-US', {
-      maximumFractionDigits: 0,
-    });
+  // Whole-unit figures (baselines, peaks, axis ticks) in the account's own unit.
+  const formatUnitsSimple = (val: number) => formatAccountTick(val, accountType);
 
   // Reconstruct equity trajectory point-by-point from trade outcomes
   const { chartData, totalPnLDollars, totalPnLPercent, winRate, totalWins, totalLosses, profitFactor, maxDrawdownPercent, peakEquity } =
@@ -192,7 +196,7 @@ export default function PortfolioGrowthCard({
           fullTime: 'Initial Capital',
           equity: parseFloat(base.toFixed(2)),
           pnl: 0,
-          pnlFormatted: '$0.00',
+          pnlFormatted: formatAccountMoney(0, accountType),
           pnlPercent: 0,
           outcome: 'INITIAL',
           symbol: 'XAUUSD',
@@ -229,7 +233,7 @@ export default function PortfolioGrowthCard({
           fullTime: formatTimeWib(record.timestamp),
           equity: runningEquity,
           pnl,
-          pnlFormatted: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+          pnlFormatted: formatAccountMoney(pnl, accountType, { signed: true }),
           pnlPercent: parseFloat(pct.toFixed(2)),
           outcome: record.outcome,
           symbol: record.symbol || 'XAUUSD',
@@ -260,7 +264,7 @@ export default function PortfolioGrowthCard({
         maxDrawdownPercent: parseFloat(maxDd.toFixed(1)),
         peakEquity: parseFloat(peak.toFixed(2)),
       };
-    }, [learningRecords, initialEquity, currentEquity]);
+    }, [learningRecords, initialEquity, currentEquity, accountType]);
 
   const isNetPositive = totalPnLDollars >= 0;
 
@@ -374,7 +378,7 @@ export default function PortfolioGrowthCard({
             <DollarSign className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="text-lg font-mono font-bold tracking-tight text-amber-400">
-            ${currentEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatAccountMoney(currentEquity, accountType)}
           </div>
           <div className="flex items-center gap-1 text-[10px] mt-1">
             <span
@@ -389,7 +393,7 @@ export default function PortfolioGrowthCard({
               )}
               {totalPnLPercent >= 0 ? `+${totalPnLPercent}%` : `${totalPnLPercent}%`}
             </span>
-            <span className="opacity-50" suppressHydrationWarning>from ${formatUSDSimple(initialEquity)}</span>
+            <span className="opacity-50" suppressHydrationWarning>from {formatUnitsSimple(initialEquity)}</span>
           </div>
         </div>
 
@@ -409,7 +413,7 @@ export default function PortfolioGrowthCard({
               totalPnLDollars >= 0 ? 'text-emerald-400' : 'text-rose-400'
             }`}
           >
-            {totalPnLDollars >= 0 ? `+$${totalPnLDollars.toFixed(2)}` : `-$${Math.abs(totalPnLDollars).toFixed(2)}`}
+            {formatAccountMoney(totalPnLDollars, accountType, { signed: true })}
           </div>
           <div className="text-[10px] opacity-60 mt-1">
             {learningRecords.length} resolved trade{learningRecords.length === 1 ? '' : 's'}
@@ -448,7 +452,7 @@ export default function PortfolioGrowthCard({
             {profitFactor > 0 ? profitFactor.toFixed(2) : '--'}
           </div>
           <div className="text-[10px] opacity-60 mt-1" suppressHydrationWarning>
-            Max DD: {maxDrawdownPercent}% &bull; Peak: ${formatUSDSimple(peakEquity)}
+            Max DD: {maxDrawdownPercent}% &bull; Peak: {formatUnitsSimple(peakEquity)}
           </div>
         </div>
       </div>
@@ -520,18 +524,18 @@ export default function PortfolioGrowthCard({
                   fontSize={11}
                   tickLine={false}
                   axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                  tickFormatter={(val) => `$${val}`}
+                  tickFormatter={(val) => formatAccountTick(val, accountType)}
                   domain={['auto', 'auto']}
                 />
 
-                <Tooltip content={<CustomTooltip isDark={isDark} />} />
+                <Tooltip content={<CustomTooltip isDark={isDark} accountType={accountType} />} />
 
                 <ReferenceLine
                   y={initialEquity > 0 ? initialEquity : 5000}
                   stroke={isDark ? '#64748b' : '#94a3b8'}
                   strokeDasharray="3 3"
                   label={{
-                    value: `Baseline: $${formatUSDSimple(initialEquity)}`,
+                    value: `Baseline: ${formatUnitsSimple(initialEquity)}`,
                     position: 'insideBottomRight',
                     fill: isDark ? '#94a3b8' : '#64748b',
                     fontSize: 10,
@@ -566,7 +570,7 @@ export default function PortfolioGrowthCard({
             <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
               <Info className="w-4 h-4 shrink-0 text-amber-400" />
               <span>
-                Baseline balance initialized at <strong suppressHydrationWarning>${formatUSDSimple(initialEquity)}</strong>. Execute signals or click &quot;Price Hit TP&quot; / &quot;Price Hit SL&quot; on the Institutional Signal card to record live equity growth.
+                Baseline balance initialized at <strong suppressHydrationWarning>{formatUnitsSimple(initialEquity)}</strong>. Execute signals or click &quot;Price Hit TP&quot; / &quot;Price Hit SL&quot; on the Institutional Signal card to record live equity growth.
               </span>
             </div>
           )}
@@ -645,7 +649,7 @@ export default function PortfolioGrowthCard({
 
                     <div className="text-right">
                       <div className={`font-bold text-sm ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`}
+                        {formatAccountMoney(pnl, accountType, { signed: true })}
                       </div>
                       <div className="text-[10px] opacity-75">
                         {rec.profitOrLossPips >= 0 ? `+${rec.profitOrLossPips}` : rec.profitOrLossPips} pips
@@ -676,15 +680,21 @@ export default function PortfolioGrowthCard({
 
           <div className="flex items-center gap-3 font-mono text-[11px]">
             <span className="text-emerald-400 font-bold">
-              TP1: +${(
-                activeSetup.recommendedLotSize *
-                (activeSetup.accountType === 'Cent' ? 1 : 100) *
-                Math.abs(activeSetup.takeProfit1 - activeSetup.entryPrice)
-              ).toFixed(2)}
+              TP1:{' '}
+              {formatAccountMoney(
+                computeTradeResult(activeSetup, activeSetup.takeProfit1, 'TP').dollars,
+                activeSetup.accountType ?? accountType,
+                { signed: true }
+              )}
             </span>
             <span className="opacity-40">&bull;</span>
             <span className="text-rose-400 font-bold">
-              SL: -${activeSetup.riskDollarAmount.toFixed(2)}
+              SL:{' '}
+              {formatAccountMoney(
+                computeTradeResult(activeSetup, activeSetup.stopLoss, 'SL').dollars,
+                activeSetup.accountType ?? accountType,
+                { signed: true }
+              )}
             </span>
           </div>
         </div>

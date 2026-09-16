@@ -50,6 +50,7 @@ import EconomicCalendar from '@/components/EconomicCalendar';
 import TradingCentralCard from '@/components/TradingCentralCard';
 import SelfLearningDashboard from '@/components/SelfLearningDashboard';
 import {
+  ClosedTrade,
   InstitutionalTradingSetup,
   TimeframeType,
   SelfLearningMemoryRecord,
@@ -168,6 +169,13 @@ export default function Home() {
 
   // Active Setup & Analysis State
   const [activeSetup, setActiveSetup] = useState<InstitutionalTradingSetup | null>(null);
+  /**
+   * The trade that was just closed out. A resolved setup used to be kept in
+   * `activeSetup`, so the signal card went on showing a finished trade with its
+   * outcome buttons still live. The setup now leaves the card the moment the
+   * result is recorded, and this holds the receipt until the next analysis.
+   */
+  const [lastOutcome, setLastOutcome] = useState<ClosedTrade | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isEvaluatingOutcome, setIsEvaluatingOutcome] = useState<boolean>(false);
 
@@ -696,6 +704,8 @@ export default function Home() {
       }
       if (data.setup) {
         setActiveSetup(data.setup);
+        // A new setup replaces the previous trade's receipt.
+        setLastOutcome(null);
         if (data.engineWeights) {
           setEngineWeights(data.engineWeights);
         }
@@ -829,14 +839,22 @@ export default function Home() {
           // The trade is resolved, so the held copy is no longer needed.
           clearActiveSetup();
 
-          // Update active setup status
-          setActiveSetup({
-            ...activeSetup,
-            status: outcome === 'TP' ? 'TP_HIT' : outcome === 'SL' ? 'SL_HIT' : 'MISSED',
-            closedPrice: targetExit,
-            closedAt: new Date().toISOString(),
-            learningOutcome: newRecord,
+          // Clear the card and keep only the receipt. Leaving the closed setup
+          // in place is what made a stopped-out trade linger on screen with its
+          // TP and SL buttons still clickable.
+          setLastOutcome({
+            setup: {
+              ...activeSetup,
+              status: outcome === 'TP' ? 'TP_HIT' : outcome === 'SL' ? 'SL_HIT' : 'MISSED',
+              closedPrice: targetExit,
+              closedAt: new Date().toISOString(),
+              learningOutcome: newRecord,
+            },
+            record: newRecord,
           });
+          setActiveSetup(null);
+          // The fill latch belongs to the trade that just ended.
+          setFilledSetupId(null);
 
           // Save learning record to cloud Firestore or local storage
           if (currentUser) {
@@ -1142,6 +1160,8 @@ export default function Home() {
           <div className="lg:col-span-6 space-y-6">
             <SignalCard
               setup={activeSetup}
+              lastOutcome={lastOutcome}
+              accountType={accountType}
               isAnalyzing={isAnalyzing}
               onRunAnalysis={handleRunAnalysis}
               onSimulateOutcome={handleSimulateOutcome}
@@ -1161,6 +1181,7 @@ export default function Home() {
               isEquityLocked={isEquityLocked}
               learningRecords={learningRecords}
               activeSetup={activeSetup}
+              accountType={accountType}
               onResetBaseline={handleResetBaseline}
               theme={theme}
             />

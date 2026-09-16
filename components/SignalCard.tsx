@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import { formatTimeLeft } from '@/lib/order-validity';
+import { formatAccountMoney } from '@/lib/account-display';
+import { computeTradeResult } from '@/lib/trade-result';
 import {
+  ClosedTrade,
   InstitutionalTradingSetup,
   OrderExecutionType,
   TradingStyle,
@@ -30,6 +33,10 @@ import {
 
 interface SignalCardProps {
   setup: InstitutionalTradingSetup | null;
+  /** The trade that just closed, shown once the setup itself has left the card. */
+  lastOutcome?: ClosedTrade | null;
+  /** Unit the balance is denominated in, so money reads like the terminal does. */
+  accountType?: AccountType;
   isAnalyzing: boolean;
   onRunAnalysis: () => void;
   onSimulateOutcome: (outcome: 'TP' | 'SL' | 'MISSED', tpLevel?: 1 | 2 | 3) => void;
@@ -42,6 +49,8 @@ interface SignalCardProps {
 
 export default function SignalCard({
   setup,
+  lastOutcome = null,
+  accountType = 'Standard',
   isAnalyzing,
   onRunAnalysis,
   onSimulateOutcome,
@@ -674,7 +683,8 @@ Ready for direct execution in MetaTrader 5.`;
                 <div>
                   Risk Budget:{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
-                    ${setup.riskDollarAmount.toFixed(2)} ({setup.effectiveRiskPercentage ?? setup.riskPercentage}%)
+                    {formatAccountMoney(setup.riskDollarAmount, setup.accountType)} (
+                    {setup.effectiveRiskPercentage ?? setup.riskPercentage}%)
                   </strong>
                 </div>
                 {/* Why this lot and not a bigger one. The risk percentage the
@@ -704,7 +714,7 @@ Ready for direct execution in MetaTrader 5.`;
                 {setup.exceedsRiskBudget && typeof setup.actualRiskDollars === 'number' && (
                   <div className="text-rose-400">
                     Actual risk:{' '}
-                    <strong>${setup.actualRiskDollars.toFixed(2)}</strong>
+                    <strong>{formatAccountMoney(setup.actualRiskDollars, setup.accountType)}</strong>
                     <span className="text-[10px] block leading-snug mt-0.5">
                       Broker minimum lot exceeds your budget. Lower the stop distance or raise the balance.
                     </span>
@@ -788,10 +798,26 @@ Ready for direct execution in MetaTrader 5.`;
 
                 {/* Outcome Simulation Buttons with Exact Dollar Calculation */}
                 {(() => {
-                  const contractMult = setup.accountType === 'Cent' || setup.contractSpecs?.contractSizeOz === 1 ? 1 : 100;
-                  const tp1Gain = (setup.recommendedLotSize * contractMult * Math.abs(setup.takeProfit1 - setup.entryPrice)).toFixed(2);
-                  const tp2Gain = (setup.recommendedLotSize * contractMult * Math.abs(setup.takeProfit2 - setup.entryPrice)).toFixed(2);
-                  const slLoss = setup.riskDollarAmount.toFixed(2);
+                  // Projected with the same function that records the result, so
+                  // the button cannot promise one number and book another. The
+                  // stop button used to quote the risk budget, which understates
+                  // the loss whenever the broker's minimum lot exceeds it.
+                  const tp1Gain = formatAccountMoney(
+                    computeTradeResult(setup, setup.takeProfit1, 'TP').dollars,
+                    setup.accountType,
+                    { signed: true }
+                  );
+                  const tp2Gain = formatAccountMoney(
+                    computeTradeResult(setup, setup.takeProfit2, 'TP').dollars,
+                    setup.accountType,
+                    { signed: true }
+                  );
+                  const slLoss = formatAccountMoney(
+                    computeTradeResult(setup, setup.stopLoss, 'SL').dollars,
+                    setup.accountType,
+                    { signed: true }
+                  );
+                  const noMove = formatAccountMoney(0, setup.accountType);
 
                   return (
                     // shrink-0 stopped flex-wrap from ever engaging, so this
@@ -808,7 +834,7 @@ Ready for direct execution in MetaTrader 5.`;
                         title="Simulate Take Profit 1 Hit"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Price Hit TP1 (+${tp1Gain})</span>
+                        <span>Price Hit TP1 ({tp1Gain})</span>
                       </button>
 
                       <button
@@ -820,7 +846,7 @@ Ready for direct execution in MetaTrader 5.`;
                         title="Simulate Take Profit 2 Hit"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Hit TP2 (+${tp2Gain})</span>
+                        <span>Hit TP2 ({tp2Gain})</span>
                       </button>
 
                       <button
@@ -832,7 +858,7 @@ Ready for direct execution in MetaTrader 5.`;
                         title="Simulate Stop Loss Hit"
                       >
                         <XCircle className="w-4 h-4" />
-                        <span>Price Hit SL (-${slLoss})</span>
+                        <span>Price Hit SL ({slLoss})</span>
                       </button>
 
                       <button
@@ -848,7 +874,7 @@ Ready for direct execution in MetaTrader 5.`;
                         title="Simulate Pending Order Missed"
                       >
                         <AlertTriangle className="w-4 h-4" />
-                        <span>Order Missed ($0)</span>
+                        <span>Order Missed ({noMove})</span>
                       </button>
                     </div>
                   );
@@ -856,6 +882,76 @@ Ready for direct execution in MetaTrader 5.`;
               </div>
             </div>
           </div>
+        ) : lastOutcome ? (
+          /* The trade is closed and gone from the card. What is left is the
+             receipt, so the user can see the result was recorded. */
+          (() => {
+            const closed = lastOutcome.setup;
+            const pnl = lastOutcome.record.profitOrLossDollars;
+            const isWin = closed.status === 'TP_HIT';
+            const isMiss = closed.status === 'MISSED';
+            const accent = isWin
+              ? 'text-emerald-500'
+              : isMiss
+              ? 'text-amber-500'
+              : 'text-rose-500';
+            return (
+              <div
+                id="closed-trade-receipt"
+                className={`border rounded-xl p-6 space-y-4 ${
+                  isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  {isWin ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  ) : isMiss ? (
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-rose-500" />
+                  )}
+                  <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    {isWin ? 'Take Profit Recorded' : isMiss ? 'Missed Entry Recorded' : 'Stop Loss Recorded'}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                  <div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Order</div>
+                    <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      {closed.orderType}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Entry</div>
+                    <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      ${closed.entryPrice.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Closed at</div>
+                    <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      ${(closed.closedPrice ?? lastOutcome.record.exitPrice).toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Result</div>
+                    <div className={`font-bold ${accent}`}>
+                      {formatAccountMoney(pnl, closed.accountType ?? accountType, { signed: true })}
+                    </div>
+                  </div>
+                </div>
+
+                <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {lastOutcome.record.strategyEvolutionLesson}
+                </p>
+
+                <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                  Balance and the learning engine are already updated. Run a new analysis for the next setup.
+                </p>
+              </div>
+            );
+          })()
         ) : (
           /* Empty / Initial State */
           <div

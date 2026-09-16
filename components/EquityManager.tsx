@@ -14,6 +14,7 @@ import {
   Info,
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
+import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
 
 interface EquityManagerProps {
   equity: number;
@@ -64,9 +65,19 @@ export default function EquityManager({
   };
 
   const isBroke = isLocked && equity <= 0;
-  const riskAmount = (equity * (riskPercentage / 100)).toFixed(2);
-  const centEquivalent = (equity * 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
-  const centRiskAmount = (parseFloat(riskAmount) * 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const riskDollars = equity * (riskPercentage / 100);
+  // The balance is held in USD everywhere in the engine. A cent account simply
+  // denominates the same value differently, so only the display converts.
+  const isCent = isCentAccount(accountType);
+  const balanceDisplay = formatAccountMoney(equity, accountType);
+  const riskDisplay = formatAccountMoney(riskDollars, accountType);
+  // Whatever is typed into the deposit box is read as USD, so a cent account
+  // gets a preview of how that same amount will read in the terminal.
+  const typedDeposit = parseFloat(inputVal);
+  const depositPreview =
+    isCent && Number.isFinite(typedDeposit) && typedDeposit > 0
+      ? formatAccountMoney(typedDeposit, 'Cent')
+      : null;
 
   const getBrokerSpreadForTier = (brokerId: BrokerId) => {
     const b = BROKER_PROFILES[brokerId];
@@ -412,6 +423,11 @@ export default function EquityManager({
                       : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500 shadow-2xs'
                   }`}
                 />
+                {depositPreview && (
+                  <p className="text-[11px] mt-1.5 text-sky-500 font-mono">
+                    Shown as {depositPreview} on a cent account.
+                  </p>
+                )}
               </div>
 
               <button
@@ -440,12 +456,14 @@ export default function EquityManager({
                 <span>Locked Account Equity</span>
                 <Lock className="w-3.5 h-3.5 text-amber-500" />
               </div>
-              <div className="text-2xl font-black font-mono text-emerald-500">
-                ${equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div id="locked-equity-display" className="text-2xl font-black font-mono text-emerald-500">
+                {balanceDisplay}
               </div>
               <div className={`text-[11px] mt-1 flex items-center gap-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                {accountType === 'Cent' ? (
-                  <span className="text-sky-500 font-medium">Equiv: {centEquivalent} USC (Cents)</span>
+                {isCent ? (
+                  <span className="text-sky-500 font-medium">
+                    Cent account &bull; {formatAccountMoney(equity, 'Standard')} deposited
+                  </span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Institutional Anchor
@@ -465,12 +483,7 @@ export default function EquityManager({
                 <Shield className="w-3.5 h-3.5 text-sky-500" />
               </div>
               <div className="text-2xl font-black font-mono text-amber-500">
-                ${riskAmount}{' '}
-                {accountType === 'Cent' && (
-                  <span className={`text-xs font-normal font-sans ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    ({centRiskAmount} USC)
-                  </span>
-                )}
+                {riskDisplay}
               </div>
               <div className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {tradingStyle === 'Scalping'
