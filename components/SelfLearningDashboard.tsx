@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights } from '@/lib/types';
+import { deriveAdaptiveWeights, summariseEvidence } from '@/lib/learning-engine';
 import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock } from 'lucide-react';
 
 interface SelfLearningDashboardProps {
@@ -21,7 +22,11 @@ export default function SelfLearningDashboard({
   const losses = learningRecords.filter((r) => r.outcome === 'SL').length;
   const missed = learningRecords.filter((r) => r.outcome === 'MISSED').length;
   const triggered = wins + losses;
-  const winRate = triggered > 0 ? ((wins / triggered) * 100).toFixed(1) : '80.0';
+  // A strike rate with no triggered trades is not zero information, it is no
+  // information. The previous code printed a flattering 80.0% instead.
+  const evidence = summariseEvidence(learningRecords);
+  const winRate = evidence.winRate === null ? null : evidence.winRate.toFixed(1);
+  const adjustments = deriveAdaptiveWeights(learningRecords).adjustments;
 
   return (
     <div
@@ -67,6 +72,31 @@ export default function SelfLearningDashboard({
         </div>
       </div>
 
+      {/* What the engine changed and why, in plain sentences. Weights that move
+          without explanation are indistinguishable from noise. */}
+      <div
+        className={`border rounded-xl p-3 mb-4 ${
+          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}
+      >
+        <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          What the engine learned
+        </div>
+        <ul className={`space-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+          {adjustments.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-amber-400 shrink-0">•</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+        <div className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          Confidence {(evidence.confidence * 100).toFixed(0)}% from {evidence.sampleSize} record
+          {evidence.sampleSize === 1 ? '' : 's'}, weighted to {evidence.effectiveSampleSize} by recency. Newer
+          trades count for more.
+        </div>
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div
@@ -75,9 +105,17 @@ export default function SelfLearningDashboard({
           }`}
         >
           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Execution Accuracy</div>
-          <div className="text-2xl font-black font-mono text-emerald-400 mt-0.5">{winRate}%</div>
+          <div
+            className={`text-2xl font-black font-mono mt-0.5 ${
+              winRate === null ? (isDark ? 'text-slate-600' : 'text-slate-400') : 'text-emerald-400'
+            }`}
+          >
+            {winRate === null ? '—' : `${winRate}%`}
+          </div>
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            Triggered orders win rate
+            {winRate === null
+              ? 'No order has filled and resolved yet'
+              : `From ${triggered} triggered order${triggered === 1 ? '' : 's'}`}
           </div>
         </div>
 

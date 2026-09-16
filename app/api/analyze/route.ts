@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const marketPrice = snapshot.price;
-    const engineWeights = recalculateEngineWeights(input.pastLearningRecords);
+    const engineWeights = recalculateEngineWeights(input.pastLearningRecords, input.tradingStyle);
     const killZone = getICTKillZoneStatus();
     const economicEvents = filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents());
 
@@ -180,9 +180,15 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       `1. Open MetaTrader 5 on desktop or mobile.`,
       `2. Select symbol: [ ${symbolHint} ].`,
       `3. Order type: [ ${decision.orderType} ].`,
-      `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ], sized to $${lotCalculation.riskDollars.toFixed(
-        2
-      )} risk at ${input.riskPercentage}% of $${input.equity.toLocaleString('en-US')}.`,
+      lotCalculation.exceedsRiskBudget
+        ? `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ]. WARNING: the broker minimum lot risks $${lotCalculation.actualRiskDollars.toFixed(
+            2
+          )}, which is ${((lotCalculation.actualRiskDollars / input.equity) * 100).toFixed(
+            1
+          )}% of your $${input.equity.toLocaleString('en-US')}, above the ${input.riskPercentage}% you asked for. Reduce the stop distance or raise the balance to respect the budget.`
+        : `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ], sized to $${lotCalculation.actualRiskDollars.toFixed(
+            2
+          )} risk at ${input.riskPercentage}% of $${input.equity.toLocaleString('en-US')}.`,
       `5. Entry price: [ ${decision.entryPrice.toFixed(2)} ] (${decision.anchor}).`,
       `6. Stop loss: [ ${decision.stopLoss.toFixed(2)} ], ${decision.stopLossPips} pips away.`,
       `7. Targets: TP1 [ ${decision.takeProfit1.toFixed(2)} ] | TP2 [ ${decision.takeProfit2.toFixed(
@@ -219,6 +225,8 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       stopLossPips: lotCalculation.stopLossPips,
       recommendedLotSize: lotCalculation.lotSize,
       riskDollarAmount: lotCalculation.riskDollars,
+      actualRiskDollars: lotCalculation.actualRiskDollars,
+      exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       riskPercentage: input.riskPercentage,
       multiTimeframeAlignment: read.multiTimeframe,
       technicalIndicators: read.indicators,
@@ -244,6 +252,8 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       confluenceFactors: decision.factors,
       entryDistancePips: decision.entryDistancePips,
       entryOutOfReach: decision.entryOutOfReach,
+      actualRiskDollars: lotCalculation.actualRiskDollars,
+      exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       dataStatus: snapshot.status,
       dataSource: snapshot.source,
       dataAgeSeconds: Math.round(snapshot.ageMs / 1000),
