@@ -20,7 +20,7 @@ import {
   pickNewer,
   saveActiveSetup,
 } from '@/lib/active-setup-store';
-import { evaluatePendingOrder } from '@/lib/order-validity';
+import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
 import {
   GUEST_STATUS,
   failedStatus,
@@ -462,6 +462,31 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [marketPrice, activeSetup]);
 
+  /**
+   * Records a miss automatically once a pending order ends without filling.
+   *
+   * Waiting for the user to notice and click meant an order could sit
+   * unresolved for days, and the learning engine only ever saw the misses
+   * someone happened to be watching. The ref guards against the effect firing
+   * twice for the same setup while the evaluation is in flight.
+   */
+  const autoResolvedRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeSetup || !pendingVerdict || pendingVerdict.state === 'waiting') return;
+    if (isEvaluatingOutcome || marketPrice === null) return;
+    if (autoResolvedRef.current === activeSetup.id) return;
+
+    autoResolvedRef.current = activeSetup.id;
+    const cause = missCause(pendingVerdict.state);
+    setAutoResolveNotice(`${pendingVerdict.reason} The engine recorded it as a missed entry.`);
+    void handleSimulateOutcome('MISSED', 1, cause);
+    // handleSimulateOutcome is recreated each render but closes over the same
+    // setup, so listing it would re-fire this effect without changing anything.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSetup, pendingVerdict, isEvaluatingOutcome, marketPrice]);
+
+  const [autoResolveNotice, setAutoResolveNotice] = useState<string | null>(null);
+
   // Handle Locking Initial Equity
   const handleLockEquity = async (amount: number) => {
     setEquity(amount);
@@ -681,7 +706,11 @@ export default function Home() {
   };
 
   // Simulate Outcome & Trigger Autonomous Self-Learning Engine (TP, SL, or MISSED)
-  const handleSimulateOutcome = async (outcome: 'TP' | 'SL' | 'MISSED', tpLevel: 1 | 2 | 3 = 1) => {
+  const handleSimulateOutcome = async (
+    outcome: 'TP' | 'SL' | 'MISSED',
+    tpLevel: 1 | 2 | 3 = 1,
+    autoReason?: string
+  ) => {
     if (!activeSetup) return;
     setIsEvaluatingOutcome(true);
 
@@ -711,6 +740,10 @@ export default function Home() {
           setup: activeSetup,
           outcome,
           closedPrice: targetExit,
+          // Why it missed, so the post mortem reflects the real cause instead
+          // of assuming every miss is the same thing.
+          missCause: autoReason,
+          autoResolved: Boolean(autoReason),
         }),
       });
 
@@ -891,30 +924,33 @@ export default function Home() {
           </span>
         </div>
 
-        {/* An unresolved order whose window has closed. It is deliberately kept
-            on screen: the user still has to record the outcome so the engine
-            learns from it. */}
-        {pendingVerdict && pendingVerdict.state !== 'waiting' && (
+        {/* A pending order that ended without filling is recorded by the engine
+            itself. The notice explains what it decided and why. */}
+        {autoResolveNotice && (
           <div
-            id="pending-order-status-banner"
-            className="p-4 rounded-xl border bg-amber-500/15 border-amber-500/40 text-amber-300 flex items-start gap-3"
+            id="auto-resolved-banner"
+            className="p-4 rounded-xl border bg-amber-500/15 border-amber-500/40 text-amber-300 flex items-start justify-between gap-3"
           >
-            <div className="p-2 rounded-lg bg-black/20 shrink-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-sm">
-                {pendingVerdict.state === 'expired'
-                  ? 'This pending order has passed its validity window'
-                  : pendingVerdict.state === 'invalidated'
-                  ? 'This pending order was invalidated before it filled'
-                  : 'Price reached the target without filling this order'}
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-black/20 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-              <div className="text-xs opacity-90 mt-0.5">{pendingVerdict.reason}</div>
-              <div className="text-xs opacity-75 mt-1">
-                It stays here until you record the outcome below, so the learning engine can use it.
+              <div>
+                <div className="font-bold text-sm">Pending order closed automatically</div>
+                <div className="text-xs opacity-90 mt-0.5">{autoResolveNotice}</div>
+                <div className="text-xs opacity-75 mt-1">
+                  No action needed. The engine has already learned from it.
+                </div>
               </div>
             </div>
+            <button
+              id="dismiss-auto-resolve-btn"
+              type="button"
+              onClick={() => setAutoResolveNotice(null)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-current hover:bg-white/10 cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 

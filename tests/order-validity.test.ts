@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { computeValidity, evaluatePendingOrder, formatTimeLeft } from '../lib/order-validity';
+import { computeValidity, evaluatePendingOrder, formatTimeLeft, missCause } from '../lib/order-validity';
 
 const NOW = new Date('2026-09-16T10:00:00Z');
 
@@ -98,5 +98,28 @@ describe('the countdown reads naturally', () => {
     expect(formatTimeLeft(0)).toBe('expired');
     expect(formatTimeLeft(-10)).toBe('expired');
     expect(formatTimeLeft(Infinity)).toBe('expired');
+  });
+});
+
+describe('the cause of a miss is specific, since each teaches a different lesson', () => {
+  test('a runaway says the entry sat too deep', () => {
+    expect(missCause('ran-away')).toContain('deeper than the market retraced');
+  });
+
+  test('an invalidation says the directional read was wrong', () => {
+    expect(missCause('invalidated')).toContain('directional read was wrong');
+  });
+
+  test('an expiry says the level never came back', () => {
+    expect(missCause('expired')).toContain('never reaching the entry');
+  });
+
+  test('the three causes are all different, so learning can tell them apart', () => {
+    const causes = new Set([missCause('ran-away'), missCause('invalidated'), missCause('expired')]);
+    expect(causes.size).toBe(3);
+  });
+
+  test('a waiting order has no miss cause to report', () => {
+    expect(missCause('waiting')).toBe('The order did not fill.');
   });
 });

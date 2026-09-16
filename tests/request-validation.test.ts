@@ -102,3 +102,33 @@ describe('learning request validation', () => {
     expect(validateLearnBody({ setup: goodSetup, outcome: 'SL', closedPrice: -3 }).value).toBeNull();
   });
 });
+
+describe('an automatically closed order carries why it closed', () => {
+  const goodSetup = {
+    id: 'setup_1', entryPrice: 4200, stopLoss: 4190,
+    orderType: 'BUY LIMIT', recommendedLotSize: 0.1,
+  };
+
+  test('the cause and the auto flag pass through', () => {
+    const { value } = validateLearnBody({
+      setup: goodSetup, outcome: 'MISSED', closedPrice: 4210,
+      missCause: 'The validity window closed with price never reaching the entry.',
+      autoResolved: true,
+    });
+    expect(value!.autoResolved).toBe(true);
+    expect(value!.missCause).toContain('validity window');
+  });
+
+  test('a manual click is not marked as automatic', () => {
+    const { value } = validateLearnBody({ setup: goodSetup, outcome: 'MISSED', closedPrice: 4210 });
+    expect(value!.autoResolved).toBe(false);
+    expect(value!.missCause).toBeUndefined();
+  });
+
+  test('an empty cause is treated as absent rather than stored blank', () => {
+    const { value } = validateLearnBody({
+      setup: goodSetup, outcome: 'MISSED', closedPrice: 4210, missCause: '', autoResolved: true,
+    });
+    expect(value!.missCause).toBeUndefined();
+  });
+});
