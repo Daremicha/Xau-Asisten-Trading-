@@ -16,6 +16,7 @@
 import { Candle } from './candles';
 import { createBacktest, type BacktestResult } from './backtest-engine';
 import {
+  compareAdoption,
   compareRuns,
   comparePhases,
   summariseTrades,
@@ -23,6 +24,7 @@ import {
   type PhaseComparison,
   type BacktestStats,
 } from './backtest-stats';
+import { normalisePrior } from './learning-engine';
 import { fromWire, mergeCandles, INTERVAL_MS, type HistoryInterval } from './history-feed';
 import { AccountType, BrokerId, TradingStyle } from './types';
 
@@ -33,7 +35,7 @@ const MAX_PAGES = 30;
 /** Retries per page when the provider is rate limiting. */
 const MAX_RATE_LIMIT_RETRIES = 3;
 
-export type BacktestPhase = 'download' | 'control' | 'adaptive' | 'done';
+export type BacktestPhase = 'download' | 'control' | 'adaptive' | 'frozen' | 'done';
 
 export interface BacktestProgressUpdate {
   phase: BacktestPhase;
@@ -75,9 +77,18 @@ export interface BacktestJobResult {
   coverage: BacktestCoverage;
   control: BacktestResult;
   adaptive: BacktestResult;
+  /**
+   * The same period traded with the learning run's final parameters held fixed
+   * from the first candle. This is what adopting them would actually have done,
+   * as opposed to the path the learning run took to reach them.
+   */
+  frozen: BacktestResult;
   controlStats: BacktestStats;
   adaptiveStats: BacktestStats;
+  frozenStats: BacktestStats;
   comparison: LearningComparison;
+  /** Frozen learned parameters against the engine defaults. */
+  adoption: LearningComparison;
   phases: PhaseComparison;
   ranAt: string;
 }
@@ -210,7 +221,8 @@ async function replay(
   adaptive: boolean,
   phase: BacktestPhase,
   baseline: number,
-  span: number
+  span: number,
+  startingPrior: Parameters<typeof createBacktest>[0]['startingPrior'] = null
 ): Promise<BacktestResult> {
   const run = createBacktest({
     candles,
@@ -222,6 +234,7 @@ async function replay(
     riskPercentage: options.riskPercentage,
     minConviction: options.minConviction,
     adaptive,
+    startingPrior,
   });
 
   let guard = 0;
@@ -232,9 +245,11 @@ async function replay(
     guard += 1;
 
     const share = progress.totalBars > 0 ? progress.barsProcessed / progress.totalBars : 1;
+    const name =
+      phase === 'frozen' ? 'Testing the learned parameters' : adaptive ? 'Learning run' : 'Control run';
     options.onProgress?.({
       phase,
-      label: `${adaptive ? 'Learning run' : 'Control run'}: ${progress.trades} trades from ${progress.decisions} analyses.`,
+      label: `${name}: ${progress.trades} trades from ${progress.decisions} analyses.`,
       percent: baseline + share * span,
     });
     await yieldToBrowser();
@@ -261,8 +276,20 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     );
   }
 
-  const control = await replay(candles, options, false, 'control', 45, 27);
-  const adaptive = await replay(candles, options, true, 'adaptive', 72, 27);
+  const control = await replay(candles, options, false, 'control', 40, 20);
+  const adaptive = await replay(candles, options, true, 'adaptive', 60, 20);
+
+  // A third pass, so the adopt button rests on evidence rather than on the
+  // endpoint of a path that was never traded as a configuration.
+  const frozen = await replay(
+    candles,
+    options,
+    false,
+    'frozen',
+    80,
+    19,
+    normalisePrior(adaptive.finalWeights)
+  );
 
   options.onProgress?.({ phase: 'done', label: 'Backtest complete.', percent: 100 });
 
@@ -270,9 +297,12 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     coverage,
     control,
     adaptive,
+    frozen,
     controlStats: summariseTrades(control.trades, options.equity),
     adaptiveStats: summariseTrades(adaptive.trades, options.equity),
+    frozenStats: summariseTrades(frozen.trades, options.equity),
     comparison: compareRuns(control, adaptive),
+    adoption: compareAdoption(control, frozen),
     phases: comparePhases(adaptive),
     ranAt: new Date().toISOString(),
   };

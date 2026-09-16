@@ -123,14 +123,21 @@ export default function BacktestLab({
     if (!result) return [];
     const controlCurve = result.control.equityCurve;
     const learningCurveData = result.adaptive.equityCurve;
+    const frozenCurve = result.frozen.equityCurve;
     const times = Array.from(
-      new Set([...controlCurve.map((p) => p.time), ...learningCurveData.map((p) => p.time)])
+      new Set([
+        ...controlCurve.map((p) => p.time),
+        ...learningCurveData.map((p) => p.time),
+        ...frozenCurve.map((p) => p.time),
+      ])
     ).sort((a, b) => a - b);
 
     let ci = 0;
     let ai = 0;
+    let fi = 0;
     let controlEquity = result.control.summary.startingEquity;
     let learningEquity = result.adaptive.summary.startingEquity;
+    let frozenEquity = result.frozen.summary.startingEquity;
 
     return times.map((time) => {
       while (ci < controlCurve.length && controlCurve[ci].time <= time) {
@@ -141,7 +148,11 @@ export default function BacktestLab({
         learningEquity = learningCurveData[ai].equity;
         ai += 1;
       }
-      return { time, control: controlEquity, learning: learningEquity };
+      while (fi < frozenCurve.length && frozenCurve[fi].time <= time) {
+        frozenEquity = frozenCurve[fi].equity;
+        fi += 1;
+      }
+      return { time, control: controlEquity, learning: learningEquity, frozen: frozenEquity };
     });
   }, [result]);
 
@@ -398,8 +409,18 @@ export default function BacktestLab({
                   : 'Learning made no measurable difference'}
               </h3>
             </div>
-            <p className={`text-xs ${muted}`}>{result.comparison.explanation}</p>
-            <p className={`text-xs mt-1 ${muted}`}>{result.phases.explanation}</p>
+            <p className={`text-xs ${muted}`}>
+              <span className={strong}>Against the control: </span>
+              {result.comparison.explanation}
+            </p>
+            <p className={`text-xs mt-1 ${muted}`}>
+              <span className={strong}>Within the learning run: </span>
+              {result.phases.explanation}
+            </p>
+            <p className={`text-xs mt-1 ${muted}`}>
+              <span className={strong}>If you adopt its parameters: </span>
+              {result.adoption.explanation}
+            </p>
           </div>
 
           {/* Side by side */}
@@ -410,6 +431,7 @@ export default function BacktestLab({
                   <th className="text-left font-medium py-1.5">Measure</th>
                   <th className="text-right font-medium py-1.5">Fixed parameters</th>
                   <th className="text-right font-medium py-1.5">Learning from results</th>
+                  <th className="text-right font-medium py-1.5">Learned, held fixed</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
@@ -418,31 +440,37 @@ export default function BacktestLab({
                     label: 'Signals produced',
                     control: result.controlStats.totalSignals.toString(),
                     adaptive: result.adaptiveStats.totalSignals.toString(),
+                    frozen: result.frozenStats.totalSignals.toString(),
                   },
                   {
                     label: 'Orders filled',
                     control: `${result.controlStats.filled} (${result.controlStats.missRate ?? 0}% missed)`,
                     adaptive: `${result.adaptiveStats.filled} (${result.adaptiveStats.missRate ?? 0}% missed)`,
+                    frozen: `${result.frozenStats.filled} (${result.frozenStats.missRate ?? 0}% missed)`,
                   },
                   {
                     label: 'Win rate',
                     control: result.controlStats.winRate === null ? '—' : `${result.controlStats.winRate}%`,
                     adaptive: result.adaptiveStats.winRate === null ? '—' : `${result.adaptiveStats.winRate}%`,
+                    frozen: result.frozenStats.winRate === null ? '—' : `${result.frozenStats.winRate}%`,
                   },
                   {
                     label: 'Net result',
                     control: money(result.controlStats.netDollars, true),
                     adaptive: money(result.adaptiveStats.netDollars, true),
+                    frozen: money(result.frozenStats.netDollars, true),
                   },
                   {
                     label: 'Return on balance',
                     control: `${result.controlStats.returnPercent}%`,
                     adaptive: `${result.adaptiveStats.returnPercent}%`,
+                    frozen: `${result.frozenStats.returnPercent}%`,
                   },
                   {
                     label: 'Profit factor',
                     control: result.controlStats.profitFactor?.toFixed(2) ?? '—',
                     adaptive: result.adaptiveStats.profitFactor?.toFixed(2) ?? '—',
+                    frozen: result.frozenStats.profitFactor?.toFixed(2) ?? '—',
                   },
                   {
                     label: 'Average per trade',
@@ -454,22 +482,29 @@ export default function BacktestLab({
                       result.adaptiveStats.expectancyDollars === null
                         ? '—'
                         : money(result.adaptiveStats.expectancyDollars, true),
+                    frozen:
+                      result.frozenStats.expectancyDollars === null
+                        ? '—'
+                        : money(result.frozenStats.expectancyDollars, true),
                   },
                   {
                     label: 'Worst drawdown',
                     control: `${result.controlStats.maxDrawdownPercent}%`,
                     adaptive: `${result.adaptiveStats.maxDrawdownPercent}%`,
+                    frozen: `${result.frozenStats.maxDrawdownPercent}%`,
                   },
                   {
                     label: 'Longest losing run',
                     control: `${result.controlStats.worstLosingStreak}`,
                     adaptive: `${result.adaptiveStats.worstLosingStreak}`,
+                    frozen: `${result.frozenStats.worstLosingStreak}`,
                   },
                 ].map((row) => (
                   <tr key={row.label} className={isDark ? 'border-t border-slate-800' : 'border-t border-slate-100'}>
                     <td className={`py-1.5 font-sans ${muted}`}>{row.label}</td>
                     <td className={`py-1.5 text-right ${strong}`}>{row.control}</td>
                     <td className="py-1.5 text-right font-bold text-sky-400">{row.adaptive}</td>
+                    <td className="py-1.5 text-right font-bold text-amber-400">{row.frozen}</td>
                   </tr>
                 ))}
               </tbody>
@@ -480,7 +515,7 @@ export default function BacktestLab({
           {curveData.length > 1 && (
             <div className={`border rounded-xl p-3 ${panel}`}>
               <div className={`text-xs mb-2 ${strong}`}>
-                Balance through the period, both runs shown on the same dates
+                Balance through the period, all three runs on the same dates
               </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -540,6 +575,17 @@ export default function BacktestLab({
                       stroke="#0ea5e9"
                       strokeWidth={2.2}
                       fill="url(#btLearning)"
+                      dot={false}
+                      connectNulls
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="frozen"
+                      name="Learned, held fixed"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      strokeDasharray="4 3"
+                      fill="none"
                       dot={false}
                       connectNulls
                     />
@@ -703,7 +749,7 @@ export default function BacktestLab({
                 type="button"
                 id="adopt-backtest-prior-btn"
                 onClick={() => onAdoptPrior(normalisePrior(result.adaptive.finalWeights))}
-                disabled={result.comparison.verdict === 'worse'}
+                disabled={result.adoption.verdict === 'worse'}
                 className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -724,10 +770,24 @@ export default function BacktestLab({
                 </button>
               )}
             </div>
-            {result.comparison.verdict === 'worse' && (
+            <p className={`text-[11px] mt-2 ${muted}`}>
+              Held fixed from the first candle, these parameters produced{' '}
+              <span className={strong}>{money(result.frozenStats.netDollars, true)}</span> against the
+              defaults&apos; <span className={strong}>{money(result.controlStats.netDollars, true)}</span>,
+              with a {result.frozenStats.maxDrawdownPercent}% worst drawdown against{' '}
+              {result.controlStats.maxDrawdownPercent}%. That test, not the learning run&apos;s own path, is
+              what adopting them would have done.
+            </p>
+            {result.adoption.verdict === 'worse' && (
               <p className="text-[11px] mt-2 text-rose-400">
-                These parameters lost money against the control over this period, so they are not offered
-                for live use.
+                Held fixed, these parameters lost money against the engine defaults over this period, so
+                they are not offered for live use.
+              </p>
+            )}
+            {result.adoption.verdict === 'same' && (
+              <p className="text-[11px] mt-2 text-amber-400">
+                Held fixed, these parameters finished within noise of the defaults. Adopting them is a
+                judgement call rather than an improvement the data supports.
               </p>
             )}
             {adoptedPrior && (
@@ -778,7 +838,9 @@ export default function BacktestLab({
             replay. Slippage, weekend gaps in execution and swap are not modelled. Position size is a
             fixed percentage of the running balance, so a winning stretch compounds and the later trades
             dominate the total. Past results are evidence about parameters, not a promise about the next
-            trade.
+            trade. The third column freezes the learning run&apos;s final parameters from the first candle,
+            because the weights it ended on are the end of a path rather than a configuration that was ever
+            traded as such.
           </div>
         </div>
       )}
