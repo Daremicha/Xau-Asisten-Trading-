@@ -284,6 +284,19 @@ export interface SelfLearningMemoryRecord {
 
 export type EngineProvider = 'gemini' | 'openai' | 'claude' | 'algorithmic';
 
+/** Outcome of checking a language model's proposed order against real structure. */
+export interface ModelProposalOutcome {
+  /** True when a language model was asked for a proposal at all. */
+  attempted: boolean;
+  /** True when its proposal survived every structural check and was used. */
+  accepted: boolean;
+  /** Rules the proposal broke, when it was rejected. */
+  reasons: string[];
+  /** Measured level the accepted entry was matched to. */
+  anchoredTo?: string;
+  model?: string;
+}
+
 export interface EngineGenerationMetadata {
   provider: EngineProvider;
   model: string;
@@ -343,6 +356,7 @@ export interface InstitutionalTradingSetup {
   learningRecordId?: string;
   learningOutcome?: SelfLearningMemoryRecord;
   engineMetadata?: EngineGenerationMetadata;
+  modelProposal?: ModelProposalOutcome;
 }
 
 export interface AdaptiveStrategyEngineWeights {

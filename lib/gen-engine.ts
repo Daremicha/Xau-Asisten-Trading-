@@ -76,7 +76,9 @@ async function callOpenAI(
 
   try {
     const res = await withTimeout(
-      fetch('https://api.openai.com/v1/chat/completions', {
+      // Overridable so a self hosted proxy, or a mock in tests, can stand in
+      // for the public endpoint.
+      fetch(`${(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

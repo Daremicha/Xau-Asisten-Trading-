@@ -366,6 +366,31 @@ Ready for direct execution in MetaTrader 5.`;
                     )}
                   </span>
                 )}
+
+                {/* Whether a language model proposal was used or thrown out.
+                    A rejection is worth seeing: it means the model tried to
+                    quote something the market structure does not support. */}
+                {setup.modelProposal?.attempted && (
+                  <span
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl border flex items-center gap-1.5 ${
+                      setup.modelProposal.accepted
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                        : 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                    }`}
+                    title={
+                      setup.modelProposal.accepted
+                        ? `Model proposal validated against ${setup.modelProposal.anchoredTo ?? 'measured structure'}.`
+                        : `Model proposal rejected: ${setup.modelProposal.reasons.join(' ')}`
+                    }
+                  >
+                    <ShieldAlert className="w-3 h-3" />
+                    <span>
+                      {setup.modelProposal.accepted
+                        ? 'Model proposal validated'
+                        : 'Model proposal rejected, engine levels used'}
+                    </span>
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
