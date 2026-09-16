@@ -339,6 +339,8 @@ export interface InstitutionalTradingSetup {
   effectiveRiskPercentage?: number;
   /** When a pending order stops being worth leaving on the book. */
   validUntil?: string;
+  /** When price actually reached the entry and the position opened. */
+  filledAt?: string;
   validityBasis?: string;
   /** What the recommended lot actually risks, which can exceed the budget when
    *  the broker's minimum lot is larger than the budget allows. */

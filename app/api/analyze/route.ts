@@ -354,7 +354,10 @@ Reply with JSON only:
       },
       institutionalRationale,
       executionInstructionsMT5: mt5Instructions,
-      status: 'ACTIVE',
+      // A resting order is PENDING until price reaches it; only an instant
+      // order is live the moment it is placed. The two were previously
+      // indistinguishable, which left the pending branches of the UI dead.
+      status: finalOrder.orderType.includes('INSTANT') ? 'ACTIVE' : 'PENDING',
       engineMetadata,
       modelProposal: proposalOutcome,
     };

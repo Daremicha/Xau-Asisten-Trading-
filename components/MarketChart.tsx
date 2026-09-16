@@ -15,6 +15,8 @@ interface MarketChartProps {
   indicators?: TechnicalIndicators | null;
   /** Real state of the market data connection. */
   feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
+  /** Live entry status panel, pinned over the top right of the chart. */
+  statusPanel?: React.ReactNode;
   theme?: 'dark' | 'light';
 }
 
@@ -27,6 +29,7 @@ export default function MarketChart({
   activeSetup,
   indicators = null,
   feedStatus = 'loading',
+  statusPanel = null,
   theme = 'dark',
 }: MarketChartProps) {
   const isDark = theme === 'dark';
@@ -157,8 +160,19 @@ export default function MarketChart({
         </div>
       </div>
 
+      {/* Entry status, stacked above the chart on a phone so it never covers
+          the candles, and pinned over the top right corner on wider screens. */}
+      {statusPanel && (
+        <div className="sm:hidden px-4 pt-3">{statusPanel}</div>
+      )}
+
       {/* Main Chart Area */}
       <div className={`relative w-full h-[420px] sm:h-[480px] ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        {statusPanel && (
+          <div className="hidden sm:block absolute top-3 right-3 z-20 pointer-events-none">
+            <div className="pointer-events-auto">{statusPanel}</div>
+          </div>
+        )}
         {useTradingView ? (
           <iframe
             suppressHydrationWarning
