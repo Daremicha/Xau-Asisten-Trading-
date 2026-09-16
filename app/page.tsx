@@ -6,6 +6,14 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { migrateLocalProfileToCloud } from '@/lib/cloud-sync';
 import {
+  GUEST_STATUS,
+  failedStatus,
+  formatLastSaved,
+  savedStatus,
+  savingStatus,
+  type SyncStatus,
+} from '@/lib/sync-status';
+import {
   LOCAL_KEYS,
   alreadyMigrated,
   hasLocalDataWorthMigrating,
@@ -46,7 +54,7 @@ import {
   ProximityAlertEvent,
   NotificationPermissionState,
 } from '@/lib/notification-utility';
-import { BellRing, X, WifiOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
   TechnicalIndicators,
@@ -163,6 +171,37 @@ export default function Home() {
   const killZone = useMemo(() => getICTKillZoneStatus(), []);
   const economicEvents = useMemo(() => filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents()), []);
 
+  // Whether the user's data actually reached the cloud. Firestore rejections
+  // used to vanish into the console, leaving the screen looking normal while
+  // nothing was being saved.
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(GUEST_STATUS);
+
+  // Recomputed on a timer so "2 minutes ago" does not sit frozen on screen.
+  const [lastSavedLabel, setLastSavedLabel] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setLastSavedLabel(formatLastSaved(syncStatus));
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => clearInterval(id);
+  }, [syncStatus]);
+
+  /**
+   * Runs a Firestore write and records whether it succeeded, so a rejection is
+   * visible instead of silent. Returns true when the write landed.
+   */
+  const saveToCloud = useCallback(async (write: () => Promise<void>): Promise<boolean> => {
+    setSyncStatus((prev) => savingStatus(prev));
+    try {
+      await write();
+      setSyncStatus(savedStatus());
+      return true;
+    } catch (err) {
+      console.warn('Cloud write rejected:', err);
+      setSyncStatus((prev) => failedStatus(prev, err));
+      return false;
+    }
+  }, []);
+
   // One-time transfer of guest work into a freshly signed-in account.
   const [isMigrating, setIsMigrating] = useState<boolean>(false);
   const [migrationNotice, setMigrationNotice] = useState<string | null>(null);
@@ -190,6 +229,7 @@ export default function Home() {
       setAuthLoading(false);
 
       if (user) {
+        setSyncStatus(savedStatus());
         try {
           const userDocRef = doc(db, 'users', user.uid);
           const snap = await getDoc(userDocRef);
@@ -257,6 +297,7 @@ export default function Home() {
         }
       } else {
         // Guest trader: everything lives in this browser.
+        setSyncStatus(GUEST_STATUS);
         applyLocalProfile(readLocalProfile());
       }
     });
@@ -356,10 +397,9 @@ export default function Home() {
     setIsEquityLocked(true);
 
     if (currentUser) {
-      try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await setDoc(
-          userDocRef,
+      await saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
           {
             lockedEquity: amount,
             initialEquity: amount,
@@ -371,10 +411,8 @@ export default function Home() {
             updatedAt: new Date().toISOString(),
           },
           { merge: true }
-        );
-      } catch (err) {
-        console.warn('Error saving locked equity to Firestore:', err);
-      }
+        )
+      );
     } else {
       localStorage.setItem(LOCAL_KEYS.equity, amount.toString());
       localStorage.setItem(LOCAL_KEYS.initialEquity, amount.toString());
@@ -387,8 +425,13 @@ export default function Home() {
     setInitialEquity(equity);
     localStorage.setItem(LOCAL_KEYS.initialEquity, equity.toString());
     if (currentUser) {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      setDoc(userDocRef, { initialEquity: equity, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      void saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { initialEquity: equity, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
     }
   };
 
@@ -396,12 +439,9 @@ export default function Home() {
   const handleChangeBroker = async (broker: BrokerId) => {
     setSelectedBroker(broker);
     if (currentUser) {
-      try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userDocRef, { selectedBroker: broker, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (e) {
-        console.warn('Error saving broker preference:', e);
-      }
+      await saveToCloud(() =>
+        setDoc(doc(db, 'users', currentUser.uid), { selectedBroker: broker, updatedAt: new Date().toISOString() }, { merge: true })
+      );
     } else {
       localStorage.setItem(LOCAL_KEYS.broker, broker);
     }
@@ -411,12 +451,9 @@ export default function Home() {
   const handleChangeRiskPercentage = async (pct: number) => {
     setRiskPercentage(pct);
     if (currentUser) {
-      try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userDocRef, { riskPercentage: pct, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (e) {
-        console.warn('Error saving risk percentage:', e);
-      }
+      await saveToCloud(() =>
+        setDoc(doc(db, 'users', currentUser.uid), { riskPercentage: pct, updatedAt: new Date().toISOString() }, { merge: true })
+      );
     } else {
       localStorage.setItem(LOCAL_KEYS.riskPct, pct.toString());
     }
@@ -426,12 +463,9 @@ export default function Home() {
   const handleChangeTradingStyle = async (style: TradingStyle) => {
     setTradingStyle(style);
     if (currentUser) {
-      try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userDocRef, { tradingStyle: style, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (e) {
-        console.warn('Error saving trading style:', e);
-      }
+      await saveToCloud(() =>
+        setDoc(doc(db, 'users', currentUser.uid), { tradingStyle: style, updatedAt: new Date().toISOString() }, { merge: true })
+      );
     } else {
       localStorage.setItem(LOCAL_KEYS.style, style);
     }
@@ -441,12 +475,9 @@ export default function Home() {
   const handleChangeAccountType = async (acc: AccountType) => {
     setAccountType(acc);
     if (currentUser) {
-      try {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userDocRef, { accountType: acc, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (e) {
-        console.warn('Error saving account tier:', e);
-      }
+      await saveToCloud(() =>
+        setDoc(doc(db, 'users', currentUser.uid), { accountType: acc, updatedAt: new Date().toISOString() }, { merge: true })
+      );
     } else {
       localStorage.setItem(LOCAL_KEYS.account, acc);
     }
@@ -457,16 +488,13 @@ export default function Home() {
       setIsEquityLocked(false);
       setEquity(5000);
       if (currentUser) {
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          await setDoc(
-            userDocRef,
+        await saveToCloud(() =>
+          setDoc(
+            doc(db, 'users', currentUser.uid),
             { isEquityLocked: false, lockedEquity: 5000, updatedAt: new Date().toISOString() },
             { merge: true }
-          );
-        } catch (e) {
-          console.warn('Error resetting equity:', e);
-        }
+          )
+        );
       } else {
         localStorage.setItem(LOCAL_KEYS.isLocked, 'false');
         localStorage.setItem(LOCAL_KEYS.equity, '5000');
@@ -513,12 +541,10 @@ export default function Home() {
 
         // Save setup to Firestore if user is authenticated
         if (currentUser) {
-          try {
-            // Keyed by the setup's own id so a retry cannot create a duplicate.
-            await setDoc(doc(db, 'users', currentUser.uid, 'analyses', data.setup.id), data.setup);
-          } catch (e) {
-            console.warn('Could not save analysis to cloud:', e);
-          }
+          // Keyed by the setup's own id so a retry cannot create a duplicate.
+          await saveToCloud(() =>
+            setDoc(doc(db, 'users', currentUser.uid, 'analyses', data.setup.id), data.setup)
+          );
         }
       }
     } catch (err) {
@@ -630,14 +656,15 @@ export default function Home() {
 
           // Save learning record to cloud Firestore or local storage
           if (currentUser) {
-            try {
+            // A rejected write here would lose the trade result, so it is
+            // reported rather than swallowed. The browser copy is written
+            // either way, so nothing is lost while the cause is fixed.
+            const stored = await saveToCloud(async () => {
               // Same key as the guest migration uses, so a record copied up
               // earlier is updated rather than stored twice.
               await setDoc(doc(db, 'users', currentUser.uid, 'learning_records', newRecord.id), newRecord);
-
-              const userDocRef = doc(db, 'users', currentUser.uid);
               await setDoc(
-                userDocRef,
+                doc(db, 'users', currentUser.uid),
                 {
                   lockedEquity: newEquity,
                   totalTrades: updatedRecords.length,
@@ -648,8 +675,12 @@ export default function Home() {
                 },
                 { merge: true }
               );
-            } catch (e) {
-              console.warn('Error saving self-learning record:', e);
+            });
+
+            if (!stored) {
+              // Keep a browser copy so the result survives until the cloud accepts it.
+              localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(updatedRecords));
+              localStorage.setItem(LOCAL_KEYS.equity, newEquity.toString());
             }
           } else {
             localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(updatedRecords));
@@ -749,10 +780,47 @@ export default function Home() {
           </div>
         )}
 
-        {feedStatus === 'live' && feedSource && (
-          <div className="text-xs text-slate-500 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-            <span>Live data source: {feedSource}. Refreshed about once a minute to stay inside the free data quota.</span>
+        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
+          {feedStatus === 'live' && feedSource && (
+            <span className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              <span>Live data source: {feedSource}. Refreshed about once a minute.</span>
+            </span>
+          )}
+          <span className="flex items-center gap-1.5" title={lastSavedLabel ?? undefined}>
+            {syncStatus.state === 'saved' ? (
+              <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+            ) : syncStatus.state === 'saving' ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : syncStatus.state === 'failed' ? (
+              <CloudOff className="w-3.5 h-3.5 text-rose-400" />
+            ) : (
+              <HardDrive className="w-3.5 h-3.5" />
+            )}
+            <span>
+              {syncStatus.label}
+              {syncStatus.state === 'saved' && lastSavedLabel ? ` ${lastSavedLabel}` : ''}
+            </span>
+          </span>
+        </div>
+
+        {/* Whether the trading record actually reached the cloud. A rejected
+            write used to leave the screen looking entirely normal. */}
+        {syncStatus.state === 'failed' && (
+          <div
+            id="sync-failed-banner"
+            className="p-4 rounded-xl border bg-rose-500/15 border-rose-500/40 text-rose-300 flex items-start gap-3"
+          >
+            <div className="p-2 rounded-lg bg-black/20 shrink-0">
+              <CloudOff className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-sm">Your data was not saved to the cloud</div>
+              <div className="text-xs opacity-90 mt-0.5">{syncStatus.detail}</div>
+              <div className="text-xs opacity-75 mt-1">
+                Nothing is lost. This browser still holds your balance and trades.
+              </div>
+            </div>
           </div>
         )}
 
