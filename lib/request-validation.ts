@@ -12,6 +12,7 @@ import {
   SelfLearningMemoryRecord,
   TradingStyle,
 } from './types';
+import { normalisePrior, type PriorWeights } from './learning-engine';
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
 const ACCOUNT_TYPES: AccountType[] = ['Standard', 'Cent', 'Pro'];
@@ -33,6 +34,11 @@ export interface ValidatedAnalyzeRequest {
   brokerId: BrokerId;
   userId: string;
   pastLearningRecords: SelfLearningMemoryRecord[];
+  /**
+   * Starting parameters a backtest produced, which the live engine shrinks
+   * toward instead of its own defaults. Null when the user has not adopted one.
+   */
+  priorWeights: PriorWeights | null;
 }
 
 export interface ValidationResult<T> {
@@ -77,6 +83,14 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
     );
   }
 
+  // A prior is sanitised rather than rejected: normalisePrior rescales the
+  // weights and clamps the rest, so a corrupt stored value degrades to the
+  // engine defaults instead of failing the analysis.
+  const priorWeights =
+    typeof b.priorWeights === 'object' && b.priorWeights !== null && !Array.isArray(b.priorWeights)
+      ? normalisePrior(b.priorWeights as Partial<PriorWeights>)
+      : null;
+
   if (errors.length > 0) return { value: null, errors };
 
   return {
@@ -88,6 +102,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       brokerId: (b.brokerId as BrokerId) ?? 'EXNESS',
       userId: typeof b.userId === 'string' && b.userId.length > 0 ? b.userId : 'guest',
       pastLearningRecords: (b.pastLearningRecords as SelfLearningMemoryRecord[]) ?? [],
+      priorWeights,
     },
     errors: [],
   };

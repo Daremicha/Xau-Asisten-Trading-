@@ -22,7 +22,7 @@ export interface TradeResult {
   dollars: number;
 }
 
-type ResultSetup = Pick<
+export type ResultSetup = Pick<
   InstitutionalTradingSetup,
   'entryPrice' | 'recommendedLotSize' | 'accountType' | 'contractSpecs'
 >;
@@ -49,6 +49,30 @@ export function computeTradeResult(
 
   let gross = isMissed ? 0 : setup.recommendedLotSize * contractMultiplier(setup) * priceDiff * direction;
   if (setup.accountType === 'Pro' && !isMissed) {
+    gross -= (setup.contractSpecs?.commissionPerLot || 6.0) * setup.recommendedLotSize;
+  }
+
+  return { pips, dollars: parseFloat(gross.toFixed(2)) };
+}
+
+/**
+ * Result of a position closed at an arbitrary price.
+ *
+ * `computeTradeResult` answers "what does a take profit pay", which is what the
+ * signal card and the learning route ask. A backtest also closes trades that
+ * ran out of time, where the sign comes from where price actually ended up
+ * rather than from the label on the exit.
+ */
+export function resultFromMove(
+  setup: ResultSetup,
+  exitPrice: number,
+  direction: 'long' | 'short'
+): TradeResult {
+  const move = direction === 'long' ? exitPrice - setup.entryPrice : setup.entryPrice - exitPrice;
+  const pips = parseFloat((move * 10).toFixed(1));
+
+  let gross = move * contractMultiplier(setup) * setup.recommendedLotSize;
+  if (setup.accountType === 'Pro') {
     gross -= (setup.contractSpecs?.commissionPerLot || 6.0) * setup.recommendedLotSize;
   }
 

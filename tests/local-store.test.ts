@@ -163,3 +163,33 @@ describe('the uploaded user document', () => {
     expect(buildUserDocument(readLocalProfile()).initialEquity).toBe(2500);
   });
 });
+
+describe('an adopted backtest prior', () => {
+  test('is read back and sanitised', () => {
+    installStorage({
+      [LOCAL_KEYS.backtestPrior]: JSON.stringify({
+        orderBlockWeight: 4,
+        fairValueGapWeight: 2,
+        liquiditySweepWeight: 2,
+        newsImpactWeight: 1,
+        indicatorConfluenceWeight: 1,
+        atrBufferFactor: 1.6,
+        entryBufferPips: 25,
+      }),
+    });
+    const profile = readLocalProfile();
+    expect(profile.backtestPrior?.atrBufferFactor).toBe(1.6);
+    // Stored as raw ratios, read back as a distribution.
+    expect(profile.backtestPrior?.orderBlockWeight).toBeCloseTo(0.4, 3);
+  });
+
+  test('is null when nothing was adopted', () => {
+    installStorage({});
+    expect(readLocalProfile().backtestPrior).toBeNull();
+  });
+
+  test('corrupt storage does not break the profile read', () => {
+    installStorage({ [LOCAL_KEYS.backtestPrior]: '{not json' });
+    expect(readLocalProfile().backtestPrior).toBeNull();
+  });
+});

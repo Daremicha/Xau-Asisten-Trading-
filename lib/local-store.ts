@@ -7,6 +7,7 @@
  */
 
 import { AccountType, BrokerId, SelfLearningMemoryRecord, TradingStyle } from './types';
+import { normalisePrior, type PriorWeights } from './learning-engine';
 
 export const LOCAL_KEYS = {
   equity: 'xauusd_locked_equity',
@@ -18,6 +19,8 @@ export const LOCAL_KEYS = {
   account: 'xauusd_account_type',
   broker: 'xauusd_selected_broker',
   migratedFor: 'xauusd_migrated_to_uid',
+  /** Starting parameters adopted from a backtest, if the user accepted one. */
+  backtestPrior: 'xauusd_backtest_prior',
 } as const;
 
 export interface LocalProfile {
@@ -29,6 +32,8 @@ export interface LocalProfile {
   accountType: AccountType | null;
   selectedBroker: BrokerId | null;
   learningRecords: SelfLearningMemoryRecord[];
+  /** Parameters adopted from a backtest, already sanitised. Null when none. */
+  backtestPrior: PriorWeights | null;
 }
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
@@ -72,6 +77,22 @@ export function readLocalProfile(): LocalProfile {
   const broker = readRaw(LOCAL_KEYS.broker) as BrokerId | null;
   const locked = readRaw(LOCAL_KEYS.isLocked);
 
+  // A stored prior is run through the engine's own sanitiser rather than
+  // trusted, so an edited or stale value degrades to the defaults instead of
+  // distorting live analysis.
+  let backtestPrior: PriorWeights | null = null;
+  const rawPrior = readRaw(LOCAL_KEYS.backtestPrior);
+  if (rawPrior) {
+    try {
+      const parsed = JSON.parse(rawPrior);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        backtestPrior = normalisePrior(parsed);
+      }
+    } catch {
+      backtestPrior = null;
+    }
+  }
+
   return {
     equity: readNumber(LOCAL_KEYS.equity),
     initialEquity: readNumber(LOCAL_KEYS.initialEquity),
@@ -81,6 +102,7 @@ export function readLocalProfile(): LocalProfile {
     accountType: account && ACCOUNT_TYPES.includes(account) ? account : null,
     selectedBroker: broker,
     learningRecords,
+    backtestPrior,
   };
 }
 

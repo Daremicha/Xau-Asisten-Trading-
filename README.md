@@ -177,6 +177,55 @@ keeps a long losing run from turning an intraday setup into a swing trade.
 **Missing data is reported, never invented.** If no provider answers, the app
 says so and refuses to build a signal rather than showing a made up price.
 
+## Backtesting the engine
+
+The **Strategy Backtest Lab** at the bottom of the page replays the same engine
+over real history and answers one question: does learning from each result make
+the next signal better?
+
+Pick a period (6, 12 or 24 months) and press run. The app downloads real XAUUSD
+candles a page at a time, then trades the period twice:
+
+| Run | What it does |
+| --- | --- |
+| Fixed parameters | Keeps the engine's starting weights for the whole period |
+| Learning from results | Re-derives the weights after every closed trade, exactly as the live app does |
+
+Same candles, same rules, one difference, so the comparison measures learning
+rather than luck. The report shows win rate, net result, profit factor,
+drawdown, the two balance curves on a shared date axis, and the first half of
+the learning run against its second half.
+
+If the learning run beat the control, **Use these as the live starting
+parameters** adopts the weights it ended on. Live analysis then shrinks toward
+those instead of the built-in defaults, and your real trades keep adjusting
+from there. The choice is stored with your profile and can be reverted.
+
+### What the replay does and does not model
+
+- Every decision sees only the candles that had printed at that moment. The
+  test suite proves this by replaying a truncated series and checking the trade
+  comes out identical.
+- When one candle contains both the stop and the target, the stop is taken. The
+  order of events inside a bar cannot be recovered from its open, high, low and
+  close.
+- Spread is charged on every fill, and commission where the account charges it.
+- A position that reaches neither level is closed at market at the style's
+  holding limit.
+- Historical economic releases are not available to the app, so the news shield
+  is inactive for the whole replay.
+- Slippage, execution gaps over the weekend and swap are not modelled.
+
+### History depth
+
+A 24 month replay at the M15 base needs about a dozen provider requests. With a
+Twelve Data key that is a minute of downloading; the free plan allows eight
+requests a minute, and the app waits when it is asked to. Without a key the app
+falls back to Yahoo, which serves sixty days of fifteen minute candles or two
+years of hourly ones, so switch to the **H1 base** for a long replay. Whatever
+arrives, the report states the exact period and candle count it actually
+covered.
+
 ## Commands
 
 | Command | What it does |

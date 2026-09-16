@@ -49,6 +49,9 @@ import SMCMatrix from '@/components/SMCMatrix';
 import EconomicCalendar from '@/components/EconomicCalendar';
 import TradingCentralCard from '@/components/TradingCentralCard';
 import SelfLearningDashboard from '@/components/SelfLearningDashboard';
+import BacktestLab from '@/components/BacktestLab';
+import type { BacktestJobResult } from '@/lib/backtest-client';
+import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
@@ -179,6 +182,18 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isEvaluatingOutcome, setIsEvaluatingOutcome] = useState<boolean>(false);
 
+  /**
+   * Parameters a backtest produced and the user chose to start live analysis
+   * from. Null means the engine uses its own defaults. Either way real trades
+   * keep moving the weights on top of it.
+   */
+  const [backtestPrior, setBacktestPrior] = useState<PriorWeights | null>(null);
+  /**
+   * The last replay. Held in memory only: it is thousands of simulated trades,
+   * which belong in a report rather than in the user's stored profile.
+   */
+  const [backtestResult, setBacktestResult] = useState<BacktestJobResult | null>(null);
+
   // Self-Learning Engine Memory & Weights
   const [learningRecords, setLearningRecords] = useState<SelfLearningMemoryRecord[]>([]);
   const [engineWeights, setEngineWeights] = useState<AdaptiveStrategyEngineWeights>({
@@ -245,6 +260,7 @@ export default function Home() {
     if (profile.tradingStyle) setTradingStyle(profile.tradingStyle);
     if (profile.accountType) setAccountType(profile.accountType);
     if (profile.selectedBroker) setSelectedBroker(profile.selectedBroker);
+    if (profile.backtestPrior) setBacktestPrior(profile.backtestPrior);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
       setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
@@ -378,6 +394,9 @@ export default function Home() {
             }
             if (data.selectedBroker) {
               setSelectedBroker(data.selectedBroker as BrokerId);
+            }
+            if (data.backtestPrior && typeof data.backtestPrior === 'object') {
+              setBacktestPrior(normalisePrior(data.backtestPrior as Partial<PriorWeights>));
             }
             // Restore an order the user never resolved, preferring whichever
             // copy is newer between this browser and the cloud.
@@ -590,6 +609,35 @@ export default function Home() {
     }
   };
 
+  /**
+   * Adopts, or drops, the parameters a backtest ended on. They become the point
+   * the live learning engine shrinks toward instead of its built-in defaults;
+   * real trades keep adjusting from there.
+   */
+  const handleAdoptBacktestPrior = (weights: PriorWeights | null) => {
+    setBacktestPrior(weights);
+
+    try {
+      if (weights) {
+        localStorage.setItem(LOCAL_KEYS.backtestPrior, JSON.stringify(weights));
+      } else {
+        localStorage.removeItem(LOCAL_KEYS.backtestPrior);
+      }
+    } catch {
+      // A browser refusing storage simply forgets the choice on reload.
+    }
+
+    if (currentUser) {
+      void saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { backtestPrior: weights, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
+    }
+  };
+
   const handleResetBaseline = () => {
     setInitialEquity(equity);
     localStorage.setItem(LOCAL_KEYS.initialEquity, equity.toString());
@@ -693,6 +741,8 @@ export default function Home() {
           brokerId: selectedBroker,
           userId: currentUser?.uid || 'guest',
           pastLearningRecords: learningRecords.slice(-RECENT_RECORD_LIMIT),
+          // What the engine shrinks toward. Null keeps its own defaults.
+          priorWeights: backtestPrior,
         }),
       });
 
@@ -1248,6 +1298,20 @@ export default function Home() {
           learningRecords={learningRecords}
           engineWeights={engineWeights}
           tradingStyle={tradingStyle}
+          theme={theme}
+        />
+
+        {/* Historical replay: does learning from results actually help */}
+        <BacktestLab
+          tradingStyle={tradingStyle}
+          accountType={accountType}
+          brokerId={selectedBroker}
+          equity={equity}
+          riskPercentage={riskPercentage}
+          result={backtestResult}
+          onResult={setBacktestResult}
+          adoptedPrior={backtestPrior}
+          onAdoptPrior={handleAdoptBacktestPrior}
           theme={theme}
         />
       </main>

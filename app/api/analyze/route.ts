@@ -62,7 +62,13 @@ export async function POST(request: Request) {
     }
 
     const marketPrice = snapshot.price;
-    const engineWeights = recalculateEngineWeights(input.pastLearningRecords, input.tradingStyle);
+    // A backtested prior, when the user has adopted one, replaces the engine's
+    // own defaults as the point the live evidence shrinks toward.
+    const engineWeights = recalculateEngineWeights(
+      input.pastLearningRecords,
+      input.tradingStyle,
+      input.priorWeights
+    );
     const killZone = getICTKillZoneStatus();
     // A calendar the app cannot actually see must not move the stop loss, so
     // an unconfigured or unreachable provider yields no events and no news

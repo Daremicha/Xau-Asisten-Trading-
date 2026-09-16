@@ -4,6 +4,7 @@ import {
   confidenceFrom,
   deriveAdaptiveWeights,
   normaliseConfluence,
+  normalisePrior,
   recencyWeight,
   shrinkToward,
   summariseEvidence,
@@ -275,5 +276,62 @@ describe('the headline strike rate cannot mislead on a tiny sample', () => {
       Array.from({ length: 60 }, (_, i) => record(i % 10 < 6 ? 'TP' : 'SL'))
     );
     expect(Math.abs(many.smoothedWinRate! - many.winRate!)).toBeLessThan(5);
+  });
+});
+
+describe('starting from a backtested prior', () => {
+  test('an empty history returns the prior it was given, not the defaults', () => {
+    const prior = {
+      orderBlockWeight: 0.4,
+      fairValueGapWeight: 0.2,
+      liquiditySweepWeight: 0.2,
+      newsImpactWeight: 0.1,
+      indicatorConfluenceWeight: 0.1,
+      atrBufferFactor: 1.8,
+      entryBufferPips: 30,
+    };
+    const weights = deriveAdaptiveWeights([], 'Intraday', prior);
+    expect(weights.orderBlockWeight).toBeCloseTo(0.4, 3);
+    expect(weights.atrBufferFactor).toBe(1.8);
+    expect(weights.entryBufferPips).toBe(30);
+  });
+
+  test('a prior whose weights do not sum to one is rescaled, never used raw', () => {
+    const prior = normalisePrior({
+      orderBlockWeight: 4,
+      fairValueGapWeight: 2,
+      liquiditySweepWeight: 2,
+      newsImpactWeight: 1,
+      indicatorConfluenceWeight: 1,
+      atrBufferFactor: 1.4,
+      entryBufferPips: 12,
+    });
+    const total =
+      prior.orderBlockWeight +
+      prior.fairValueGapWeight +
+      prior.liquiditySweepWeight +
+      prior.newsImpactWeight +
+      prior.indicatorConfluenceWeight;
+    expect(total).toBeCloseTo(1, 3);
+    expect(prior.orderBlockWeight).toBeCloseTo(0.4, 3);
+  });
+
+  test('an out of range prior is clamped into what the engine allows', () => {
+    const prior = normalisePrior({ atrBufferFactor: 99, entryBufferPips: 9999 });
+    expect(prior.atrBufferFactor).toBeLessThanOrEqual(2.5);
+    expect(prior.entryBufferPips).toBeLessThanOrEqual(120);
+  });
+
+  test('junk falls back to the engine defaults instead of breaking analysis', () => {
+    expect(normalisePrior(null)).toEqual({ ...PRIOR_WEIGHTS });
+    const partial = normalisePrior({ atrBufferFactor: Number.NaN });
+    expect(partial.atrBufferFactor).toBe(PRIOR_WEIGHTS.atrBufferFactor);
+  });
+
+  test('real trades still move the engine off the prior it started from', () => {
+    const prior = { ...PRIOR_WEIGHTS, atrBufferFactor: 1.0, entryBufferPips: 0 };
+    const stopOuts = Array.from({ length: 30 }, () => record('SL', { style: 'Intraday' }));
+    const weights = deriveAdaptiveWeights(stopOuts, 'Intraday', prior);
+    expect(weights.atrBufferFactor).toBeGreaterThan(1.0);
   });
 });
