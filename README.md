@@ -94,39 +94,46 @@ every recorded trade up to the cloud, tells you how many it moved, and remembers
 that it has done so. Records are stored under their own id, so the transfer
 cannot duplicate a trade even if it runs again.
 
-### Setting up your own Firebase project
+### Firebase project
 
-The project bundled with this repository was created by Google AI Studio. If you
-do not own it, its console will tell you "To manage settings, ask a project owner
-for the necessary permission", and you will not be able to authorise your own
-domain. Creating your own project takes a few minutes and gives you full control.
+The app is configured for the Firebase project **`xauasistenengine`**, stored in
+`firebase-applet-config.json`. These values are public by design: they appear in
+every browser that loads the app. Firestore security rules, not secrecy, are what
+protect the data. Nothing needs to be set in your hosting platform for Firebase
+to work.
 
-**1. Create the project.** Go to
-[console.firebase.google.com](https://console.firebase.google.com), choose
-**Add project**, give it a name, and finish the wizard. Google Analytics is not
-needed.
+Verify the values are complete and consistent at any time:
 
-**2. Register a web app.** On the project overview, click the web icon `</>`,
-give the app a nickname, and register it. Firebase then shows a `firebaseConfig`
-block. Keep that page open.
+```bash
+bun run check:firebase
+```
 
-**3. Turn on Google sign-in.** Go to **Authentication → Get started →
-Sign-in method**, choose **Google**, enable it, pick a support email, and save.
+It catches the mistakes that happen while copying between the console and the
+app, such as an auth domain from a different project, or a messaging sender id
+that disagrees with the app id.
 
-**4. Create the database.** Go to **Firestore Database → Create database**. Pick
-a region close to you. Start in production mode.
+### Four things to confirm in the Firebase Console
 
-**5. Apply the security rules.** Open the **Rules** tab and replace what is there
-with the contents of `firestore.rules` from this repository, then publish. These
-rules let each signed-in person read and write only their own records.
+The check above cannot see inside the console, so confirm these once, in the
+[Firebase Console](https://console.firebase.google.com) for `xauasistenengine`:
 
-**6. Authorise your site.** Go to **Authentication → Settings → Authorized
-domains** and add the domain your app is served from, such as
-`your-app.vercel.app`. Add `localhost` too if you run it locally.
+1. **Authentication → Sign-in method** — enable **Google**, choose a support
+   email, save. Without this the sign-in popup is refused.
+2. **Firestore Database → Create database** — pick a region near you, start in
+   production mode. This is where your balance and trade history are stored.
+3. **Firestore Database → Rules** — replace what is there with the contents of
+   `firestore.rules` from this repository, then publish. These rules let each
+   signed-in person read and write only their own records. Without them,
+   production mode denies every write and nothing will save.
+4. **Authentication → Settings → Authorized domains** — add the domain your app
+   is served from, such as `your-app.vercel.app`. Add `localhost` too if you run
+   it locally.
 
-**7. Give the values to your app.** From the `firebaseConfig` block in step 2,
-copy each value into the matching variable. On Vercel these go in the project's
-Environment Variables, then redeploy. Locally they go in `.env.local`.
+### Pointing the app at a different project later
+
+Set these in your hosting platform's environment variables. The override applies
+only when all of the first four are present, so a partial set cannot break a
+working app.
 
 | Variable | Field in `firebaseConfig` |
 | --- | --- |
@@ -136,20 +143,6 @@ Environment Variables, then redeploy. Locally they go in `.env.local`.
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | `appId` |
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `storageBucket` |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
-
-**8. Check your work.**
-
-```bash
-bun run check:firebase
-```
-
-It reports which values are missing and whether they came from the same project,
-which is where this usually goes wrong. The first four in the table are
-required; a partial set is ignored and the app silently falls back to the
-bundled project.
-
-These values are public by design. They appear in every browser that loads the
-app. The security rules, not secrecy, are what protect your data.
 
 ### If sign-in still fails
 

@@ -1,12 +1,9 @@
 {
-  "projectId": "industrious-healer-qxjsq",
-  "appId": "1:784662057886:web:2f1109a219133e9d8dbc8f",
-  "apiKey": "AIzaSyAHi4z8GPSeWV3XWm4DAro5jcoEztG2bSc",
-  "authDomain": "industrious-healer-qxjsq.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-remixasistentrad-0df75cc4-eaee-4cf4-95b9-2c3c4af7e7c8",
-  "storageBucket": "industrious-healer-qxjsq.firebasestorage.app",
-  "messagingSenderId": "784662057886",
-  "measurementId": "",
-  "oAuthClientId": "784662057886-8ggsl4r649a8a4or4mnuemkri6bal0sv.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "projectId": "xauasistenengine",
+  "appId": "1:667004577676:web:ba1ef6060e55c5a7a9d8a9",
+  "apiKey": "AIzaSyBVZlF7NmCDACRqsKfHa-AY12269b7KWTY",
+  "authDomain": "xauasistenengine.firebaseapp.com",
+  "storageBucket": "xauasistenengine.firebasestorage.app",
+  "messagingSenderId": "667004577676",
+  "firestoreDatabaseId": ""
 }
