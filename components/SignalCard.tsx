@@ -687,8 +687,11 @@ Ready for direct execution in MetaTrader 5.`;
                   : 'bg-amber-50/40 border-amber-300'
               }`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                {/* min-w-0 lets this column shrink. Without it the text block
+                    holds its intrinsic width and pushes the button row out of
+                    the card entirely. */}
+                <div className="min-w-0">
                   <div className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Autonomous Self-Learning Engine Evaluation</span>
@@ -707,7 +710,11 @@ Ready for direct execution in MetaTrader 5.`;
                   const slLoss = setup.riskDollarAmount.toFixed(2);
 
                   return (
-                    <div className="flex items-center flex-wrap gap-2 shrink-0">
+                    // shrink-0 stopped flex-wrap from ever engaging, so this
+                    // row overflowed the card and the neighbouring column
+                    // painted over it, leaving the stop-loss button unclickable
+                    // at desktop widths.
+                    <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto sm:max-w-[60%] sm:justify-end">
                       <button
                         type="button"
                         id="trigger-tp1-btn"

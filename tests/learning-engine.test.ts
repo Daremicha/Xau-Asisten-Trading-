@@ -255,3 +255,25 @@ describe('the engine explains itself', () => {
     for (const line of d.adjustments) expect(line.length).toBeGreaterThan(20);
   });
 });
+
+describe('the headline strike rate cannot mislead on a tiny sample', () => {
+  test('a single win reports well under a hundred percent', () => {
+    const e = summariseEvidence([record('TP')]);
+    expect(e.winRate).toBe(100);
+    // This is the number the dashboard shows.
+    expect(e.smoothedWinRate!).toBeLessThan(70);
+  });
+
+  test('a single loss is not reported as a total failure either', () => {
+    const e = summariseEvidence([record('SL')]);
+    expect(e.winRate).toBe(0);
+    expect(e.smoothedWinRate!).toBeGreaterThan(20);
+  });
+
+  test('with real evidence the two converge', () => {
+    const many = summariseEvidence(
+      Array.from({ length: 60 }, (_, i) => record(i % 10 < 6 ? 'TP' : 'SL'))
+    );
+    expect(Math.abs(many.smoothedWinRate! - many.winRate!)).toBeLessThan(5);
+  });
+});
