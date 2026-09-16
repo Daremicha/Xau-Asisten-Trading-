@@ -1013,7 +1013,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Trading Central Directional Sentiment */}
+            {/* Pivot and directional bias, computed from the previous session */}
             {displayTradingCentral && <TradingCentralCard bias={displayTradingCentral} theme={theme} />}
           </div>
 

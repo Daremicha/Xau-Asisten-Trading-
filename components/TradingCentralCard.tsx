@@ -30,14 +30,18 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
             <Compass className="w-5 h-5" />
           </div>
           <div>
+            {/* This card carried the name of a commercial research vendor the
+                app has no subscription to. The numbers are classic floor pivots
+                computed here from the previous session, so the title now says
+                what it actually is. */}
             <h2 className={`text-base font-bold flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Trading Central Technical Analysis
+              Pivot &amp; Directional Bias
               <span
                 className={`text-xs px-2 py-0.5 rounded font-normal ${
                   isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
                 }`}
               >
-                Institutional Pivot
+                Computed from the previous session
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>

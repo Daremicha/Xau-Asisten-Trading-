@@ -5,6 +5,8 @@ import { getEconomicCalendar, filterUpcoming, minutesToNextHighImpact } from '@/
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from '@/lib/signal-engine';
+import { assessConviction, effectiveRiskPercentage } from '@/lib/position-sizing';
+import { computeValidity } from '@/lib/order-validity';
 import {
   normaliseProposal,
   parseProposal,
@@ -242,17 +244,36 @@ Reply with JSON only:
       }
     }
 
+    // How much of the risk budget this particular setup deserves. The user's
+    // percentage is the ceiling for the strongest setups, never a flat rate.
+    const trends = [
+      read.multiTimeframe.d1.trend,
+      read.multiTimeframe.h4.trend,
+      read.multiTimeframe.h1.trend,
+    ];
+    const conviction = assessConviction({
+      confidenceScore: decision.confidenceScore,
+      timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
+      killZoneActive: killZone.isHighVolatilityTiming,
+      entryOutOfReach: decision.entryOutOfReach && !proposalOutcome.accepted,
+      dataStale: snapshot.status === 'stale',
+      proposalRejected: proposalOutcome.attempted && !proposalOutcome.accepted,
+    });
+    const riskPercentUsed = effectiveRiskPercentage(input.riskPercentage, conviction.multiplier);
+
     // Sized from the order that will actually be placed, which may be the
     // model's proposal rather than the engine's own.
     const lotCalculation = calculateXAUUSDLotSize(
       input.equity,
-      input.riskPercentage,
+      riskPercentUsed,
       finalOrder.entryPrice,
       finalOrder.stopLoss,
       input.accountType,
       input.tradingStyle,
       input.brokerId
     );
+
+    const validity = computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming);
 
     const spreadDollars = (lotCalculation.contractSpecs.typicalSpreadPips * 0.1) / 2;
     const bid = round2(marketPrice - spreadDollars);
@@ -314,6 +335,13 @@ Reply with JSON only:
       actualRiskDollars: lotCalculation.actualRiskDollars,
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       riskPercentage: input.riskPercentage,
+      effectiveRiskPercentage: riskPercentUsed,
+      convictionMultiplier: conviction.multiplier,
+      convictionScore: conviction.convictionScore,
+      convictionBand: conviction.band,
+      convictionNotes: conviction.notes,
+      validUntil: validity.validUntil,
+      validityBasis: validity.basis,
       multiTimeframeAlignment: read.multiTimeframe,
       technicalIndicators: read.indicators,
       wyckoffVsa: read.wyckoff,
@@ -336,6 +364,8 @@ Reply with JSON only:
       setup: setupPayload,
       engineWeights,
       confidenceScore: decision.confidenceScore,
+      conviction,
+      validity,
       confluenceFactors: decision.factors,
       entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
       entryOutOfReach: decision.entryOutOfReach && !proposalOutcome.accepted,

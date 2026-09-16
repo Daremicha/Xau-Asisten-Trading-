@@ -328,6 +328,16 @@ export interface InstitutionalTradingSetup {
   stopLossPips: number;
   recommendedLotSize: number;
   riskDollarAmount: number;
+  /** Fraction of the risk budget committed, after conviction scaling. */
+  convictionMultiplier?: number;
+  convictionScore?: number;
+  convictionBand?: 'Low' | 'Moderate' | 'High';
+  convictionNotes?: string[];
+  /** Risk percentage actually used, which is at most the one requested. */
+  effectiveRiskPercentage?: number;
+  /** When a pending order stops being worth leaving on the book. */
+  validUntil?: string;
+  validityBasis?: string;
   /** What the recommended lot actually risks, which can exceed the budget when
    *  the broker's minimum lot is larger than the budget allows. */
   actualRiskDollars?: number;
