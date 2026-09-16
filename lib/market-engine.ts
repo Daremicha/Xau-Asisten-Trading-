@@ -1,10 +1,5 @@
 import {
   ForexFactoryEvent,
-  TradingCentralInsight,
-  TechnicalIndicators,
-  SmcStructure,
-  WyckoffVolumeAnalysis,
-  QuasimodoPattern,
   AdaptiveStrategyEngineWeights,
   SelfLearningMemoryRecord,
   TradingStyle,
@@ -451,230 +446,6 @@ export function filterUpcomingEconomicEvents(events: ForexFactoryEvent[]): Forex
 }
 
 /**
- * Institutional Directional Sentiment modeled after Trading Central.
- */
-export function getTradingCentralInstitutionalBias(currentPrice: number): TradingCentralInsight {
-  const pivotPoint = parseFloat((Math.round(currentPrice * 2) / 2).toFixed(2));
-  const isAbove = currentPrice >= pivotPoint;
-
-  return {
-    directionalBias: isAbove ? 'BULLISH' : 'BEARISH',
-    pivotPoint,
-    preferredScenario: isAbove
-      ? `Preferred Scenario: Long positions above ${pivotPoint.toFixed(2)} with targets at ${(pivotPoint + 14.5).toFixed(2)} and ${(pivotPoint + 28.0).toFixed(2)}.`
-      : `Preferred Scenario: Short positions below ${pivotPoint.toFixed(2)} with targets at ${(pivotPoint - 14.5).toFixed(2)} and ${(pivotPoint - 28.0).toFixed(2)}.`,
-    alternativeScenario: isAbove
-      ? `Alternative Scenario: Below ${pivotPoint.toFixed(2)} look for further downside with ${(pivotPoint - 12.0).toFixed(2)} & ${(pivotPoint - 22.5).toFixed(2)} as targets.`
-      : `Alternative Scenario: Above ${pivotPoint.toFixed(2)} look for upside expansion with ${(pivotPoint + 12.0).toFixed(2)} & ${(pivotPoint + 22.5).toFixed(2)} as targets.`,
-    keySupportLevels: [
-      parseFloat((pivotPoint - 8.5).toFixed(2)),
-      parseFloat((pivotPoint - 18.2).toFixed(2)),
-      parseFloat((pivotPoint - 32.0).toFixed(2)),
-    ],
-    keyResistanceLevels: [
-      parseFloat((pivotPoint + 8.5).toFixed(2)),
-      parseFloat((pivotPoint + 18.2).toFixed(2)),
-      parseFloat((pivotPoint + 32.0).toFixed(2)),
-    ],
-    confidenceScore: 86,
-  };
-}
-
-/**
- * Builds multi-timeframe SMC / ICT market structure based on live price action and learned engine weights.
- */
-export function synthesizeInstitutionalStructures(
-  currentPrice: number,
-  weights: AdaptiveStrategyEngineWeights,
-  tradingStyle: TradingStyle = 'Intraday'
-): {
-  multiTimeframe: {
-    d1: SmcStructure;
-    h4: SmcStructure;
-    h1: SmcStructure;
-    m15: SmcStructure;
-  };
-  indicators: TechnicalIndicators;
-  wyckoff: WyckoffVolumeAnalysis;
-  quasimodo: QuasimodoPattern;
-} {
-  // Style-adaptive structural offsets
-  const scalpingMode = tradingStyle === 'Scalping';
-  const swingMode = tradingStyle === 'Swing';
-
-  // D1 Higher Timeframe Macro Order Flow
-  const d1: SmcStructure = {
-    timeframe: 'D1',
-    trend: currentPrice > 2880 ? 'Bullish' : 'Bearish',
-    bosLevel: currentPrice > 2880 ? 2895.5 : 2840.0,
-    bosType: currentPrice > 2880 ? 'Bullish BOS' : 'Bearish BOS',
-    chochDetected: false,
-    orderBlock: {
-      type: currentPrice > 2880 ? 'Bullish OB' : 'Bearish OB',
-      high: currentPrice > 2880 ? 2872.0 : 2945.0,
-      low: currentPrice > 2880 ? 2858.5 : 2932.0,
-      mitigated: true,
-      volumeConfirmation: true,
-    },
-    fairValueGap: {
-      detected: true,
-      type: 'Bullish FVG',
-      top: 2888.0,
-      bottom: 2876.5,
-      status: 'Partially Filled',
-    },
-    liquidityPools: {
-      pdh: parseFloat((currentPrice + 16.4).toFixed(2)),
-      pdl: parseFloat((currentPrice - 18.8).toFixed(2)),
-      asiaHigh: parseFloat((currentPrice + 7.2).toFixed(2)),
-      asiaLow: parseFloat((currentPrice - 9.5).toFixed(2)),
-      swept: true,
-      sweepDetail: 'Previous Day Low swept during early London session.',
-    },
-    pricingZone: 'Discount',
-  };
-
-  // H4 Intermediate Timeframe Structural Framework
-  const h4: SmcStructure = {
-    timeframe: 'H4',
-    trend: 'Bullish',
-    bosLevel: parseFloat((currentPrice - 6.5).toFixed(2)),
-    bosType: 'Bullish BOS',
-    chochDetected: false,
-    orderBlock: {
-      type: 'Bullish OB',
-      high: parseFloat((currentPrice - 4.2).toFixed(2)),
-      low: parseFloat((currentPrice - 9.8).toFixed(2)),
-      mitigated: false,
-      volumeConfirmation: true,
-    },
-    fairValueGap: {
-      detected: true,
-      type: 'Bullish FVG',
-      top: parseFloat((currentPrice - 2.5).toFixed(2)),
-      bottom: parseFloat((currentPrice - 6.8).toFixed(2)),
-      status: 'Open',
-    },
-    liquidityPools: {
-      pdh: d1.liquidityPools.pdh,
-      pdl: d1.liquidityPools.pdl,
-      asiaHigh: d1.liquidityPools.asiaHigh,
-      asiaLow: d1.liquidityPools.asiaLow,
-      swept: true,
-      sweepDetail: 'Asian session liquidity swept, engineered liquidity absorbed.',
-    },
-    pricingZone: 'Equilibrium',
-  };
-
-  // H1 Shift of Momentum & Setup Framing
-  const h1: SmcStructure = {
-    timeframe: 'H1',
-    trend: 'Bullish',
-    bosLevel: parseFloat((currentPrice + 5.2).toFixed(2)),
-    bosType: 'Bullish BOS',
-    chochDetected: true,
-    chochLevel: parseFloat((currentPrice - 8.2).toFixed(2)),
-    orderBlock: {
-      type: 'Bullish OB',
-      high: parseFloat((currentPrice - 3.1).toFixed(2)),
-      low: parseFloat((currentPrice - 7.5).toFixed(2)),
-      mitigated: false,
-      volumeConfirmation: true,
-    },
-    fairValueGap: {
-      detected: true,
-      type: 'Bullish FVG',
-      top: parseFloat((currentPrice - 1.2).toFixed(2)),
-      bottom: parseFloat((currentPrice - 4.6).toFixed(2)),
-      status: 'Open',
-    },
-    liquidityPools: {
-      pdh: d1.liquidityPools.pdh,
-      pdl: d1.liquidityPools.pdl,
-      asiaHigh: d1.liquidityPools.asiaHigh,
-      asiaLow: d1.liquidityPools.asiaLow,
-      swept: true,
-    },
-    pricingZone: 'Discount',
-  };
-
-  // M15 Precision Execution Trigger
-  const m15: SmcStructure = {
-    timeframe: 'M15',
-    trend: 'Bullish',
-    bosLevel: parseFloat((currentPrice + 2.8).toFixed(2)),
-    bosType: 'Bullish BOS',
-    chochDetected: true,
-    chochLevel: parseFloat((currentPrice - 3.4).toFixed(2)),
-    orderBlock: {
-      type: 'Bullish OB',
-      high: parseFloat((currentPrice - 1.5).toFixed(2)),
-      low: parseFloat((currentPrice - 4.2).toFixed(2)),
-      mitigated: false,
-      volumeConfirmation: true,
-    },
-    fairValueGap: {
-      detected: true,
-      type: 'Bullish FVG',
-      top: parseFloat((currentPrice - 0.4).toFixed(2)),
-      bottom: parseFloat((currentPrice - 2.6).toFixed(2)),
-      status: 'Open',
-    },
-    liquidityPools: {
-      pdh: d1.liquidityPools.pdh,
-      pdl: d1.liquidityPools.pdl,
-      asiaHigh: d1.liquidityPools.asiaHigh,
-      asiaLow: d1.liquidityPools.asiaLow,
-      swept: true,
-      sweepDetail: 'M15 liquidity sweep below Asian low confirmed with aggressive candle wick.',
-    },
-    pricingZone: 'Discount',
-  };
-
-  // Indicators: EMA 50 & 200, RSI, Stochastic, ATR
-  const ema50 = parseFloat((currentPrice - 3.8).toFixed(2));
-  const ema200 = parseFloat((currentPrice - 12.4).toFixed(2));
-  const atr14 = 8.6; // Average gold ATR in dollars
-  const indicators: TechnicalIndicators = {
-    ema50,
-    ema200,
-    trendFromEma: currentPrice > ema200 ? 'Bullish' : 'Bearish',
-    rsi14: 56.4,
-    rsiCondition: 'Bullish Divergence',
-    stochasticK: 34.2,
-    stochasticD: 29.8,
-    stochasticSignal: 'Oversold Cross',
-    atr14,
-  };
-
-  // Wyckoff VSA Analysis
-  const wyckoff: WyckoffVolumeAnalysis = {
-    phase: 'Markup',
-    pointOfControlPOC: parseFloat((currentPrice - 3.0).toFixed(2)),
-    volumeClimaxDetected: false,
-    absorptionPresent: true,
-    description: 'Wyckoff Phase C test completed with institutional volume absorption at Point of Control.',
-  };
-
-  // Quasimodo / Over-Under Pattern
-  const quasimodo: QuasimodoPattern = {
-    detected: true,
-    type: 'Bullish QM',
-    leftShoulder: parseFloat((currentPrice - 5.0).toFixed(2)),
-    headLiquiditySweep: parseFloat((currentPrice - 12.8).toFixed(2)),
-    breakLevel: parseFloat((currentPrice + 4.5).toFixed(2)),
-    optimalEntryZone: parseFloat((currentPrice - 4.5).toFixed(2)),
-  };
-
-  return {
-    multiTimeframe: { d1, h4, h1, m15 },
-    indicators,
-    wyckoff,
-    quasimodo,
-  };
-}
-
-/**
  * Calculates adaptive weights from stored self-learning records.
  */
 export function recalculateEngineWeights(
@@ -697,10 +468,11 @@ export function recalculateEngineWeights(
 
   const wins = records.filter((r) => r.outcome === 'TP').length;
   const losses = records.filter((r) => r.outcome === 'SL').length;
-  const missed = records.filter((r) => r.outcome === 'MISSED').length;
   const triggered = wins + losses;
+  // With no resolved trade there is no win rate to report. Zero is honest; a
+  // flattering default would misrepresent an untested engine.
   baseWeights.historicalWinRate =
-    triggered > 0 ? parseFloat(((wins / triggered) * 100).toFixed(1)) : 80.0;
+    triggered > 0 ? parseFloat(((wins / triggered) * 100).toFixed(1)) : 0;
 
   // Incorporate delta learning from past outcomes (TP, SL, and MISSED)
   let totalFvgDelta = 0;
@@ -713,9 +485,15 @@ export function recalculateEngineWeights(
       totalFvgDelta += record.adaptiveWeightAdjustments.fvgWeightDelta || 0;
       totalObDelta += record.adaptiveWeightAdjustments.orderBlockWeightDelta || 0;
       totalNewsDelta += record.adaptiveWeightAdjustments.newsFilterWeightDelta || 0;
+      // Honour the multiplier the post mortem asked for, then nudge further on
+      // a stop out so repeated noise stop outs progressively widen the buffer.
+      const askedFor = record.adaptiveWeightAdjustments.atrBufferMultiplier;
+      if (typeof askedFor === 'number' && askedFor > 1) {
+        accumulatedAtrBuffer = Math.min(2.5, accumulatedAtrBuffer * ((askedFor - 1) * 0.25 + 1));
+      }
       if (record.outcome === 'SL') {
         // Broaden ATR buffer slightly when market noise causes premature stop outs
-        accumulatedAtrBuffer = Math.min(2.0, accumulatedAtrBuffer + 0.05);
+        accumulatedAtrBuffer = Math.min(2.5, accumulatedAtrBuffer + 0.05);
       } else if (record.outcome === 'MISSED') {
         // When price misses the pending order, the limit order was set too deep.
         // Increase Fair Value Gap 50% equilibrium weight and normalize entry tolerance
@@ -728,7 +506,7 @@ export function recalculateEngineWeights(
   baseWeights.fairValueGapWeight = Math.max(0.1, Math.min(0.4, baseWeights.fairValueGapWeight + totalFvgDelta));
   baseWeights.orderBlockWeight = Math.max(0.1, Math.min(0.4, baseWeights.orderBlockWeight + totalObDelta));
   baseWeights.newsImpactWeight = Math.max(0.05, Math.min(0.3, baseWeights.newsImpactWeight + totalNewsDelta));
-  baseWeights.atrBufferFactor = parseFloat(accumulatedAtrBuffer.toFixed(2));
+  baseWeights.atrBufferFactor = parseFloat(Math.min(2.5, accumulatedAtrBuffer).toFixed(2));
 
   return baseWeights;
 }

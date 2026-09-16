@@ -19,7 +19,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: 'standalone',
+  // 'output: standalone' was set while package.json starts the app with
+  // `next start`, a combination Next.js rejects at runtime. The two are now
+  // consistent. Re-enable standalone only together with a start script that
+  // runs `node .next/standalone/server.js` and copies .next/static beside it.
   transpilePackages: ['motion'],
   turbopack: {},
   webpack: (config, {dev}) => {

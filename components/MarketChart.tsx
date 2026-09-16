@@ -1,16 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { TimeframeType, InstitutionalTradingSetup } from '@/lib/types';
-import { Layers, Activity, ShieldAlert, Target, Crosshair, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { TimeframeType, InstitutionalTradingSetup, TechnicalIndicators } from '@/lib/types';
+import { Layers, Activity, ShieldAlert, Target, Crosshair } from 'lucide-react';
 
 interface MarketChartProps {
-  currentPrice: number;
-  bidPrice: number;
-  askPrice: number;
+  currentPrice: number | null;
+  bidPrice: number | null;
+  askPrice: number | null;
   selectedTimeframe: TimeframeType;
   onSelectTimeframe: (tf: TimeframeType) => void;
   activeSetup: InstitutionalTradingSetup | null;
+  /** Live indicator readings, null until the feed has delivered enough candles. */
+  indicators?: TechnicalIndicators | null;
+  /** Real state of the market data connection. */
+  feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
   theme?: 'dark' | 'light';
 }
 
@@ -21,6 +25,8 @@ export default function MarketChart({
   selectedTimeframe,
   onSelectTimeframe,
   activeSetup,
+  indicators = null,
+  feedStatus = 'loading',
   theme = 'dark',
 }: MarketChartProps) {
   const isDark = theme === 'dark';
@@ -75,13 +81,31 @@ export default function MarketChart({
 
           <div className="flex items-center gap-3 text-xs font-mono">
             <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
-              Bid: <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{bidPrice.toFixed(2)}</span>
+              Bid: <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{bidPrice === null ? '—' : bidPrice.toFixed(2)}</span>
             </span>
             <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
-              Ask: <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{askPrice.toFixed(2)}</span>
+              Ask: <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{askPrice === null ? '—' : askPrice.toFixed(2)}</span>
             </span>
-            <span className="text-emerald-500 hidden sm:inline-block font-semibold">
-              Live Feed Connected
+            {/* Reflects the real feed state. Claiming a connection that does not
+                exist is the kind of thing a trader acts on by mistake. */}
+            <span
+              className={`hidden sm:inline-block font-semibold ${
+                feedStatus === 'live'
+                  ? 'text-emerald-500'
+                  : feedStatus === 'stale'
+                  ? 'text-amber-500'
+                  : feedStatus === 'unavailable'
+                  ? 'text-rose-500'
+                  : 'text-slate-500'
+              }`}
+            >
+              {feedStatus === 'live'
+                ? 'Live feed connected'
+                : feedStatus === 'stale'
+                ? 'Stale quote'
+                : feedStatus === 'unavailable'
+                ? 'Feed unavailable'
+                : 'Connecting'}
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold hidden md:inline-block">
               WIB (UTC+7)
@@ -167,10 +191,10 @@ export default function MarketChart({
             >
               <div className="flex items-center gap-4">
                 <span>
-                  EMA 50: <strong className="text-amber-500">${(currentPrice - 3.8).toFixed(2)}</strong>
+                  EMA 50: <strong className="text-amber-500">{indicators ? `$${indicators.ema50.toFixed(2)}` : '—'}</strong>
                 </span>
                 <span>
-                  EMA 200: <strong className="text-sky-500">${(currentPrice - 12.4).toFixed(2)}</strong>
+                  EMA 200: <strong className="text-sky-500">{indicators ? `$${indicators.ema200.toFixed(2)}` : '—'}</strong>
                 </span>
                 <span>
                   RSI(14): <strong className="text-emerald-500">56.4</strong>
@@ -289,7 +313,7 @@ export default function MarketChart({
                 SMC Status: <span className="text-amber-500 font-bold">Unmitigated Order Block + FVG Validated</span>
               </span>
               <span className={isDark ? 'text-slate-300 font-bold' : 'text-slate-700 font-bold'}>
-                Current Market: <span className="text-emerald-500">${currentPrice.toFixed(2)}</span>
+                Current Market: <span className="text-emerald-500">{currentPrice === null ? '—' : `$${currentPrice.toFixed(2)}`}</span>
               </span>
             </div>
           </div>

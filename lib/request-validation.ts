@@ -1,0 +1,133 @@
+/**
+ * Request validation for the API routes. Kept out of the route files so it can
+ * be unit tested, and so malformed input produces a 400 with a clear message
+ * instead of a 500 that leaks an internal stack message.
+ */
+
+import {
+  AccountType,
+  BrokerId,
+  BROKER_PROFILES,
+  InstitutionalTradingSetup,
+  SelfLearningMemoryRecord,
+  TradingStyle,
+} from './types';
+
+const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
+const ACCOUNT_TYPES: AccountType[] = ['Standard', 'Cent', 'Pro'];
+const OUTCOMES = ['TP', 'SL', 'MISSED'] as const;
+export type TradeOutcome = (typeof OUTCOMES)[number];
+
+export interface ValidatedAnalyzeRequest {
+  equity: number;
+  riskPercentage: number;
+  tradingStyle: TradingStyle;
+  accountType: AccountType;
+  brokerId: BrokerId;
+  userId: string;
+  pastLearningRecords: SelfLearningMemoryRecord[];
+}
+
+export interface ValidationResult<T> {
+  value: T | null;
+  errors: string[];
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/** Validates an analysis request, filling sane defaults for optional fields. */
+export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAnalyzeRequest> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { value: null, errors: ['Request body must be a JSON object.'] };
+  }
+  const b = body as Record<string, unknown>;
+  const errors: string[] = [];
+
+  const equity = isFiniteNumber(b.equity) ? b.equity : 1000;
+  if (equity <= 0) errors.push('equity must be greater than zero.');
+
+  const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 1.0;
+  if (riskPercentage <= 0 || riskPercentage > 100) {
+    errors.push('riskPercentage must be greater than 0 and at most 100.');
+  }
+
+  if (b.tradingStyle !== undefined && !TRADING_STYLES.includes(b.tradingStyle as TradingStyle)) {
+    errors.push(`tradingStyle must be one of ${TRADING_STYLES.join(', ')}.`);
+  }
+  if (b.accountType !== undefined && !ACCOUNT_TYPES.includes(b.accountType as AccountType)) {
+    errors.push(`accountType must be one of ${ACCOUNT_TYPES.join(', ')}.`);
+  }
+  if (b.brokerId !== undefined && !(typeof b.brokerId === 'string' && b.brokerId in BROKER_PROFILES)) {
+    errors.push(`brokerId must be one of ${Object.keys(BROKER_PROFILES).join(', ')}.`);
+  }
+  if (b.pastLearningRecords !== undefined && !Array.isArray(b.pastLearningRecords)) {
+    errors.push('pastLearningRecords must be an array when provided.');
+  }
+
+  if (errors.length > 0) return { value: null, errors };
+
+  return {
+    value: {
+      equity,
+      riskPercentage,
+      tradingStyle: (b.tradingStyle as TradingStyle) ?? 'Intraday',
+      accountType: (b.accountType as AccountType) ?? 'Standard',
+      brokerId: (b.brokerId as BrokerId) ?? 'EXNESS',
+      userId: typeof b.userId === 'string' && b.userId.length > 0 ? b.userId : 'guest',
+      pastLearningRecords: (b.pastLearningRecords as SelfLearningMemoryRecord[]) ?? [],
+    },
+    errors: [],
+  };
+}
+
+export interface ValidatedLearnRequest {
+  setup: InstitutionalTradingSetup;
+  outcome: TradeOutcome;
+  closedPrice: number;
+}
+
+/** Validates a post trade evaluation request, including the fields it reads. */
+export function validateLearnBody(body: unknown): ValidationResult<ValidatedLearnRequest> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { value: null, errors: ['Request body must be a JSON object.'] };
+  }
+  const b = body as Record<string, unknown>;
+  const errors: string[] = [];
+
+  if (!OUTCOMES.includes(b.outcome as TradeOutcome)) {
+    errors.push(`outcome must be one of ${OUTCOMES.join(', ')}.`);
+  }
+  if (!isFiniteNumber(b.closedPrice) || (b.closedPrice as number) <= 0) {
+    errors.push('closedPrice must be a positive number.');
+  }
+
+  const setup = b.setup;
+  if (typeof setup !== 'object' || setup === null || Array.isArray(setup)) {
+    errors.push('setup must be the trading setup object returned by the analysis endpoint.');
+    return { value: null, errors };
+  }
+
+  // Only the fields the evaluation actually reads are required.
+  const s = setup as Record<string, unknown>;
+  for (const field of ['id', 'entryPrice', 'stopLoss', 'orderType', 'recommendedLotSize']) {
+    if (s[field] === undefined) errors.push(`setup.${field} is required.`);
+  }
+  for (const field of ['entryPrice', 'stopLoss', 'recommendedLotSize']) {
+    if (s[field] !== undefined && !isFiniteNumber(s[field])) {
+      errors.push(`setup.${field} must be a number.`);
+    }
+  }
+
+  if (errors.length > 0) return { value: null, errors };
+
+  return {
+    value: {
+      setup: setup as unknown as InstitutionalTradingSetup,
+      outcome: b.outcome as TradeOutcome,
+      closedPrice: b.closedPrice as number,
+    },
+    errors: [],
+  };
+}

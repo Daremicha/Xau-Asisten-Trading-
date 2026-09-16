@@ -5,7 +5,6 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Percent,
   Award,
   BarChart3,
   ArrowUpRight,
@@ -127,7 +126,6 @@ function CustomTooltip({ active, payload, isDark = true }: CustomTooltipProps) {
 export default function PortfolioGrowthCard({
   currentEquity,
   initialEquity,
-  isEquityLocked,
   learningRecords,
   activeSetup,
   onResetBaseline,
@@ -154,11 +152,6 @@ export default function PortfolioGrowthCard({
     }
   };
 
-  const formatUSD = (val: number) =>
-    val.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
 
   const formatUSDSimple = (val: number) =>
     val.toLocaleString('en-US', {

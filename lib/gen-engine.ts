@@ -165,7 +165,7 @@ async function callClaude(
 
 /**
  * Multi-Provider Failover Synthesis:
- * 1. Primary: Google Gemini (gemini-3.8-flash -> gemini-flash-latest)
+ * 1. Primary: Google Gemini (gemini-flash-latest, overridable per call)
  * 2. Secondary: OpenAI ChatGPT (gpt-4o) - triggered automatically if Gemini quota is reached (429/quota/503)
  * 3. Tertiary: Anthropic Claude Sonnet (claude-3-7-sonnet / claude-3-5-sonnet) - triggered if Gemini & ChatGPT are unavailable
  * 4. Algorithmic Fallback: Mathematical SMC/ICT calculation engine
@@ -179,8 +179,10 @@ export async function executeGenerativeSynthesisWithProvider(
   // STEP 1: Attempt Primary Provider (Google Gemini)
   const geminiKey = process.env.GEMINI_API_KEY;
   if (geminiKey && geminiKey.trim().length > 0) {
-    const primaryModel = options.primaryModel || 'gemini-3.8-flash';
-    const fallbackModel = options.fallbackModel || 'gemini-flash-latest';
+    // 'gemini-3.8-flash' was previously the default here and does not exist,
+    // so every primary call failed and silently fell through to the fallback.
+    const primaryModel = options.primaryModel || 'gemini-flash-latest';
+    const fallbackModel = options.fallbackModel || 'gemini-2.5-flash';
     const candidateModels = [primaryModel, fallbackModel];
 
     const genClient = new GoogleGenAI({ apiKey: geminiKey.trim() });

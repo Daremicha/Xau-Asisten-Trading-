@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
-import { ShieldCheck, LogIn, LogOut, TrendingUp, Clock, Sun, Moon, Bell, BellRing, BellOff } from 'lucide-react';
+import { LogIn, LogOut, TrendingUp, Clock, Sun, Moon, Bell, BellRing, BellOff } from 'lucide-react';
 import { BrokerId, BROKER_PROFILES } from '@/lib/types';
 
 interface HeaderProps {
@@ -14,8 +14,10 @@ interface HeaderProps {
     isHighVolatilityTiming: boolean;
     description: string;
   };
-  marketPrice: number;
-  change24h: number;
+  marketPrice: number | null;
+  change24h: number | null;
+  /** Live feed state, so the header never claims a connection it does not have. */
+  feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
   selectedBroker?: BrokerId;
   notificationPermission?: NotificationPermission | 'unsupported';
   onRequestNotification?: () => void;
@@ -29,6 +31,7 @@ export default function Header({
   killZone,
   marketPrice,
   change24h,
+  feedStatus = 'loading',
   selectedBroker = 'EXNESS',
   notificationPermission = 'default',
   onRequestNotification,
@@ -84,7 +87,15 @@ export default function Header({
     }
   };
 
-  const isPositive = change24h >= 0;
+  const isPositive = (change24h ?? 0) >= 0;
+
+  const feedLabel: Record<string, { text: string; dot: string; tone: string }> = {
+    loading: { text: 'Connecting to feed', dot: 'bg-slate-400', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    live: { text: 'XAUUSD Live Spot', dot: 'bg-emerald-400 animate-ping', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    stale: { text: 'Stale quote, not live', dot: 'bg-amber-400', tone: 'text-amber-500' },
+    unavailable: { text: 'Feed unavailable', dot: 'bg-rose-500', tone: 'text-rose-500' },
+  };
+  const feed = feedLabel[feedStatus] ?? feedLabel.loading;
 
   return (
     <header
@@ -121,26 +132,24 @@ export default function Header({
         {/* Live Market Price & Kill Zone Status */}
         <div className="hidden md:flex items-center gap-6">
           <div className="text-right">
-            <div
-              className={`text-xs font-medium flex items-center justify-end gap-1.5 ${
-                isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-              <span>XAUUSD Live Spot</span>
+            <div className={`text-xs font-medium flex items-center justify-end gap-1.5 ${feed.tone}`}>
+              <span className={`w-2 h-2 rounded-full inline-block ${feed.dot}`} />
+              <span>{feed.text}</span>
             </div>
             <div className="flex items-center gap-2 justify-end">
               <span className="text-lg font-bold font-mono tracking-tight text-amber-500">
-                ${marketPrice.toFixed(2)}
+                {marketPrice === null ? '—' : `$${marketPrice.toFixed(2)}`}
               </span>
-              <span
-                className={`text-xs font-semibold font-mono ${
-                  isPositive ? 'text-emerald-500' : 'text-rose-500'
-                }`}
-              >
-                {isPositive ? '+' : ''}
-                {change24h.toFixed(2)}
-              </span>
+              {change24h !== null && (
+                <span
+                  className={`text-xs font-semibold font-mono ${
+                    isPositive ? 'text-emerald-500' : 'text-rose-500'
+                  }`}
+                >
+                  {isPositive ? '+' : ''}
+                  {change24h.toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
 
