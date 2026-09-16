@@ -38,8 +38,22 @@ interface ProviderResult {
   candlesM15: Candle[];
 }
 
-/** How long a snapshot is considered fresh before we refetch. */
-const CACHE_TTL_MS = 20_000;
+/**
+ * How long a snapshot stays fresh before we refetch.
+ *
+ * This is a quota decision, not a performance one. The Twelve Data free tier
+ * allows 800 requests a day. A refresh only happens when someone actually asks
+ * for data, so the daily cost is (hours of use x 3600) / this value. At the 60
+ * second default, eight hours of continuous use costs 480 requests, which fits
+ * comfortably. Lower it only on a paid plan.
+ */
+const DEFAULT_CACHE_SECONDS = 60;
+
+export function cacheSeconds(): number {
+  const raw = Number(process.env.MARKET_DATA_CACHE_SECONDS);
+  if (!Number.isFinite(raw) || raw < 5) return DEFAULT_CACHE_SECONDS;
+  return Math.min(900, Math.floor(raw));
+}
 /** Beyond this age a cached snapshot is no longer offered at all. */
 const MAX_STALE_MS = 30 * 60_000;
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -57,7 +71,15 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: controller.signal, cache: 'no-store' });
+    // The framework data cache is shared across server invocations, so on a
+    // serverless host every visitor reuses one upstream call. The in-process
+    // cache below cannot do that on its own, because each invocation may run
+    // on a fresh instance with empty module state.
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      next: { revalidate: cacheSeconds() },
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -240,7 +262,7 @@ async function pullFromProviders(): Promise<ProviderResult | null> {
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  if (cached && now - cached.at < CACHE_TTL_MS) {
+  if (cached && now - cached.at < cacheSeconds() * 1000) {
     return toSnapshot(cached.result, cached.at, now, 'live');
   }
 

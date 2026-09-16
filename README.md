@@ -4,48 +4,91 @@ A Next.js terminal for XAUUSD (gold) that reads live market data, derives Smart
 Money Concepts structure from real candles, and sizes an executable MetaTrader 5
 order against your account risk.
 
-## Setup
+## Where the API key goes
+
+**Never put the key in GitHub.** `.env.local` is listed in `.gitignore` on
+purpose. Committing it would publish your key to anyone who can see the
+repository, and a leaked key can be used until its quota is drained.
+
+The key belongs in exactly one of two places, depending on how you run the app:
+
+| How you run it | Where the key goes |
+| --- | --- |
+| Hosted online | The hosting platform's environment variable settings |
+| On your own computer | A `.env.local` file on that computer |
+
+## Deploying to Vercel
+
+This needs nothing installed on your machine. Everything happens in a browser.
 
 ### 1. Get a market data key
 
-The app cannot show a price without one. Sign up at
-[twelvedata.com](https://twelvedata.com/pricing) and copy your API key. The free
-tier is enough for the 15 minute candles this app uses.
+Sign up at [twelvedata.com](https://twelvedata.com/pricing) and copy your API
+key. The free tier is enough.
 
-### 2. Put the key in `.env.local`
+### 2. Import the repository
 
-Create a file named `.env.local` in the project root, the same folder as
-`package.json`. It is already listed in `.gitignore`, so your key is never
-committed.
+Go to [vercel.com](https://vercel.com), sign in with GitHub, and choose
+**Add New → Project**. Pick this repository. Vercel detects Next.js on its own,
+so leave the build settings alone.
 
-```
-TWELVE_DATA_API_KEY="paste_your_key_here"
-```
+### 3. Add the key as an environment variable
 
-### 3. Install and verify
+Before clicking Deploy, open **Environment Variables** and add:
 
-```bash
-bun install
-bun run check:feed
-```
+| Name | Value |
+| --- | --- |
+| `TWELVE_DATA_API_KEY` | your key |
 
-`check:feed` calls the real provider and prints whether a live gold price came
-back. Fix any problem it reports before moving on.
+Then deploy. This is the step that replaces editing a file.
 
-### 4. Run it
+### 4. Let Firebase accept your new address
 
-```bash
-bun run dev
-```
+Google sign-in will fail until you do this. In the
+[Firebase Console](https://console.firebase.google.com), open your project, then
+**Authentication → Settings → Authorized domains**, and add the domain Vercel
+gave you, for example `your-app.vercel.app`.
 
-Open http://localhost:3000.
+### 5. Check it
 
-## Deploying
+Open your Vercel URL. A green line reading "Live data source" means it works.
+A red banner means the key did not take, so recheck step 3 and redeploy.
 
-On a hosting platform, do not upload `.env.local`. Set `TWELVE_DATA_API_KEY` as
-an environment variable in the platform's own settings, then redeploy.
-Environment variables are read when the server process starts, so a running
-deployment will not pick up a new key until it restarts.
+From then on, every push to this branch redeploys automatically.
+
+### Changing the key later
+
+Edit it in Vercel's environment variable settings, then redeploy. Variables are
+read when the server starts, so an existing deployment keeps the old value until
+it restarts.
+
+## Running on your own computer instead
+
+Only if you have [Bun](https://bun.sh) installed.
+
+1. Create a file named `.env.local` next to `package.json`:
+
+   ```
+   TWELVE_DATA_API_KEY="paste_your_key_here"
+   ```
+
+2. Install, verify, and run:
+
+   ```bash
+   bun install
+   bun run check:feed
+   bun run dev
+   ```
+
+`check:feed` calls the real provider and says plainly whether a live gold price
+came back, listing what to check when it does not.
+
+## Data provider quota
+
+The free Twelve Data tier allows 800 requests a day. The app reuses one quote
+for 60 seconds and only refreshes when someone is actually looking, so eight
+hours of continuous use costs about 480 requests. Set
+`MARKET_DATA_CACHE_SECONDS` lower only if you move to a paid plan.
 
 ## How the engine works
 

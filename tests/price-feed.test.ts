@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  cacheSeconds,
   candlesSinceUtcMidnight,
   mapTwelveDataCandles,
   mapYahooCandles,
@@ -109,5 +110,40 @@ describe('session helpers', () => {
 
   test('with no earlier day there is no previous close to report', () => {
     expect(previousDayClose(candles.slice(2), DAY + 900_000)).toBeNull();
+  });
+});
+
+describe('quota aware cache window', () => {
+  const original = process.env.MARKET_DATA_CACHE_SECONDS;
+  afterEach(() => {
+    if (original === undefined) delete process.env.MARKET_DATA_CACHE_SECONDS;
+    else process.env.MARKET_DATA_CACHE_SECONDS = original;
+  });
+
+  test('defaults to sixty seconds, which keeps the free tier safe', () => {
+    delete process.env.MARKET_DATA_CACHE_SECONDS;
+    expect(cacheSeconds()).toBe(60);
+  });
+
+  test('an explicit value is honoured', () => {
+    process.env.MARKET_DATA_CACHE_SECONDS = '120';
+    expect(cacheSeconds()).toBe(120);
+  });
+
+  test('nonsense values fall back to the default rather than hammering the provider', () => {
+    for (const bad of ['', 'abc', '-5', '0', '1']) {
+      process.env.MARKET_DATA_CACHE_SECONDS = bad;
+      expect(cacheSeconds()).toBe(60);
+    }
+  });
+
+  test('an absurdly long window is capped so the price cannot go hours stale', () => {
+    process.env.MARKET_DATA_CACHE_SECONDS = '99999';
+    expect(cacheSeconds()).toBe(900);
+  });
+
+  test('the default keeps eight hours of use inside the free daily quota', () => {
+    const requestsPerDay = (8 * 3600) / cacheSeconds();
+    expect(requestsPerDay).toBeLessThan(800);
   });
 });

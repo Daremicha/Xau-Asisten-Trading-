@@ -288,7 +288,9 @@ export default function Home() {
       await loadMarketData();
     };
     tick();
-    const interval = setInterval(tick, 15000);
+    // Matched to the server cache window. Polling faster only burns the data
+    // provider's daily quota without producing a fresher price.
+    const interval = setInterval(tick, 30000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -722,7 +724,7 @@ export default function Home() {
         {feedStatus === 'live' && feedSource && (
           <div className="text-xs text-slate-500 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-            <span>Live data source: {feedSource}. Refreshed every 15 seconds.</span>
+            <span>Live data source: {feedSource}. Refreshed about once a minute to stay inside the free data quota.</span>
           </div>
         )}
 
