@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  compareAdoption,
   comparePhases,
   compareRuns,
   convictionBreakdown,
@@ -136,7 +137,7 @@ describe('did the later trades go better', () => {
     const late = Array.from({ length: 12 }, () => loss(-100));
     const comparison = comparePhases(result([...early, ...late]));
     expect(comparison.verdict).toBe('declined');
-    expect(comparison.explanation).toContain('did not help');
+    expect(comparison.explanation).toContain('not the better ones');
   });
 });
 
@@ -232,5 +233,33 @@ describe('which conviction bands actually paid', () => {
 
   test('an unfilled order contributes nothing at any threshold', () => {
     expect(netAboveThreshold([trades[5]], 0)).toBe(0);
+  });
+});
+
+describe('what adopting the learned parameters would have done', () => {
+  const control = result(Array.from({ length: 20 }, () => loss(-40)));
+
+  test('a frozen run that beat the defaults is worded as an adoption, not as learning', () => {
+    const frozen = result(Array.from({ length: 20 }, () => win(60)));
+    const comparison = compareAdoption(control, frozen);
+    expect(comparison.verdict).toBe('better');
+    expect(comparison.explanation).toContain('Held fixed from the start');
+    expect(comparison.explanation).not.toContain('Learning from each result');
+  });
+
+  test('a frozen run that lost against the defaults says adopting would have cost money', () => {
+    const frozen = result(Array.from({ length: 20 }, () => loss(-90)));
+    expect(compareAdoption(control, frozen).explanation).toContain('would have cost money');
+  });
+
+  test('money in the comparison follows the account, not the dollar', () => {
+    const centControl = result(Array.from({ length: 20 }, () => loss(-0.4)), 9.1);
+    centControl.summary.accountType = 'Cent';
+    const centAdaptive = result(Array.from({ length: 20 }, () => win(0.6)), 9.1);
+    centAdaptive.summary.accountType = 'Cent';
+    // 20 trades either side: a 20 dollar swing reads as 2000 cent, never as "$20".
+    const explanation = compareRuns(centControl, centAdaptive).explanation;
+    expect(explanation).toContain('Cent');
+    expect(explanation).not.toContain('$');
   });
 });

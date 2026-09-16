@@ -28,7 +28,7 @@ import { buildSignal } from './signal-engine';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
 import { computeValidity } from './order-validity';
-import { deriveAdaptiveWeights } from './learning-engine';
+import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
 import { resultFromMove, roundMoney } from './trade-result';
 import type { MarketSnapshot } from './price-feed';
 import {
@@ -58,6 +58,13 @@ export interface BacktestConfig {
    * starting parameters for the whole period, which is the control run.
    */
   adaptive: boolean;
+  /**
+   * Parameters the run starts from. Defaults to the engine's own. Passing the
+   * weights a learning run ended on, with `adaptive` false, replays the period
+   * as it would have gone had those parameters been adopted from the first
+   * candle, which is the only honest test of adopting them.
+   */
+  startingPrior?: Partial<PriorWeights> | null;
   /** Candles each analysis may look back over. */
   windowBars?: number;
   /** Bars to wait after a trade closes before looking for the next setup. */
@@ -418,7 +425,8 @@ export function createBacktest(config: BacktestConfig): Runner {
     ? [{ sequence: 0, time: candles[warmup]?.time ?? candles[0].time, equity: startingEquity }]
     : [];
 
-  let weights: AdaptiveStrategyEngineWeights = deriveAdaptiveWeights([], tradingStyle);
+  const startingPrior = config.startingPrior ?? null;
+  let weights: AdaptiveStrategyEngineWeights = deriveAdaptiveWeights([], tradingStyle, startingPrior);
 
   function progress(): BacktestProgress {
     return {
@@ -545,7 +553,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       trades.push(trade);
       records.push(recordFor(trade, tradingStyle, decision.anchor));
       equityCurve.push({ sequence, time: missBar.time, equity });
-      if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle);
+      if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle, startingPrior);
       cursor = outcome.index + cooldownBars;
       return;
     }
@@ -599,7 +607,7 @@ export function createBacktest(config: BacktestConfig): Runner {
     trades.push(trade);
     records.push(recordFor(trade, tradingStyle, decision.anchor));
     equityCurve.push({ sequence, time: exitBar.time, equity });
-    if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle);
+    if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle, startingPrior);
 
     cursor = outcome.exitIndex + cooldownBars;
   }
@@ -641,7 +649,7 @@ export function createBacktest(config: BacktestConfig): Runner {
         },
         trades,
         equityCurve,
-        finalWeights: adaptive ? deriveAdaptiveWeights(records, tradingStyle) : weights,
+        finalWeights: adaptive ? deriveAdaptiveWeights(records, tradingStyle, startingPrior) : weights,
         records,
       };
     },

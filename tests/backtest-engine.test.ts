@@ -344,3 +344,41 @@ describe('a conviction floor', () => {
     }
   });
 });
+
+describe('replaying with parameters already adopted', () => {
+  const candles = walk(6000);
+
+  test('a run started from a prior uses it instead of the engine defaults', () => {
+    const frozen = runBacktest(
+      config(candles, {
+        warmupBars: 1400,
+        startingPrior: { atrBufferFactor: 2.2, entryBufferPips: 30 },
+      })
+    );
+    expect(frozen.finalWeights.atrBufferFactor).toBe(2.2);
+    expect(frozen.finalWeights.entryBufferPips).toBe(30);
+  });
+
+  test('a wider stop prior actually changes the trades, not just the report', () => {
+    const defaults = runBacktest(config(candles, { warmupBars: 1400 }));
+    const wider = runBacktest(
+      config(candles, { warmupBars: 1400, startingPrior: { atrBufferFactor: 2.5 } })
+    );
+    const sameStops = defaults.trades
+      .slice(0, 5)
+      .every((t, i) => wider.trades[i] && wider.trades[i].stopLoss === t.stopLoss);
+    expect(sameStops).toBe(false);
+  });
+
+  test('an adaptive run still learns on top of the prior it was given', () => {
+    const fromPrior = runBacktest(
+      config(candles, {
+        warmupBars: 1400,
+        adaptive: true,
+        startingPrior: { atrBufferFactor: 1.0 },
+      })
+    );
+    // The prior is a starting point, not a floor the evidence cannot move.
+    expect(fromPrior.finalWeights.atrBufferFactor).not.toBe(1.0);
+  });
+});

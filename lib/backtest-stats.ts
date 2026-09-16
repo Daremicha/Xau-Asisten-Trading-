@@ -9,6 +9,7 @@
 
 import { BacktestResult, BacktestTrade } from './backtest-engine';
 import { roundMoney } from './trade-result';
+import { formatAccountMoney } from './account-display';
 
 export interface BacktestStats {
   /** Orders the engine produced, filled or not. */
@@ -158,9 +159,14 @@ export function comparePhases(result: BacktestResult): PhaseComparison {
     expectancyDelta,
     verdict: improved ? 'improved' : declined ? 'declined' : 'unchanged',
     explanation: improved
-      ? `The second half earned ${expectancyDelta > 0 ? '+' : ''}$${expectancyDelta} more per trade than the first.`
+      ? `The second half earned ${formatAccountMoney(expectancyDelta, summary.accountType, {
+          signed: true,
+        })} more per trade than the first.`
       : declined
-      ? `The second half earned $${Math.abs(expectancyDelta)} less per trade than the first, so learning did not help over this period.`
+      ? `The second half earned ${formatAccountMoney(
+          Math.abs(expectancyDelta),
+          summary.accountType
+        )} less per trade than the first, so the later signals were not the better ones.`
       : 'The two halves traded about the same, so learning made no measurable difference here.',
   };
 }
@@ -176,12 +182,55 @@ export interface LearningComparison {
   explanation: string;
 }
 
+/** Wording that changes with what is being compared against the control. */
+interface ComparisonPhrasing {
+  better: (amount: string) => string;
+  worse: (amount: string) => string;
+  same: string;
+}
+
+const LEARNING_PHRASING: ComparisonPhrasing = {
+  better: (amount) =>
+    `Learning from each result earned ${amount} more over the same candles than running on fixed parameters.`,
+  worse: (amount) =>
+    `Learning from each result earned ${amount} less than running on fixed parameters over this period, so the adaptation did not pay here.`,
+  same: 'Both runs finished within noise of each other, so learning neither helped nor hurt over this period.',
+};
+
+const ADOPTION_PHRASING: ComparisonPhrasing = {
+  better: (amount) =>
+    `Held fixed from the start, the learned parameters earned ${amount} more than the engine defaults over the same candles.`,
+  worse: (amount) =>
+    `Held fixed from the start, the learned parameters earned ${amount} less than the engine defaults, so adopting them would have cost money over this period.`,
+  same: 'Held fixed from the start, the learned parameters finished within noise of the engine defaults, so adopting them changes little.',
+};
+
 /**
  * The comparison the whole exercise exists for: the same period traded twice,
  * once on the engine's starting parameters and once with the learning engine
  * updating after every closed trade.
  */
 export function compareRuns(control: BacktestResult, adaptive: BacktestResult): LearningComparison {
+  return compareAgainstControl(control, adaptive, LEARNING_PHRASING);
+}
+
+/**
+ * What adopting the learned parameters would actually have done.
+ *
+ * The learning run's final weights are the end of a path, not a configuration
+ * that was ever traded as such. Freezing them from the first candle and
+ * replaying the same period is the only honest test of the adopt button, and
+ * this compares that run against the defaults.
+ */
+export function compareAdoption(control: BacktestResult, frozen: BacktestResult): LearningComparison {
+  return compareAgainstControl(control, frozen, ADOPTION_PHRASING);
+}
+
+function compareAgainstControl(
+  control: BacktestResult,
+  adaptive: BacktestResult,
+  phrasing: ComparisonPhrasing
+): LearningComparison {
   const controlStats = summariseTrades(control.trades, control.summary.startingEquity);
   const adaptiveStats = summariseTrades(adaptive.trades, adaptive.summary.startingEquity);
 
@@ -210,10 +259,10 @@ export function compareRuns(control: BacktestResult, adaptive: BacktestResult): 
     verdict,
     explanation:
       verdict === 'better'
-        ? `Learning from each result earned $${netDelta} more over the same candles than running on fixed parameters.`
+        ? phrasing.better(formatAccountMoney(netDelta, control.summary.accountType))
         : verdict === 'worse'
-        ? `Learning from each result earned $${Math.abs(netDelta)} less than running on fixed parameters over this period, so the adaptation did not pay here.`
-        : 'Both runs finished within noise of each other, so learning neither helped nor hurt over this period.',
+        ? phrasing.worse(formatAccountMoney(Math.abs(netDelta), control.summary.accountType))
+        : phrasing.same,
   };
 }
 

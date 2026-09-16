@@ -198,14 +198,20 @@ candles a page at a time, then trades the period twice:
 | --- | --- |
 | Fixed parameters | Keeps the engine's starting weights for the whole period |
 | Learning from results | Re-derives the weights after every closed trade, exactly as the live app does |
+| Learned, held fixed | Trades the whole period with the weights the learning run ended on, frozen from the first candle |
 
 Same candles, same rules, one difference, so the comparison measures learning
 rather than luck. The report shows win rate, net result, profit factor,
 drawdown, the two balance curves on a shared date axis, and the first half of
 the learning run against its second half.
 
-If the learning run beat the control, **Use these as the live starting
-parameters** adopts the weights it ended on. Live analysis then shrinks toward
+The third run is what the adopt button rests on. The weights a learning run
+ends on are the end of a path, not a configuration that was ever traded as
+such, so they are replayed once more from the first candle before being offered
+for live use. If that frozen run loses to the defaults, the button is refused.
+
+If it holds up, **Use these as the live starting parameters** adopts the weights
+it ended on. Live analysis then shrinks toward
 those instead of the built-in defaults, and your real trades keep adjusting
 from there. The choice is stored with your profile and can be reverted.
 
