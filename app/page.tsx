@@ -21,6 +21,8 @@ import {
   saveActiveSetup,
 } from '@/lib/active-setup-store';
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
+import { trackPosition } from '@/lib/position-tracker';
+import PositionStatusCard from '@/components/PositionStatusCard';
 import {
   GUEST_STATUS,
   failedStatus,
@@ -246,11 +248,43 @@ export default function Home() {
    * window, invalidated, or overtaken by the move. Derived rather than stored,
    * so it stays correct as price updates.
    */
+  /**
+   * Whether the open order has filled. This latches: once price has touched the
+   * entry the position is open, and a later quote drifting back past the entry
+   * must not report it as pending again.
+   */
+  const [filledSetupId, setFilledSetupId] = useState<string | null>(null);
+  const isFilled = Boolean(activeSetup && filledSetupId === activeSetup.id);
+
+  /** Live state of the order: pending, filled and floating, or closed. */
+  const livePosition = useMemo(() => {
+    if (!activeSetup || marketPrice === null) return null;
+    return trackPosition(activeSetup, marketPrice, isFilled);
+  }, [activeSetup, marketPrice, isFilled]);
+
+  useEffect(() => {
+    if (!activeSetup || !livePosition) return;
+    if (livePosition.state !== 'pending' && filledSetupId !== activeSetup.id) {
+      setFilledSetupId(activeSetup.id);
+      // The resting order became a live position, so the status follows.
+      if (activeSetup.status === 'PENDING') {
+        setActiveSetup((prev) =>
+          prev && prev.id === activeSetup.id
+            ? { ...prev, status: 'ACTIVE', filledAt: new Date().toISOString() }
+            : prev
+        );
+      }
+    }
+  }, [activeSetup, livePosition, filledSetupId]);
+
+  // Only an order that has not filled can be missed. Once it fills, the miss
+  // rules no longer apply: the trade is running and will end at a level.
   const pendingVerdict = useMemo(() => {
     if (!activeSetup || !isUnresolved(activeSetup) || marketPrice === null) return null;
     if (activeSetup.orderType.includes('INSTANT')) return null;
+    if (isFilled || livePosition?.state !== 'pending') return null;
     return evaluatePendingOrder(activeSetup, marketPrice);
-  }, [activeSetup, marketPrice]);
+  }, [activeSetup, marketPrice, isFilled, livePosition]);
 
   /**
    * True once a restore has been attempted. Writing before that point would
@@ -445,7 +479,7 @@ export default function Home() {
 
   // Real-time TP/SL proximity monitoring with notifications and audio chimes
   useEffect(() => {
-    if (!activeSetup || activeSetup.status !== 'ACTIVE' || marketPrice === null) return;
+    if (!activeSetup || !isUnresolved(activeSetup) || marketPrice === null) return;
 
     const timer = setTimeout(() => {
       const alert = evaluatePriceProximity(marketPrice, activeSetup, {
@@ -470,6 +504,36 @@ export default function Home() {
    * someone happened to be watching. The ref guards against the effect firing
    * twice for the same setup while the evaluation is in flight.
    */
+  /**
+   * Closes a running position the moment price reaches a target or the stop,
+   * so the ledger and the learning engine reflect what the market actually did
+   * rather than whenever the user happened to look.
+   */
+  const autoClosedRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeSetup || !livePosition || livePosition.state !== 'closed') return;
+    if (isEvaluatingOutcome || marketPrice === null) return;
+    if (autoClosedRef.current === activeSetup.id) return;
+
+    autoClosedRef.current = activeSetup.id;
+    const hit = livePosition.closedBy;
+    const level = hit === 'TP3' ? 3 : hit === 'TP2' ? 2 : 1;
+    setAutoResolveNotice(
+      hit === 'SL'
+        ? `Price reached the stop at ${activeSetup.stopLoss.toFixed(2)}. The engine closed the trade and recorded it.`
+        : `Price reached ${hit} at ${(hit === 'TP3'
+            ? activeSetup.takeProfit3
+            : hit === 'TP2'
+            ? activeSetup.takeProfit2
+            : activeSetup.takeProfit1
+          ).toFixed(2)}. The engine closed the trade and recorded it.`
+    );
+    void handleSimulateOutcome(hit === 'SL' ? 'SL' : 'TP', level as 1 | 2 | 3);
+    // handleSimulateOutcome closes over the same setup each render, so listing
+    // it would re-fire this effect without changing anything.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSetup, livePosition, isEvaluatingOutcome, marketPrice]);
+
   const autoResolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!activeSetup || !pendingVerdict || pendingVerdict.state === 'waiting') return;
@@ -1059,6 +1123,16 @@ export default function Home() {
           activeSetup={activeSetup}
           indicators={displayIndicators}
           feedStatus={feedStatus}
+          statusPanel={
+            activeSetup && livePosition && isUnresolved(activeSetup) ? (
+              <PositionStatusCard
+                setup={activeSetup}
+                position={livePosition}
+                currentPrice={marketPrice}
+                theme={theme}
+              />
+            ) : null
+          }
           theme={theme}
         />
 

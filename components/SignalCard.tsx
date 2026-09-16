@@ -572,7 +572,7 @@ Ready for direct execution in MetaTrader 5.`;
                     {/* A pending order is not valid forever. This is the point
                         past which the structure it reads no longer describes
                         the market. */}
-                    {setup.validUntil && setup.status === 'ACTIVE' && (
+                    {setup.validUntil && setup.status === 'PENDING' && (
                       <div
                         className={`text-[10px] font-mono mt-0.5 ${
                           pendingMinutesLeft !== null && pendingMinutesLeft <= 0
