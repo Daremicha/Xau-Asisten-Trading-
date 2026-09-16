@@ -274,6 +274,8 @@ export interface SelfLearningMemoryRecord {
   strategyEvolutionLesson: string;
   /** Style the trade was taken with, so learning can be segmented by it. */
   tradingStyle?: TradingStyle;
+  /** True when the engine closed the order itself rather than the user. */
+  autoResolved?: boolean;
   adaptiveWeightAdjustments: {
     fvgWeightDelta: number;
     orderBlockWeightDelta: number;

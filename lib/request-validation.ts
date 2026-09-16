@@ -97,6 +97,10 @@ export interface ValidatedLearnRequest {
   setup: InstitutionalTradingSetup;
   outcome: TradeOutcome;
   closedPrice: number;
+  /** Why a pending order ended without filling, when the engine decided it. */
+  missCause?: string;
+  /** True when the engine closed the order rather than the user. */
+  autoResolved: boolean;
 }
 
 /** Validates a post trade evaluation request, including the fields it reads. */
@@ -138,6 +142,8 @@ export function validateLearnBody(body: unknown): ValidationResult<ValidatedLear
       setup: setup as unknown as InstitutionalTradingSetup,
       outcome: b.outcome as TradeOutcome,
       closedPrice: b.closedPrice as number,
+      missCause: typeof b.missCause === 'string' && b.missCause.length > 0 ? b.missCause : undefined,
+      autoResolved: b.autoResolved === true,
     },
     errors: [],
   };

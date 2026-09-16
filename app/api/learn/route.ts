@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!input) {
     return NextResponse.json({ success: false, error: errors.join(' ') }, { status: 400 });
   }
-  const { setup, outcome, closedPrice } = input;
+  const { setup, outcome, closedPrice, missCause, autoResolved } = input;
 
   try {
     const isProfit = outcome === 'TP';
@@ -47,7 +47,9 @@ export async function POST(request: Request) {
     let primaryFactor = isProfit
       ? `Target delivered ${distancePips} pips from entry`
       : isMissed
-      ? `Pending order never filled, price held ${distancePips} pips away`
+      ? // The engine knows which of the three ways it missed, and they teach
+        // different lessons, so the recorded cause is specific.
+        missCause ?? `Pending order never filled, price held ${distancePips} pips away`
       : `Stop taken ${distancePips} pips against entry`;
 
     let institutionalFlowExplanation = isProfit
@@ -156,6 +158,7 @@ Respond strictly in valid JSON format:
       },
       strategyEvolutionLesson,
       tradingStyle: setup.tradingStyle,
+      autoResolved,
       adaptiveWeightAdjustments: {
         fvgWeightDelta,
         orderBlockWeightDelta,

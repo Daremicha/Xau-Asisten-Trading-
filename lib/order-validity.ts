@@ -124,6 +124,25 @@ export function evaluatePendingOrder(
   return { state: 'waiting', minutesLeft: Infinity, reason: 'Waiting for price to reach the entry.' };
 }
 
+/**
+ * Why a pending order ended without filling, in the form the learning engine
+ * stores. The three causes teach different lessons: a runaway means the entry
+ * sat too deep, an invalidation means the read was wrong, and an expiry means
+ * the level simply never came back inside the window.
+ */
+export function missCause(state: PendingVerdict['state']): string {
+  switch (state) {
+    case 'ran-away':
+      return 'Price reached the target without filling, so the entry sat deeper than the market retraced.';
+    case 'invalidated':
+      return 'Price broke the invalidation before filling, so the directional read was wrong.';
+    case 'expired':
+      return 'The validity window closed with price never reaching the entry.';
+    default:
+      return 'The order did not fill.';
+  }
+}
+
 /** Human readable time remaining, for the countdown on the signal card. */
 export function formatTimeLeft(minutes: number): string {
   if (!Number.isFinite(minutes) || minutes <= 0) return 'expired';
