@@ -29,7 +29,7 @@ import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
 import { computeValidity } from './order-validity';
 import { deriveAdaptiveWeights } from './learning-engine';
-import { resultFromMove } from './trade-result';
+import { resultFromMove, roundMoney } from './trade-result';
 import type { MarketSnapshot } from './price-feed';
 import {
   AccountType,
@@ -537,12 +537,12 @@ export function createBacktest(config: BacktestConfig): Runner {
     // Spread is paid once, on entry, across the whole position.
     const spreadCost =
       lot.contractSpecs.typicalSpreadPips * 0.1 * lot.lotSize * lot.contractSpecs.contractSizeOz;
-    const net = parseFloat((gross.dollars - spreadCost).toFixed(2));
+    const net = roundMoney(gross.dollars - spreadCost);
     // The label follows the money: a target reached by a hair that costs more in
     // spread than it paid is not a win.
     const settled: 'TP' | 'SL' = net > 0 ? 'TP' : 'SL';
 
-    equity = Math.max(0, parseFloat((equity + net).toFixed(2)));
+    equity = Math.max(0, roundMoney(equity + net));
 
     const fillBar = candles[outcome.fillIndex];
     const exitBar = candles[outcome.exitIndex];
@@ -562,7 +562,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       reason: outcome.reason,
       lotSize: lot.lotSize,
       grossDollars: gross.dollars,
-      costDollars: parseFloat(spreadCost.toFixed(2)),
+      costDollars: roundMoney(spreadCost),
       netDollars: net,
       pips: gross.pips,
       rMultiple:

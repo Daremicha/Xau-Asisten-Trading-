@@ -15,6 +15,18 @@ import { InstitutionalTradingSetup } from './types';
 
 export type TradeOutcome = 'TP' | 'SL' | 'MISSED';
 
+/**
+ * Money is kept to four decimal places, not two.
+ *
+ * Two decimals is one whole unit on a cent account, so a 27.36 cent result was
+ * being stored as 27.00 and an average of 0.45 cent per trade collapsed to
+ * zero. Four decimals of a dollar is two decimals of a cent, which is the
+ * precision the terminal itself shows.
+ */
+export function roundMoney(value: number): number {
+  return parseFloat(value.toFixed(4));
+}
+
 export interface TradeResult {
   /** Signed price distance in pips. Zero for an order that never filled. */
   pips: number;
@@ -52,7 +64,7 @@ export function computeTradeResult(
     gross -= (setup.contractSpecs?.commissionPerLot || 6.0) * setup.recommendedLotSize;
   }
 
-  return { pips, dollars: parseFloat(gross.toFixed(2)) };
+  return { pips, dollars: roundMoney(gross) };
 }
 
 /**
@@ -76,5 +88,5 @@ export function resultFromMove(
     gross -= (setup.contractSpecs?.commissionPerLot || 6.0) * setup.recommendedLotSize;
   }
 
-  return { pips, dollars: parseFloat(gross.toFixed(2)) };
+  return { pips, dollars: roundMoney(gross) };
 }
