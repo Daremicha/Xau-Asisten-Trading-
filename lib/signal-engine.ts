@@ -32,6 +32,15 @@ export interface StyleProfile {
   tpMultiples: [number, number, number];
   /** How far from price an entry may sit before it becomes a market order. */
   instantToleranceDollars: number;
+  /**
+   * Furthest a pending entry may sit from live price, as a multiple of ATR.
+   * A point of interest beyond this is a real level but not a fillable one for
+   * this style: an intraday order parked three ATR away simply will not trade
+   * before the session ends.
+   */
+  maxEntryAtrMultiple: number;
+  /** Floor for the same limit, so an unusually quiet market stays tradeable. */
+  minEntryReachDollars: number;
   label: string;
 }
 
@@ -42,6 +51,8 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     atrStopMultiple: 0.6,
     tpMultiples: [1.2, 2.0, 3.2],
     instantToleranceDollars: 0.5,
+    maxEntryAtrMultiple: 0.8,
+    minEntryReachDollars: 2.0,
     label: 'M15 / M5 precision scalp',
   },
   Intraday: {
@@ -50,6 +61,8 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     atrStopMultiple: 1.0,
     tpMultiples: [1.5, 2.6, 4.0],
     instantToleranceDollars: 1.2,
+    maxEntryAtrMultiple: 1.5,
+    minEntryReachDollars: 6.0,
     label: 'H1 / M15 session play',
   },
   Swing: {
@@ -58,6 +71,8 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     atrStopMultiple: 2.0,
     tpMultiples: [2.0, 3.6, 6.0],
     instantToleranceDollars: 4.0,
+    maxEntryAtrMultiple: 3.0,
+    minEntryReachDollars: 20.0,
     label: 'D1 / H4 macro swing',
   },
 };
@@ -84,6 +99,13 @@ export interface SignalDecision {
   confidenceScore: number;
   /** True when the learned buffer was trimmed to the style's maximum stop. */
   stopWasCapped: boolean;
+  /** How far price must travel to reach the entry. */
+  entryDistancePips: number;
+  /**
+   * True when no point of interest was within the style's reach, so the order
+   * may not fill inside the intended holding period.
+   */
+  entryOutOfReach: boolean;
   anchor: 'Order Block' | 'Fair Value Gap' | 'Market';
   factors: ConfluenceFactor[];
   rationale: string;
@@ -199,46 +221,111 @@ export function scoreConfluence(inputs: SignalInputs): {
  * order blocks and imbalances decides which point of interest is used, so a run
  * of missed limit orders can genuinely shift entries toward the gap midpoint.
  */
+interface EntryCandidate {
+  price: number;
+  anchor: 'Order Block' | 'Fair Value Gap';
+  /** How much the learning engine currently trusts this kind of level. */
+  weight: number;
+  detail: string;
+}
+
+/** Furthest a pending entry may sit from price for this style and volatility. */
+export function maxEntryDistance(profile: StyleProfile, atr: number): number {
+  return Math.max(profile.minEntryReachDollars, atr * profile.maxEntryAtrMultiple);
+}
+
+/**
+ * Chooses where to place the entry.
+ *
+ * Each point of interest offers two entries: its mean threshold, the textbook
+ * level, and its near edge, which fills sooner. Both are offered so a level
+ * whose midpoint is out of reach can still be traded at its edge.
+ *
+ * Candidates beyond the style's reach are discarded, because an order that will
+ * not fill inside the intended holding period is not a usable signal. When
+ * nothing is in reach the nearest candidate is returned and flagged, so the
+ * caller can say plainly that price has run away from its levels.
+ */
 export function selectEntry(
   inputs: SignalInputs,
   direction: 'long' | 'short'
-): { price: number; anchor: SignalDecision['anchor']; detail: string } {
+): { price: number; anchor: SignalDecision['anchor']; detail: string; outOfReach: boolean } {
   const exec = inputs.structures.h1;
-  const { weights, price } = inputs;
+  const { weights, price, indicators } = inputs;
+  const profile = STYLE_PROFILES[inputs.tradingStyle];
+  const reach = maxEntryDistance(profile, indicators.atr14);
 
-  const obUsable =
-    (direction === 'long' && exec.orderBlock.high < price) ||
-    (direction === 'short' && exec.orderBlock.low > price);
-  const fvgUsable =
-    exec.fairValueGap.detected &&
-    ((direction === 'long' && exec.fairValueGap.top < price) ||
-      (direction === 'short' && exec.fairValueGap.bottom > price));
+  const candidates: EntryCandidate[] = [];
+  const isLong = direction === 'long';
 
-  const preferFvg = weights.fairValueGapWeight >= weights.orderBlockWeight;
-
-  if (fvgUsable && (preferFvg || !obUsable)) {
-    // Consequent encroachment: the 50 percent line of the imbalance.
-    const mid = (exec.fairValueGap.top + exec.fairValueGap.bottom) / 2;
-    return {
-      price: round2(mid),
-      anchor: 'Fair Value Gap',
-      detail: `Entry at the 50 percent consequent encroachment of the ${exec.fairValueGap.type}.`,
-    };
-  }
-
-  if (obUsable) {
-    const mid = (exec.orderBlock.high + exec.orderBlock.low) / 2;
-    return {
-      price: round2(mid),
+  // A level is only usable if it sits on the retracement side of price.
+  const obNear = isLong ? exec.orderBlock.high : exec.orderBlock.low;
+  const obMid = (exec.orderBlock.high + exec.orderBlock.low) / 2;
+  if (isLong ? obNear < price : obNear > price) {
+    candidates.push({
+      price: round2(obMid),
       anchor: 'Order Block',
+      weight: weights.orderBlockWeight,
       detail: `Entry at the mean threshold of the ${exec.orderBlock.type}.`,
+    });
+    candidates.push({
+      price: round2(obNear),
+      anchor: 'Order Block',
+      // The edge is a shallower fill, so it carries slightly less conviction.
+      weight: weights.orderBlockWeight * 0.9,
+      detail: `Entry at the near edge of the ${exec.orderBlock.type}, which fills earlier than its mean threshold.`,
+    });
+  }
+
+  if (exec.fairValueGap.detected) {
+    const fvgNear = isLong ? exec.fairValueGap.top : exec.fairValueGap.bottom;
+    const fvgMid = (exec.fairValueGap.top + exec.fairValueGap.bottom) / 2;
+    if (isLong ? fvgNear < price : fvgNear > price) {
+      candidates.push({
+        price: round2(fvgMid),
+        anchor: 'Fair Value Gap',
+        weight: weights.fairValueGapWeight,
+        detail: `Entry at the 50 percent consequent encroachment of the ${exec.fairValueGap.type}.`,
+      });
+      candidates.push({
+        price: round2(fvgNear),
+        anchor: 'Fair Value Gap',
+        weight: weights.fairValueGapWeight * 0.9,
+        detail: `Entry at the near edge of the ${exec.fairValueGap.type}, which fills earlier than its 50 percent level.`,
+      });
+    }
+  }
+
+  if (candidates.length === 0) {
+    return {
+      price: round2(price),
+      anchor: 'Market',
+      detail: 'No unmitigated point of interest on the retracement side of price, so execution is at market.',
+      outOfReach: false,
     };
   }
 
+  const distanceOf = (c: EntryCandidate) => Math.abs(price - c.price);
+  const inReach = candidates.filter((c) => distanceOf(c) <= reach);
+
+  // Trust first, then proximity: among levels the engine rates equally, take
+  // the one price has to travel least far to reach.
+  const rank = (a: EntryCandidate, b: EntryCandidate) =>
+    b.weight - a.weight || distanceOf(a) - distanceOf(b);
+
+  if (inReach.length > 0) {
+    const best = [...inReach].sort(rank)[0];
+    return { price: best.price, anchor: best.anchor, detail: best.detail, outOfReach: false };
+  }
+
+  const nearest = [...candidates].sort((a, b) => distanceOf(a) - distanceOf(b))[0];
   return {
-    price: round2(price),
-    anchor: 'Market',
-    detail: 'No unmitigated point of interest below price, so execution is at market.',
+    price: nearest.price,
+    anchor: nearest.anchor,
+    detail: `${nearest.detail} Price is currently ${priceToPips(
+      distanceOf(nearest)
+    )} pips away, beyond the ${inputs.tradingStyle} reach of ${priceToPips(reach)} pips, so this order may not fill within the intended holding period.`,
+    outOfReach: true,
   };
 }
 
@@ -310,8 +397,11 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
 
   // Confidence: weighted agreement normalised against the total weight on the table.
   const totalWeight = factors.reduce((acc, f) => acc + f.weight * Math.max(1, Math.abs(f.direction)), 0);
+  const rawConfidence = (Math.abs(score) / Math.max(totalWeight, 0.0001)) * 100;
+  // An order that may never fill deserves less conviction than one at a level
+  // price is about to revisit.
   const confidenceScore = Math.round(
-    Math.min(100, Math.max(0, (Math.abs(score) / Math.max(totalWeight, 0.0001)) * 100))
+    Math.min(100, Math.max(0, entry.outOfReach ? rawConfidence * 0.6 : rawConfidence))
   );
 
   const agreeing = factors.filter((f) => (direction === 'long' ? f.direction > 0 : f.direction < 0));
@@ -334,6 +424,9 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
           2
         )} dollars, so it was capped. Consider a longer timeframe style if stop outs keep recurring.`
       : '',
+    entry.outOfReach
+      ? 'Price has extended beyond every point of interest this style can reach, so treat this as a level to watch rather than an order to leave working.'
+      : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -350,6 +443,8 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
     riskRewardRatio: riskDistance > 0 ? `1:${m1.toFixed(2)}` : '1:0',
     confidenceScore,
     stopWasCapped,
+    entryDistancePips: priceToPips(price - entryPrice),
+    entryOutOfReach: entry.outOfReach,
     anchor: entry.anchor,
     factors,
     rationale,

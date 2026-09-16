@@ -512,6 +512,18 @@ Ready for direct execution in MetaTrader 5.`;
                 <div className="text-[10px] text-amber-400 font-mono mt-0.5">
                   {setup.orderType}
                 </div>
+                {/* How far price must travel to fill this order. Without it, a
+                    level far from market looks the same as one about to fill. */}
+                {currentPrice !== null && !setup.orderType.includes('INSTANT') && (
+                  <div
+                    className={`text-[10px] font-mono mt-1 ${
+                      distancePips > 150 ? 'text-rose-400' : isDark ? 'text-slate-500' : 'text-slate-500'
+                    }`}
+                  >
+                    {distancePips} pips from market
+                    {distancePips > 150 ? ' • may not fill today' : ''}
+                  </div>
+                )}
               </div>
 
               {/* Stop Loss */}

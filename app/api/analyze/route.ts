@@ -188,7 +188,9 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       `7. Targets: TP1 [ ${decision.takeProfit1.toFixed(2)} ] | TP2 [ ${decision.takeProfit2.toFixed(
         2
       )} ] | TP3 [ ${decision.takeProfit3.toFixed(2)} ].`,
-      `8. Profile: ${styleProfile.label}.`,
+      `8. Profile: ${styleProfile.label}. Entry sits ${decision.entryDistancePips} pips from the current price${
+        decision.entryOutOfReach ? ', which is beyond this style\u2019s usual reach, so it may not fill today' : ''
+      }.`,
       `9. Broker: ${specs.brokerName}, ${specs.typicalSpreadPips} pips typical spread.`,
       `10. Data source: ${snapshot.source ?? 'unknown'}${
         snapshot.status === 'stale' ? ` (STALE, ${Math.round(snapshot.ageMs / 1000)}s old)` : ''
@@ -240,6 +242,8 @@ Write two short paragraphs of institutional prose explaining why this setup is v
       engineWeights,
       confidenceScore: decision.confidenceScore,
       confluenceFactors: decision.factors,
+      entryDistancePips: decision.entryDistancePips,
+      entryOutOfReach: decision.entryOutOfReach,
       dataStatus: snapshot.status,
       dataSource: snapshot.source,
       dataAgeSeconds: Math.round(snapshot.ageMs / 1000),
