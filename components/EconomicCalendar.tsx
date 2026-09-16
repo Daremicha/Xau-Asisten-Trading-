@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ForexFactoryEvent } from '@/lib/types';
 import { filterUpcomingEconomicEvents } from '@/lib/market-engine';
-import { Calendar, AlertCircle, TrendingUp, Clock, Hourglass, ShieldCheck } from 'lucide-react';
+import { Calendar, TrendingUp, Clock, Hourglass, ShieldCheck } from 'lucide-react';
 
 interface EconomicCalendarProps {
   events: ForexFactoryEvent[];

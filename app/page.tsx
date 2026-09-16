@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, addDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -26,8 +26,7 @@ import {
 import {
   getICTKillZoneStatus,
   getForexFactoryHighImpactEvents,
-  getTradingCentralInstitutionalBias,
-  synthesizeInstitutionalStructures,
+  filterUpcomingEconomicEvents,
   recalculateEngineWeights,
 } from '@/lib/market-engine';
 import {
@@ -38,7 +37,24 @@ import {
   ProximityAlertEvent,
   NotificationPermissionState,
 } from '@/lib/notification-utility';
-import { BellRing, X } from 'lucide-react';
+import { BellRing, X, WifiOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import type {
+  SmcStructure,
+  TechnicalIndicators,
+  WyckoffVolumeAnalysis,
+  QuasimodoPattern,
+  TradingCentralInsight,
+} from '@/lib/types';
+
+type FeedStatus = 'loading' | 'live' | 'stale' | 'unavailable';
+
+interface LiveRead {
+  multiTimeframe: { d1: SmcStructure; h4: SmcStructure; h1: SmcStructure; m15: SmcStructure };
+  indicators: TechnicalIndicators;
+  wyckoff: WyckoffVolumeAnalysis;
+  quasimodo: QuasimodoPattern;
+  tradingCentral: TradingCentralInsight;
+}
 
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -93,12 +109,19 @@ export default function Home() {
     }
   };
 
-  // Market live state
-  const [marketPrice, setMarketPrice] = useState<number>(2918.45);
-  const [bidPrice, setBidPrice] = useState<number>(2918.3);
-  const [askPrice, setAskPrice] = useState<number>(2918.6);
-  const [change24h, setChange24h] = useState<number>(14.8);
+  // Market state. Null until the feed answers, so nothing fabricated is shown.
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  const [bidPrice, setBidPrice] = useState<number | null>(null);
+  const [askPrice, setAskPrice] = useState<number | null>(null);
+  const [change24h, setChange24h] = useState<number | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeType>('H1');
+
+  // Live feed status and the structural read derived from real candles.
+  const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading');
+  const [feedMessage, setFeedMessage] = useState<string>('Connecting to the market data provider.');
+  const [feedSource, setFeedSource] = useState<string | null>(null);
+  const [liveRead, setLiveRead] = useState<LiveRead | null>(null);
+  const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
 
   // Equity & Risk Management State (Permanent Lock)
   const [equity, setEquity] = useState<number>(5000);
@@ -126,11 +149,10 @@ export default function Home() {
     historicalWinRate: 0,
   });
 
-  // Kill Zone & Macro structures
-  const killZone = getICTKillZoneStatus();
-  const economicEvents = getForexFactoryHighImpactEvents();
-  const tradingCentral = getTradingCentralInstitutionalBias(marketPrice);
-  const fallbackStructures = synthesizeInstitutionalStructures(marketPrice, engineWeights, tradingStyle);
+  // Session context. Memoised so a price tick does not rebuild these arrays and
+  // restart the timers in the calendar and session components every few seconds.
+  const killZone = useMemo(() => getICTKillZoneStatus(), []);
+  const economicEvents = useMemo(() => filterUpcomingEconomicEvents(getForexFactoryHighImpactEvents()), []);
 
   // Load User Data from Firestore or LocalStorage
   useEffect(() => {
@@ -217,25 +239,73 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // Simulate Live Price Jitter for realistic institutional order flow
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMarketPrice((prev) => {
-        const delta = (Math.random() - 0.49) * 0.45;
-        const next = Math.round((prev + delta) * 100) / 100;
-        const spread = accountType === 'Pro' ? 0.03 : 0.25;
-        setBidPrice(parseFloat((next - spread / 2).toFixed(2)));
-        setAskPrice(parseFloat((next + spread / 2).toFixed(2)));
-        return next;
-      });
-    }, 2800);
+  /**
+   * Pulls the real XAUUSD quote and the structural read derived from live
+   * candles. There is no simulated price: when the provider cannot be reached
+   * the UI says so rather than inventing a number.
+   */
+  const loadMarketData = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/market-data?accountType=${encodeURIComponent(accountType)}&brokerId=${encodeURIComponent(selectedBroker)}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
 
-    return () => clearInterval(interval);
-  }, [accountType]);
+      if (!res.ok || !data?.success || typeof data.marketPrice !== 'number') {
+        setFeedStatus('unavailable');
+        setFeedMessage(data?.message || 'The market data provider could not be reached.');
+        return;
+      }
+
+      setFeedStatus(data.status === 'stale' ? 'stale' : 'live');
+      setFeedMessage(data.message || '');
+      setFeedSource(data.source ?? null);
+      setMarketPrice(data.marketPrice);
+      setBidPrice(typeof data.bid === 'number' ? data.bid : null);
+      setAskPrice(typeof data.ask === 'number' ? data.ask : null);
+      setChange24h(typeof data.change24h === 'number' ? data.change24h : null);
+
+      if (data.structureAvailable && data.multiTimeframe && data.technicalIndicators) {
+        setLiveRead({
+          multiTimeframe: data.multiTimeframe,
+          indicators: data.technicalIndicators,
+          wyckoff: data.wyckoffVsa,
+          quasimodo: data.quasimodo,
+          tradingCentral: data.tradingCentralBias,
+        });
+      }
+    } catch {
+      setFeedStatus('unavailable');
+      setFeedMessage('Network error while contacting the market data provider.');
+    }
+  }, [accountType, selectedBroker]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await loadMarketData();
+    };
+    tick();
+    // Matched to the server cache window. Polling faster only burns the data
+    // provider's daily quota without producing a fresher price.
+    const interval = setInterval(tick, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [loadMarketData]);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshingFeed(true);
+    await loadMarketData();
+    setIsRefreshingFeed(false);
+  };
 
   // Real-time TP/SL proximity monitoring with notifications and audio chimes
   useEffect(() => {
-    if (!activeSetup || activeSetup.status !== 'ACTIVE') return;
+    if (!activeSetup || activeSetup.status !== 'ACTIVE' || marketPrice === null) return;
 
     const timer = setTimeout(() => {
       const alert = evaluatePriceProximity(marketPrice, activeSetup, {
@@ -379,13 +449,19 @@ export default function Home() {
 
   // Run Institutional Analysis
   const handleRunAnalysis = async () => {
+    // The server refuses to analyse without live data; failing fast here keeps
+    // the reason visible in the banner instead of surfacing a raw error.
+    if (marketPrice === null) {
+      setFeedStatus('unavailable');
+      setFeedMessage('Cannot run an analysis without a live quote. Retry the market data connection first.');
+      return;
+    }
     setIsAnalyzing(true);
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentPrice: marketPrice,
           equity,
           riskPercentage,
           tradingStyle,
@@ -396,22 +472,25 @@ export default function Home() {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.setup) {
-          setActiveSetup(data.setup);
-          if (data.engineWeights) {
-            setEngineWeights(data.engineWeights);
-          }
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setFeedMessage(data?.error || 'The analysis engine could not produce a setup.');
+        if (res.status === 503) setFeedStatus('unavailable');
+        return;
+      }
+      if (data.setup) {
+        setActiveSetup(data.setup);
+        if (data.engineWeights) {
+          setEngineWeights(data.engineWeights);
+        }
 
-          // Save setup to Firestore if user is authenticated
-          if (currentUser) {
-            try {
-              const setupRef = collection(db, 'users', currentUser.uid, 'analyses');
-              await addDoc(setupRef, data.setup);
-            } catch (e) {
-              console.warn('Could not save analysis to cloud:', e);
-            }
+        // Save setup to Firestore if user is authenticated
+        if (currentUser) {
+          try {
+            const setupRef = collection(db, 'users', currentUser.uid, 'analyses');
+            await addDoc(setupRef, data.setup);
+          } catch (e) {
+            console.warn('Could not save analysis to cloud:', e);
           }
         }
       }
@@ -470,6 +549,13 @@ export default function Home() {
     setIsEvaluatingOutcome(true);
 
     try {
+      // A missed order closes at the live price. Without one there is nothing
+      // to measure the miss against, so the evaluation is not attempted.
+      if (outcome === 'MISSED' && marketPrice === null) {
+        setIsEvaluatingOutcome(false);
+        return;
+      }
+
       const targetExit =
         outcome === 'TP'
           ? tpLevel === 3
@@ -479,7 +565,7 @@ export default function Home() {
             : activeSetup.takeProfit1
           : outcome === 'SL'
           ? activeSetup.stopLoss
-          : marketPrice;
+          : (marketPrice as number);
 
       const res = await fetch('/api/learn', {
         method: 'POST',
@@ -550,21 +636,14 @@ export default function Home() {
     }
   };
 
-  const activeOrFallbackMT = activeSetup
-    ? activeSetup.multiTimeframeAlignment
-    : fallbackStructures.multiTimeframe;
-
-  const activeOrFallbackIndicators = activeSetup
-    ? activeSetup.technicalIndicators
-    : fallbackStructures.indicators;
-
-  const activeOrFallbackWyckoff = activeSetup
-    ? activeSetup.wyckoffVsa
-    : fallbackStructures.wyckoff;
-
-  const activeOrFallbackQM = activeSetup
-    ? activeSetup.quasimodo
-    : fallbackStructures.quasimodo;
+  // Prefer the frozen read captured with the active setup, otherwise the live
+  // structural read. Both come from real candles; neither is a placeholder.
+  const displayMT = activeSetup ? activeSetup.multiTimeframeAlignment : liveRead?.multiTimeframe ?? null;
+  const displayIndicators = activeSetup ? activeSetup.technicalIndicators : liveRead?.indicators ?? null;
+  const displayWyckoff = activeSetup ? activeSetup.wyckoffVsa : liveRead?.wyckoff ?? null;
+  const displayQM = activeSetup ? activeSetup.quasimodo : liveRead?.quasimodo ?? null;
+  const displayTradingCentral = activeSetup ? activeSetup.tradingCentralBias : liveRead?.tradingCentral ?? null;
+  const structuresReady = Boolean(displayMT && displayIndicators && displayWyckoff && displayQM);
 
   return (
     <div
@@ -582,6 +661,7 @@ export default function Home() {
         killZone={killZone}
         marketPrice={marketPrice}
         change24h={change24h}
+        feedStatus={feedStatus}
         selectedBroker={selectedBroker}
         notificationPermission={notificationPermission}
         onRequestNotification={handleRequestNotification}
@@ -591,6 +671,63 @@ export default function Home() {
 
       {/* Main Trading Terminal Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Market data provenance. Trading decisions depend on knowing whether
+            the quote on screen is real, so this is never hidden. */}
+        {feedStatus !== 'live' && (
+          <div
+            id="market-feed-status-banner"
+            className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+              feedStatus === 'unavailable'
+                ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                : feedStatus === 'stale'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                : 'bg-slate-500/15 border-slate-500/40 text-slate-300'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-black/20 shrink-0">
+                {feedStatus === 'unavailable' ? (
+                  <WifiOff className="w-5 h-5" />
+                ) : feedStatus === 'stale' ? (
+                  <AlertTriangle className="w-5 h-5" />
+                ) : (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                )}
+              </div>
+              <div>
+                <div className="font-bold text-sm tracking-tight">
+                  {feedStatus === 'unavailable'
+                    ? 'No live market data'
+                    : feedStatus === 'stale'
+                    ? 'Quote is stale'
+                    : 'Connecting to market data'}
+                </div>
+                <div className="text-xs opacity-90 mt-0.5">{feedMessage}</div>
+                <div className="text-xs opacity-75 mt-1">
+                  Analysis is disabled until a live quote is available, so no signal is ever built on an invented price.
+                </div>
+              </div>
+            </div>
+            <button
+              id="retry-market-feed-btn"
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshingFeed}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-current hover:bg-white/10 cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingFeed ? 'animate-spin' : ''}`} />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
+        {feedStatus === 'live' && feedSource && (
+          <div className="text-xs text-slate-500 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+            <span>Live data source: {feedSource}. Refreshed about once a minute to stay inside the free data quota.</span>
+          </div>
+        )}
+
         {/* Real-time TP/SL Proximity Alert Banner */}
         {activeProximityAlert && (
           <div
@@ -639,6 +776,8 @@ export default function Home() {
           selectedTimeframe={selectedTimeframe}
           onSelectTimeframe={setSelectedTimeframe}
           activeSetup={activeSetup}
+          indicators={displayIndicators}
+          feedStatus={feedStatus}
           theme={theme}
         />
 
@@ -697,19 +836,29 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Smart Money Concepts (SMC) & Multi-Timeframe Matrix (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
-            <SMCMatrix
-              multiTimeframe={activeOrFallbackMT}
-              indicators={activeOrFallbackIndicators}
-              wyckoff={activeOrFallbackWyckoff}
-              quasimodo={activeOrFallbackQM}
-              theme={theme}
-            />
+            {structuresReady && displayMT && displayIndicators && displayWyckoff && displayQM ? (
+              <SMCMatrix
+                multiTimeframe={displayMT}
+                indicators={displayIndicators}
+                wyckoff={displayWyckoff}
+                quasimodo={displayQM}
+                theme={theme}
+              />
+            ) : (
+              <div
+                className={`border rounded-2xl p-6 text-sm ${
+                  theme === 'dark'
+                    ? 'bg-slate-900 border-slate-800 text-slate-400'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                Market structure appears once the feed has delivered enough candles to measure it. Nothing is shown
+                here until then.
+              </div>
+            )}
 
             {/* Trading Central Directional Sentiment */}
-            <TradingCentralCard
-              bias={activeSetup ? activeSetup.tradingCentralBias : tradingCentral}
-              theme={theme}
-            />
+            {displayTradingCentral && <TradingCentralCard bias={displayTradingCentral} theme={theme} />}
           </div>
 
           {/* Right Column: Forex Factory Economic Calendar & Upcoming News (WIB) */}

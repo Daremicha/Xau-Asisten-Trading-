@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights } from '@/lib/types';
-import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock, Target } from 'lucide-react';
+import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock } from 'lucide-react';
 
 interface SelfLearningDashboardProps {
   learningRecords: SelfLearningMemoryRecord[];

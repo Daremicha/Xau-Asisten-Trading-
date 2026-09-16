@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getGlobalTradingSessions } from '@/lib/market-engine';
 import { TradingSessionInfo } from '@/lib/types';
-import { Clock, Globe, Zap, Compass, AlertCircle } from 'lucide-react';
+import { Clock, Globe } from 'lucide-react';
 
 interface TradingSessionZoneProps {
   theme?: 'dark' | 'light';

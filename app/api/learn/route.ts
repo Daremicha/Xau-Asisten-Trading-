@@ -1,22 +1,30 @@
 import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesis } from '@/lib/gen-engine';
-import { InstitutionalTradingSetup, SelfLearningMemoryRecord } from '@/lib/types';
+import { SelfLearningMemoryRecord } from '@/lib/types';
+import { validateLearnBody } from '@/lib/request-validation';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  let rawBody: unknown;
   try {
-    const body = await request.json();
-    const { setup, outcome, closedPrice }: { setup: InstitutionalTradingSetup; outcome: 'TP' | 'SL' | 'MISSED'; closedPrice: number } = body;
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Request body is not valid JSON.' }, { status: 400 });
+  }
 
-    if (!setup || !outcome) {
-      return NextResponse.json({ success: false, error: 'Missing setup or outcome' }, { status: 400 });
-    }
+  const { value: input, errors } = validateLearnBody(rawBody);
+  if (!input) {
+    return NextResponse.json({ success: false, error: errors.join(' ') }, { status: 400 });
+  }
+  const { setup, outcome, closedPrice } = input;
 
+  try {
     const isProfit = outcome === 'TP';
     const isMissed = outcome === 'MISSED';
     const priceDiff = Math.abs(closedPrice - setup.entryPrice);
-    const pipsDiff = parseFloat((priceDiff * 10).toFixed(1));
+    // A missed order was never filled, so it moved neither pips nor money.
+    const pipsResult = isMissed ? 0 : parseFloat((priceDiff * 10).toFixed(1)) * (isProfit ? 1 : -1);
 
     // Account-aware P&L calculation (Zero P&L for missed trades since order was not filled)
     const contractMultiplier = setup.accountType === 'Cent' || setup.contractSpecs?.contractSizeOz === 1 ? 1 : 100;
@@ -49,7 +57,7 @@ export async function POST(request: Request) {
       : 'Judas swing extended past standard 1.25x ATR volatility envelope during active session.';
 
     let strategyEvolutionLesson = isProfit
-      ? `Reinforce confluence weight for ${setup.tradingStyle || 'Intraday'} setups that align with Kill Zones and unmitigated FVGs on ${setup.accountType || 'Standard'} account. Maintain 1:${setup.riskRewardRatio.replace('1:', '')} execution discipline.`
+      ? `Reinforce confluence weight for ${setup.tradingStyle || 'Intraday'} setups that align with Kill Zones and unmitigated FVGs on ${setup.accountType || 'Standard'} account. Maintain the ${setup.riskRewardRatio ?? '1:2'} reward discipline.`
       : isMissed
       ? `Calibrate pending limit buffer: Shift entry placement to the 50% FVG Consequent Encroachment (CE) level rather than the extreme OB boundary, or consider instant market execution when momentum divergence is strong.`
       : `Refine ${setup.tradingStyle || 'Intraday'} entry criteria: Mandate strict structural confirmation prior to order trigger, and widen stop loss buffer by 15% to clear broker spread spikes.`;
@@ -74,8 +82,8 @@ A trade was completed with outcome: ${outcome} (Closed Price: ${closedPrice.toFi
 Setup Context:
 - Trading Style: ${setup.tradingStyle || 'Intraday'}
 - Account Type: ${setup.accountType || 'Standard'}
-- Methodologies Used: SMC (BOS, CHoCH, Order Block, FVG, Liquidity sweeps), ICT Kill Zones (${setup.killZoneStatus.currentZone}), Wyckoff Phase (${setup.wyckoffVsa.phase}), EMA 50/200, RSI, Stochastic, Forex Factory News.
-- Rationale when entered: ${setup.institutionalRationale}
+- Methodologies Used: SMC (BOS, CHoCH, Order Block, FVG, Liquidity sweeps), ICT Kill Zones (${setup.killZoneStatus?.currentZone ?? 'unrecorded'}), Wyckoff Phase (${setup.wyckoffVsa?.phase ?? 'unrecorded'}), EMA 50/200, RSI, Stochastic, Forex Factory News.
+- Rationale when entered: ${setup.institutionalRationale ?? 'not recorded'}
 
 IMPORTANT RULES:
 - DO NOT use the two-letter word "A" followed by "I" anywhere in your text.
@@ -98,8 +106,6 @@ Respond strictly in valid JSON format:
 
         const raw = await executeGenerativeSynthesis(prompt, {
           responseMimeType: 'application/json',
-          primaryModel: 'gemini-3.8-flash',
-          fallbackModel: 'gemini-flash-latest',
         });
 
         if (raw) {
@@ -127,7 +133,7 @@ Respond strictly in valid JSON format:
       orderType: setup.orderType,
       entryPrice: setup.entryPrice,
       exitPrice: closedPrice,
-      profitOrLossPips: isProfit ? pipsDiff : -pipsDiff,
+      profitOrLossPips: pipsResult,
       profitOrLossDollars: dollarResult,
       rootCauseAnalysis: {
         primaryFactor,

@@ -7,7 +7,10 @@
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "eslint .",
-    "clean": "next clean"
+    "clean": "next clean",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "check:feed": "bun run scripts/check-feed.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -28,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/typography": "^0.5.19",
+    "@types/bun": "^1.4.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

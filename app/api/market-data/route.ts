@@ -1,84 +1,94 @@
 import { NextResponse } from 'next/server';
+import { getMarketSnapshot } from '@/lib/price-feed';
+import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
+import { getContractSpecification } from '@/lib/market-engine';
+import { round2 } from '@/lib/candles';
+import { AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+function parseAccountType(value: string | null): AccountType {
+  return value === 'Cent' || value === 'Pro' ? value : 'Standard';
+}
+
+function parseBrokerId(value: string | null): BrokerId {
+  return value && value in BROKER_PROFILES ? (value as BrokerId) : 'EXNESS';
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const accountType = parseAccountType(url.searchParams.get('accountType'));
+  const brokerId = parseBrokerId(url.searchParams.get('brokerId'));
+
   try {
-    // Attempt to fetch live Gold price from public financial markets
-    let liveGoldPrice = 2918.45;
-    let change24h = 14.8;
-    let high24h = 2928.6;
-    let low24h = 2898.2;
+    const snapshot = await getMarketSnapshot();
 
-    try {
-      const res = await fetch(
-        'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=15m&range=1d',
+    // No provider reachable. Report it rather than serving an invented price.
+    if (snapshot.status === 'unavailable' || snapshot.price === null) {
+      return NextResponse.json(
         {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          next: { revalidate: 15 },
-        }
+          success: false,
+          status: 'unavailable',
+          symbol: 'XAUUSD',
+          marketPrice: null,
+          message: snapshot.message,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 503 }
       );
-      if (res.ok) {
-        const json = await res.json();
-        const meta = json?.chart?.result?.[0]?.meta;
-        if (meta && meta.regularMarketPrice) {
-          liveGoldPrice = parseFloat(meta.regularMarketPrice.toFixed(2));
-          high24h = parseFloat(meta.regularMarketDayHigh?.toFixed(2) || (liveGoldPrice + 12.0).toFixed(2));
-          low24h = parseFloat(meta.regularMarketDayLow?.toFixed(2) || (liveGoldPrice - 15.0).toFixed(2));
-          const prevClose = meta.chartPreviousClose || (liveGoldPrice - 10);
-          change24h = parseFloat((liveGoldPrice - prevClose).toFixed(2));
-        }
-      }
-    } catch {
-      // Graceful fallback with minor realistic jitter around institutional quote
-      const jitter = (Math.random() - 0.5) * 0.4;
-      liveGoldPrice = parseFloat((liveGoldPrice + jitter).toFixed(2));
     }
 
-    const spread = 0.25; // 2.5 pips typical gold spread
-    const bid = parseFloat((liveGoldPrice - spread / 2).toFixed(2));
-    const ask = parseFloat((liveGoldPrice + spread / 2).toFixed(2));
+    const specs = getContractSpecification(accountType, brokerId);
+    const spreadDollars = (specs.typicalSpreadPips * 0.1) / 2;
+    const price = snapshot.price;
 
-    // Generate recent M15, H1, H4, D1 structural candles for charts
-    const now = Date.now();
-    const candlesM15 = [];
-    let priceCursor = liveGoldPrice - 8.5;
-    for (let i = 24; i >= 0; i--) {
-      const open = priceCursor;
-      const change = (Math.random() - 0.46) * 3.5;
-      const close = parseFloat((open + change).toFixed(2));
-      const high = parseFloat((Math.max(open, close) + Math.random() * 2.0).toFixed(2));
-      const low = parseFloat((Math.min(open, close) - Math.random() * 2.0).toFixed(2));
-      priceCursor = close;
-      candlesM15.push({
-        time: new Date(now - i * 15 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        open,
-        high,
-        low,
-        close,
-        volume: Math.floor(1200 + Math.random() * 2400),
-      });
-    }
+    const previousClose = snapshot.previousClose;
+    const change24h = previousClose === null ? null : round2(price - previousClose);
+    const changePercent =
+      previousClose === null || previousClose === 0 ? null : round2(((price - previousClose) / previousClose) * 100);
+
+    const read = buildInstitutionalRead(snapshot);
 
     return NextResponse.json({
       success: true,
+      status: snapshot.status,
+      source: snapshot.source,
+      fetchedAt: snapshot.fetchedAt,
+      ageSeconds: Math.round(snapshot.ageMs / 1000),
+      message: snapshot.message,
       symbol: 'XAUUSD',
-      marketPrice: liveGoldPrice,
-      bid,
-      ask,
-      spreadPips: 2.5,
+      marketPrice: price,
+      bid: round2(price - spreadDollars),
+      ask: round2(price + spreadDollars),
+      spreadPips: specs.typicalSpreadPips,
+      brokerName: specs.brokerName,
       change24h,
-      changePercent: parseFloat(((change24h / (liveGoldPrice - change24h)) * 100).toFixed(2)),
-      high24h,
-      low24h,
-      candlesM15,
+      changePercent,
+      high24h: snapshot.dayHigh,
+      low24h: snapshot.dayLow,
+      candleCount: snapshot.candlesM15.length,
+      // Trim to what a chart needs so the payload stays small.
+      candlesM15: snapshot.candlesM15.slice(-192),
+      structureAvailable: read !== null,
+      multiTimeframe: read?.multiTimeframe ?? null,
+      technicalIndicators: read?.indicators ?? null,
+      wyckoffVsa: read?.wyckoff ?? null,
+      quasimodo: read?.quasimodo ?? null,
+      tradingCentralBias: read?.tradingCentral ?? null,
       timestamp: new Date().toISOString(),
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Failed to fetch market data';
     return NextResponse.json(
-      { success: false, error: errorMsg, marketPrice: 2918.5, bid: 2918.35, ask: 2918.65 },
-      { status: 500 }
+      {
+        success: false,
+        status: 'unavailable',
+        symbol: 'XAUUSD',
+        marketPrice: null,
+        message: errorMsg,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503 }
     );
   }
 }

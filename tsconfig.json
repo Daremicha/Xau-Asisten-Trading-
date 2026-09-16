@@ -5,6 +5,11 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Dead code is a compile error, not a silent warning. The audit found 21
+    // unused symbols that lint never reported, including an engine parameter
+    // that was accepted and then ignored.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

@@ -18,26 +18,26 @@ export async function GET() {
     gemini: {
       configured: hasGemini,
       label: 'Google Gemini',
-      model: 'gemini-3.8-flash',
-      role: 'Primary Provider',
+      model: 'gemini-flash-latest',
+      role: 'Primary narrative writer',
     },
     openai: {
       configured: hasOpenAI,
       label: 'ChatGPT (GPT-4o)',
       model: 'gpt-4o',
-      role: 'Secondary Fallback (activates on Gemini quota limit)',
+      role: 'Secondary narrative writer, used if Gemini is rate limited',
     },
     claude: {
       configured: hasClaude,
       label: 'Claude Sonnet',
       model: 'claude-3-7-sonnet',
-      role: 'Tertiary Fallback (activates if Gemini & ChatGPT exhausted)',
+      role: 'Tertiary narrative writer, used if the first two are exhausted',
     },
     algorithmic: {
       configured: true,
-      label: 'SMC/ICT Quantitative Matrix',
-      model: 'Algorithmic Engine',
-      role: 'Autonomous Baseline',
+      label: 'Structural SMC/ICT engine',
+      model: 'Deterministic, derived from live candles',
+      role: 'Owns every price level; the app is fully functional without any language model key',
     },
   });
 }

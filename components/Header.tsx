@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
-import { ShieldCheck, LogIn, LogOut, TrendingUp, Clock, Sun, Moon, Bell, BellRing, BellOff } from 'lucide-react';
+import { auth, googleProvider, describeAuthError } from '@/lib/firebase';
+import { LogIn, LogOut, TrendingUp, Clock, Sun, Moon, Bell, BellRing, BellOff, AlertTriangle } from 'lucide-react';
 import { BrokerId, BROKER_PROFILES } from '@/lib/types';
 
 interface HeaderProps {
@@ -14,8 +14,10 @@ interface HeaderProps {
     isHighVolatilityTiming: boolean;
     description: string;
   };
-  marketPrice: number;
-  change24h: number;
+  marketPrice: number | null;
+  change24h: number | null;
+  /** Live feed state, so the header never claims a connection it does not have. */
+  feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
   selectedBroker?: BrokerId;
   notificationPermission?: NotificationPermission | 'unsupported';
   onRequestNotification?: () => void;
@@ -29,6 +31,7 @@ export default function Header({
   killZone,
   marketPrice,
   change24h,
+  feedStatus = 'loading',
   selectedBroker = 'EXNESS',
   notificationPermission = 'default',
   onRequestNotification,
@@ -36,6 +39,7 @@ export default function Header({
   onToggleTheme,
 }: HeaderProps) {
   const isDark = theme === 'dark';
+  const [authError, setAuthError] = useState<string | null>(null);
   const [localTime, setLocalTime] = useState<string>('');
   const [localDate, setLocalDate] = useState<string>('');
 
@@ -69,10 +73,13 @@ export default function Header({
   }, []);
 
   const handleGoogleLogin = async () => {
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
-      console.warn('Google sign-in popup notice:', err);
+      // Swallowing this made the button look broken. Sign-in fails for
+      // specific, fixable reasons, so say which one.
+      setAuthError(describeAuthError(err));
     }
   };
 
@@ -84,7 +91,15 @@ export default function Header({
     }
   };
 
-  const isPositive = change24h >= 0;
+  const isPositive = (change24h ?? 0) >= 0;
+
+  const feedLabel: Record<string, { text: string; dot: string; tone: string }> = {
+    loading: { text: 'Connecting to feed', dot: 'bg-slate-400', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    live: { text: 'XAUUSD Live Spot', dot: 'bg-emerald-400 animate-ping', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    stale: { text: 'Stale quote, not live', dot: 'bg-amber-400', tone: 'text-amber-500' },
+    unavailable: { text: 'Feed unavailable', dot: 'bg-rose-500', tone: 'text-rose-500' },
+  };
+  const feed = feedLabel[feedStatus] ?? feedLabel.loading;
 
   return (
     <header
@@ -121,26 +136,24 @@ export default function Header({
         {/* Live Market Price & Kill Zone Status */}
         <div className="hidden md:flex items-center gap-6">
           <div className="text-right">
-            <div
-              className={`text-xs font-medium flex items-center justify-end gap-1.5 ${
-                isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-              <span>XAUUSD Live Spot</span>
+            <div className={`text-xs font-medium flex items-center justify-end gap-1.5 ${feed.tone}`}>
+              <span className={`w-2 h-2 rounded-full inline-block ${feed.dot}`} />
+              <span>{feed.text}</span>
             </div>
             <div className="flex items-center gap-2 justify-end">
               <span className="text-lg font-bold font-mono tracking-tight text-amber-500">
-                ${marketPrice.toFixed(2)}
+                {marketPrice === null ? '—' : `$${marketPrice.toFixed(2)}`}
               </span>
-              <span
-                className={`text-xs font-semibold font-mono ${
-                  isPositive ? 'text-emerald-500' : 'text-rose-500'
-                }`}
-              >
-                {isPositive ? '+' : ''}
-                {change24h.toFixed(2)}
-              </span>
+              {change24h !== null && (
+                <span
+                  className={`text-xs font-semibold font-mono ${
+                    isPositive ? 'text-emerald-500' : 'text-rose-500'
+                  }`}
+                >
+                  {isPositive ? '+' : ''}
+                  {change24h.toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -298,6 +311,30 @@ export default function Header({
           )}
         </div>
       </div>
+
+      {/* Sign-in problems are explained in place. Signing in is optional: the
+          app keeps working, storing your data in this browser instead. */}
+      {authError && (
+        <div
+          id="auth-error-banner"
+          className="border-t border-amber-500/40 bg-amber-500/10 text-amber-300 px-4 sm:px-6 lg:px-8 py-3"
+        >
+          <div className="max-w-7xl mx-auto flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <p className="text-xs leading-relaxed">{authError}</p>
+            </div>
+            <button
+              id="dismiss-auth-error-btn"
+              type="button"
+              onClick={() => setAuthError(null)}
+              className="text-xs px-2 py-1 rounded-lg border border-current hover:bg-white/10 cursor-pointer shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

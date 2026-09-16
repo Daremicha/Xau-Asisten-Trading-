@@ -24,8 +24,6 @@ import {
   XCircle,
   AlertTriangle,
   Clock,
-  Compass,
-  ArrowRight,
   Info,
 } from 'lucide-react';
 
@@ -37,7 +35,7 @@ interface SignalCardProps {
   onConvertToMarketOrder?: (newEntryPrice: number) => void;
   isEvaluatingOutcome: boolean;
   userEquity: number;
-  currentPrice: number;
+  currentPrice: number | null;
   theme?: 'dark' | 'light';
 }
 
@@ -48,7 +46,6 @@ export default function SignalCard({
   onSimulateOutcome,
   onConvertToMarketOrder,
   isEvaluatingOutcome,
-  userEquity,
   currentPrice,
   theme = 'dark',
 }: SignalCardProps) {
@@ -163,7 +160,7 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
             : 'bg-purple-50 text-purple-700 border-purple-200',
-          label: 'SMC/ICT Quantitative Matrix',
+          label: 'Structural SMC/ICT engine',
           isFallback: metadata.isFallback,
         };
     }
@@ -190,14 +187,16 @@ Ready for direct execution in MetaTrader 5.`;
   };
 
   // Calculate distance between current live price and pending entry
-  const distancePips = setup ? parseFloat((Math.abs(currentPrice - setup.entryPrice) * 10).toFixed(1)) : 0;
+  const distancePips = setup && currentPrice !== null ? parseFloat((Math.abs(currentPrice - setup.entryPrice) * 10).toFixed(1)) : 0;
 
   // Determine if price has run away towards TP without filling limit order
-  const isFrontRunOrMissed = setup && setup.status === 'PENDING' && (
-    (setup.orderType.includes('BUY') && currentPrice >= setup.takeProfit1) ||
-    (setup.orderType.includes('SELL') && currentPrice <= setup.takeProfit1) ||
-    distancePips > 65
-  );
+  const priceRanPastTarget =
+    currentPrice !== null &&
+    ((setup?.orderType.includes('BUY') && currentPrice >= setup.takeProfit1) ||
+      (setup?.orderType.includes('SELL') && currentPrice <= setup.takeProfit1));
+
+  const isFrontRunOrMissed =
+    setup && setup.status === 'PENDING' && (priceRanPastTarget || distancePips > 65);
 
   const formatLocalTimestamp = (iso?: string) => {
     if (!iso) return '';
@@ -252,20 +251,18 @@ Ready for direct execution in MetaTrader 5.`;
                 isDark ? 'bg-slate-950/70 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
               }`}
             >
-              <span className="font-semibold text-slate-300">Failover Engine:</span>
+              {/* Prices come from the deterministic engine. The language models
+                  only write the narrative, so the label says exactly that. */}
+              <span className="font-semibold text-slate-300">Price levels:</span>
+              <span className="flex items-center gap-1 text-purple-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                Structural SMC/ICT engine
+              </span>
+              <span className="text-slate-600">&bull;</span>
+              <span className="font-semibold text-slate-300">Narrative:</span>
               <span className="flex items-center gap-1 text-blue-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Gemini (Primary)
-              </span>
-              <span className="text-slate-600">&rarr;</span>
-              <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                ChatGPT (Secondary)
-              </span>
-              <span className="text-slate-600">&rarr;</span>
-              <span className="flex items-center gap-1 text-orange-400 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                Claude Sonnet (Tertiary)
+                Gemini &rarr; ChatGPT &rarr; Claude, optional
               </span>
             </div>
           </div>
@@ -443,8 +440,8 @@ Ready for direct execution in MetaTrader 5.`;
                     </div>
                     <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       {isFrontRunOrMissed
-                        ? `Market price reached $${currentPrice.toFixed(2)} without dipping to your pending limit at $${setup.entryPrice.toFixed(2)}. If smart money already hit TP1 or moved away, mark it as missed or convert to market execution.`
-                        : `Current Price ($${currentPrice.toFixed(2)}) is approaching the institutional Entry Block ($${setup.entryPrice.toFixed(2)}).`}
+                        ? `Market price reached $${(currentPrice ?? 0).toFixed(2)} without dipping to your pending limit at $${setup.entryPrice.toFixed(2)}. If smart money already hit TP1 or moved away, mark it as missed or convert to market execution.`
+                        : `Current Price ($${(currentPrice ?? 0).toFixed(2)}) is approaching the institutional Entry Block ($${setup.entryPrice.toFixed(2)}).`}
                     </p>
                   </div>
                 </div>
@@ -454,10 +451,10 @@ Ready for direct execution in MetaTrader 5.`;
                     <button
                       type="button"
                       id="convert-to-market-btn"
-                      onClick={() => onConvertToMarketOrder(currentPrice)}
+                      onClick={() => currentPrice !== null && onConvertToMarketOrder(currentPrice)}
                       className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-all cursor-pointer"
                     >
-                      Instant Market Fill ($${currentPrice.toFixed(2)})
+                      Instant Market Fill ($${(currentPrice ?? 0).toFixed(2)})
                     </button>
                   )}
                   <button
