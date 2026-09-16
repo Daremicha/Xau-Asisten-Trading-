@@ -2,15 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { ForexFactoryEvent } from '@/lib/types';
-import { filterUpcomingEconomicEvents } from '@/lib/market-engine';
-import { Calendar, TrendingUp, Clock, Hourglass, ShieldCheck } from 'lucide-react';
+import { filterUpcoming } from '@/lib/economic-calendar';
+import { AlertTriangle, Calendar, TrendingUp, Clock, Hourglass, ShieldCheck } from 'lucide-react';
 
 interface EconomicCalendarProps {
   events: ForexFactoryEvent[];
+  /** Explains an empty calendar, so it never looks like a loading state. */
+  notice?: string | null;
   theme?: 'dark' | 'light';
 }
 
-export default function EconomicCalendar({ events, theme = 'dark' }: EconomicCalendarProps) {
+export default function EconomicCalendar({ events, notice = null, theme = 'dark' }: EconomicCalendarProps) {
   const isDark = theme === 'dark';
   const [upcomingEvents, setUpcomingEvents] = useState<ForexFactoryEvent[]>([]);
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
@@ -20,7 +22,7 @@ export default function EconomicCalendar({ events, theme = 'dark' }: EconomicCal
     const updateEvents = () => {
       const now = Date.now();
       setCurrentTimeMs(now);
-      const filtered = filterUpcomingEconomicEvents(events);
+      const filtered = filterUpcoming(events);
       setUpcomingEvents(filtered);
     };
 
@@ -147,11 +149,24 @@ export default function EconomicCalendar({ events, theme = 'dark' }: EconomicCal
             isDark ? 'border-slate-800 bg-slate-950/40 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500'
           }`}
         >
-          <ShieldCheck className="w-8 h-8 mx-auto text-emerald-400 mb-2 opacity-80" />
-          <p className="text-sm font-semibold">No Pending High-Impact News For Current Session</p>
-          <p className="text-xs mt-1 opacity-70">
-            All immediate high-volatility releases have completed. Market order flow is currently driven by pure technical liquidity.
-          </p>
+          {/* An unconnected calendar is not the same as a quiet one, and saying
+              the releases have completed when none were ever fetched would be
+              a claim the app cannot support. */}
+          {notice ? (
+            <>
+              <AlertTriangle className="w-8 h-8 mx-auto text-amber-400 mb-2 opacity-80" />
+              <p className="text-sm font-semibold">No economic calendar connected</p>
+              <p className="text-xs mt-1 opacity-70">{notice}</p>
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="w-8 h-8 mx-auto text-emerald-400 mb-2 opacity-80" />
+              <p className="text-sm font-semibold">No high-impact release scheduled ahead</p>
+              <p className="text-xs mt-1 opacity-70">
+                Order flow is currently driven by technical liquidity rather than a pending catalyst.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

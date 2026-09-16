@@ -16,6 +16,13 @@ import {
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
 const ACCOUNT_TYPES: AccountType[] = ['Standard', 'Cent', 'Pro'];
 const OUTCOMES = ['TP', 'SL', 'MISSED'] as const;
+/**
+ * Upper bound on history accepted in one request. The learning engine halves a
+ * trade's weight every twenty positions back, so nothing beyond this changes
+ * the result, and refusing more keeps a malformed or hostile request from
+ * turning into unbounded server work.
+ */
+export const MAX_LEARNING_RECORDS = 500;
 export type TradeOutcome = (typeof OUTCOMES)[number];
 
 export interface ValidatedAnalyzeRequest {
@@ -64,6 +71,10 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
   }
   if (b.pastLearningRecords !== undefined && !Array.isArray(b.pastLearningRecords)) {
     errors.push('pastLearningRecords must be an array when provided.');
+  } else if (Array.isArray(b.pastLearningRecords) && b.pastLearningRecords.length > MAX_LEARNING_RECORDS) {
+    errors.push(
+      `pastLearningRecords may contain at most ${MAX_LEARNING_RECORDS} entries; send only the most recent.`
+    );
   }
 
   if (errors.length > 0) return { value: null, errors };

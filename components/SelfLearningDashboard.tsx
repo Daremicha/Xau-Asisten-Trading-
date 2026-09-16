@@ -1,19 +1,22 @@
 'use client';
 
 import React from 'react';
-import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights } from '@/lib/types';
+import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle } from '@/lib/types';
 import { deriveAdaptiveWeights, summariseEvidence } from '@/lib/learning-engine';
 import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock } from 'lucide-react';
 
 interface SelfLearningDashboardProps {
   learningRecords: SelfLearningMemoryRecord[];
   engineWeights: AdaptiveStrategyEngineWeights;
+  /** Kept in step with the analysis, which segments learning by style. */
+  tradingStyle?: TradingStyle;
   theme?: 'dark' | 'light';
 }
 
 export default function SelfLearningDashboard({
   learningRecords,
   engineWeights,
+  tradingStyle,
   theme = 'dark',
 }: SelfLearningDashboardProps) {
   const isDark = theme === 'dark';
@@ -26,7 +29,9 @@ export default function SelfLearningDashboard({
   // information. The previous code printed a flattering 80.0% instead.
   const evidence = summariseEvidence(learningRecords);
   const winRate = evidence.winRate === null ? null : evidence.winRate.toFixed(1);
-  const adjustments = deriveAdaptiveWeights(learningRecords).adjustments;
+  // Computed with the same style segmentation as the weights shown below, so
+  // the explanation always describes the bars the user is looking at.
+  const adjustments = deriveAdaptiveWeights(learningRecords, tradingStyle).adjustments;
 
   return (
     <div

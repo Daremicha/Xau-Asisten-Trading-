@@ -1,8 +1,6 @@
 {
-  "name": "Remix Asisten Trading XAUUSD ",
-  "description": "Asisten Trading XAUUSD ",
+  "name": "XAUUSD Institutional Trading Assistant",
+  "description": "Live XAUUSD market data, Smart Money Concepts structure analysis, risk-sized MetaTrader 5 orders, and a self-learning engine that adapts to closed trades.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

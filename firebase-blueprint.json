@@ -5,62 +5,190 @@
       "description": "User profile with locked equity balance and performance metrics",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "photoURL": { "type": "string" },
-        "lockedEquity": { "type": "number" },
-        "isEquityLocked": { "type": "boolean" },
-        "riskPercentage": { "type": "number" },
-        "totalTrades": { "type": "number" },
-        "winTrades": { "type": "number" },
-        "lossTrades": { "type": "number" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "lockedEquity": {
+          "type": "number"
+        },
+        "isEquityLocked": {
+          "type": "boolean"
+        },
+        "riskPercentage": {
+          "type": "number"
+        },
+        "totalTrades": {
+          "type": "number"
+        },
+        "winTrades": {
+          "type": "number"
+        },
+        "lossTrades": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "missedTrades": {
+          "type": "number"
+        },
+        "selectedBroker": {
+          "type": "string"
+        },
+        "accountType": {
+          "type": "string"
+        },
+        "tradingStyle": {
+          "type": "string"
+        }
       },
-      "required": ["id", "email"]
+      "required": [
+        "id",
+        "email"
+      ]
     },
     "TradingAnalysis": {
       "title": "TradingAnalysis",
       "description": "XAUUSD institutional analysis, order setup, multi-timeframe SMC/ICT breakdown, and execution signals",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "symbol": { "type": "string" },
-        "timestamp": { "type": "string" },
-        "marketPrice": { "type": "number" },
-        "orderType": { "type": "string" },
-        "entryPrice": { "type": "number" },
-        "stopLoss": { "type": "number" },
-        "takeProfit1": { "type": "number" },
-        "takeProfit2": { "type": "number" },
-        "takeProfit3": { "type": "number" },
-        "riskRewardRatio": { "type": "string" },
-        "recommendedLotSize": { "type": "number" },
-        "riskAmount": { "type": "number" },
-        "status": { "type": "string" },
-        "closedPrice": { "type": "number" },
-        "closedAt": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "orderType": {
+          "type": "string"
+        },
+        "entryPrice": {
+          "type": "number"
+        },
+        "stopLoss": {
+          "type": "number"
+        },
+        "takeProfit1": {
+          "type": "number"
+        },
+        "takeProfit2": {
+          "type": "number"
+        },
+        "takeProfit3": {
+          "type": "number"
+        },
+        "riskRewardRatio": {
+          "type": "string"
+        },
+        "recommendedLotSize": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "closedPrice": {
+          "type": "number"
+        },
+        "closedAt": {
+          "type": "string"
+        },
+        "currentMarketPrice": {
+          "type": "number"
+        },
+        "riskDollarAmount": {
+          "type": "number"
+        },
+        "actualRiskDollars": {
+          "type": "number"
+        },
+        "stopLossPips": {
+          "type": "number"
+        },
+        "tradingStyle": {
+          "type": "string"
+        },
+        "accountType": {
+          "type": "string"
+        }
       },
-      "required": ["id", "userId", "symbol", "orderType", "entryPrice", "stopLoss", "takeProfit1"]
+      "required": [
+        "id",
+        "userId",
+        "symbol",
+        "orderType",
+        "entryPrice",
+        "stopLoss",
+        "takeProfit1"
+      ]
     },
     "SelfLearningRecord": {
       "title": "SelfLearningRecord",
       "description": "Autonomous learning record generated when SL or TP is reached to refine strategy models",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "analysisId": { "type": "string" },
-        "outcome": { "type": "string" },
-        "rootCause": { "type": "string" },
-        "marketCondition": { "type": "string" },
-        "lessonsLearned": { "type": "string" },
-        "adaptedStrategyRule": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "analysisId": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "orderType": {
+          "type": "string"
+        },
+        "entryPrice": {
+          "type": "number"
+        },
+        "exitPrice": {
+          "type": "number"
+        },
+        "profitOrLossPips": {
+          "type": "number"
+        },
+        "profitOrLossDollars": {
+          "type": "number"
+        },
+        "strategyEvolutionLesson": {
+          "type": "string"
+        },
+        "tradingStyle": {
+          "type": "string"
+        }
       },
-      "required": ["id", "userId", "analysisId", "outcome", "rootCause", "lessonsLearned"]
+      "required": [
+        "id",
+        "analysisId",
+        "outcome",
+        "strategyEvolutionLesson"
+      ]
     }
   },
   "firestore": {

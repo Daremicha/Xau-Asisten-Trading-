@@ -1,6 +1,5 @@
 import { deriveAdaptiveWeights } from './learning-engine';
 import {
-  ForexFactoryEvent,
   AdaptiveStrategyEngineWeights,
   SelfLearningMemoryRecord,
   TradingStyle,
@@ -361,109 +360,6 @@ export function getICTKillZoneStatus(): {
     isHighVolatilityTiming: false,
     description: 'Transition window between major institutional trading sessions.',
   };
-}
-
-/**
- * High-impact Economic Calendar events (Forex Factory style) affecting XAUUSD.
- * Generates forward-scheduled events strictly synchronized with real-time Day, Date, and WIB Hour.
- */
-export function getForexFactoryHighImpactEvents(): ForexFactoryEvent[] {
-  const now = Date.now();
-  const formatWibTime = (ms: number) =>
-    new Date(ms).toLocaleTimeString('en-US', {
-      timeZone: 'Asia/Jakarta',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }) + ' WIB';
-
-  const formatEventDate = (ms: number) =>
-    new Date(ms).toLocaleDateString('en-US', {
-      timeZone: 'Asia/Jakarta',
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-  // Stagger upcoming catalysts relative to the real-time clock
-  const event1Ms = now + 45 * 60 * 1000;
-  const event2Ms = now + 3 * 3600 * 1000;
-  const event3Ms = now + 18 * 3600 * 1000;
-  const event4Ms = now + 28 * 3600 * 1000;
-
-  return [
-    {
-      id: 'ff-1',
-      title: 'Core CPI m/m & Headline US Inflation',
-      country: 'United States',
-      currency: 'USD',
-      impact: 'High',
-      date: formatEventDate(event1Ms),
-      time: formatWibTime(event1Ms),
-      scheduledTimestamp: new Date(event1Ms).toISOString(),
-      forecast: '0.3%',
-      previous: '0.2%',
-      actual: 'Pending',
-      marketImplication: 'Lower inflation prints reduce Fed hawkishness, fueling institutional Gold upside expansion.',
-    },
-    {
-      id: 'ff-2',
-      title: 'FOMC Federal Funds Rate Decision & Statement',
-      country: 'United States',
-      currency: 'USD',
-      impact: 'High',
-      date: formatEventDate(event2Ms),
-      time: formatWibTime(event2Ms),
-      scheduledTimestamp: new Date(event2Ms).toISOString(),
-      forecast: '4.75%',
-      previous: '5.00%',
-      actual: 'Pending',
-      marketImplication: 'Interest rate adjustment priced in. Dovish policy statement triggers institutional resistance breakouts.',
-    },
-    {
-      id: 'ff-3',
-      title: 'Non-Farm Payrolls (NFP) & Unemployment Rate',
-      country: 'United States',
-      currency: 'USD',
-      impact: 'High',
-      date: formatEventDate(event3Ms),
-      time: formatWibTime(event3Ms),
-      scheduledTimestamp: new Date(event3Ms).toISOString(),
-      forecast: '165K',
-      previous: '142K',
-      actual: 'Pending',
-      marketImplication: 'Labor market cooling accelerates bullion safe-haven capital inflow.',
-    },
-    {
-      id: 'ff-4',
-      title: 'Initial Jobless Claims',
-      country: 'United States',
-      currency: 'USD',
-      impact: 'Medium',
-      date: formatEventDate(event4Ms),
-      time: formatWibTime(event4Ms),
-      scheduledTimestamp: new Date(event4Ms).toISOString(),
-      forecast: '218K',
-      previous: '222K',
-      actual: 'Pending',
-      marketImplication: 'Elevated claims spark short-term institutional volatility spikes across M15/H1 charts.',
-    },
-  ];
-}
-
-/**
- * Filters out expired/past news events, returning strictly upcoming releases.
- */
-export function filterUpcomingEconomicEvents(events: ForexFactoryEvent[]): ForexFactoryEvent[] {
-  const now = Date.now();
-  return events
-    .filter((evt) => {
-      if (!evt.scheduledTimestamp) return true;
-      const targetTime = new Date(evt.scheduledTimestamp).getTime();
-      return !isNaN(targetTime) && targetTime > now;
-    })
-    .sort((a, b) => new Date(a.scheduledTimestamp).getTime() - new Date(b.scheduledTimestamp).getTime());
 }
 
 /**

@@ -172,6 +172,9 @@ export default function MarketChart({
             )}&studies_overrides=%7B%7D&overrides=%7B%22mainSeriesProperties.candleStyle.upColor%22%3A%22%2310b981%22%2C%22mainSeriesProperties.candleStyle.downColor%22%3A%22%23ef4444%22%2C%22mainSeriesProperties.candleStyle.wickUpColor%22%3A%22%2310b981%22%2C%22mainSeriesProperties.candleStyle.wickDownColor%22%3A%22%23ef4444%22%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=en&utm_source=localhost`}
             className="w-full h-full border-0"
             title="TradingView XAUUSD Chart"
+            // Third-party frame: send no referrer, and do not block first paint.
+            referrerPolicy="no-referrer"
+            loading="lazy"
           />
         ) : (
           /* Institutional Custom SMC / ICT Graphic Visualizer */
