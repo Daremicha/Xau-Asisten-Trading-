@@ -172,3 +172,34 @@ describe('the full live state', () => {
     expect(p.progressToTarget).toBe(0);
   });
 });
+
+describe('money keeps cent precision while a position runs', () => {
+  test('a float smaller than a whole cent is not rounded away', () => {
+    // A cent account, minimum lot: one troy ounce. A forty five cent move is
+    // 0.0045 dollars, which two decimal places erase entirely.
+    const result = floatingResult(
+      setup({
+        orderType: 'BUY LIMIT',
+        entryPrice: 4300,
+        recommendedLotSize: 0.01,
+        accountType: 'Cent',
+        contractSpecs: { contractSizeOz: 1 } as never,
+      }),
+      4300.45
+    );
+    expect(result.dollars).toBeCloseTo(0.0045, 6);
+    expect(result.dollars).not.toBe(0);
+    expect(result.pips).toBe(4.5);
+  });
+
+  test('a short is the mirror of it', () => {
+    const short = setup({
+      orderType: 'SELL LIMIT',
+      entryPrice: 4300,
+      recommendedLotSize: 0.01,
+      accountType: 'Cent',
+      contractSpecs: { contractSizeOz: 1 } as never,
+    });
+    expect(floatingResult(short, 4300.45).dollars).toBeCloseTo(-0.0045, 6);
+  });
+});

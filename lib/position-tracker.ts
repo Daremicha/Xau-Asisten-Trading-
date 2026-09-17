@@ -8,6 +8,7 @@
  */
 
 import { InstitutionalTradingSetup, OrderExecutionType } from './types';
+import { roundMoney } from './trade-result';
 
 export type FillState = 'pending' | 'filled' | 'closed';
 
@@ -90,7 +91,9 @@ export function floatingResult(
   const move = (currentPrice - setup.entryPrice) * (isLong ? 1 : -1);
   const dollars = move * setup.recommendedLotSize * contractOunces(setup);
   return {
-    dollars: parseFloat(dollars.toFixed(2)),
+    // Four decimals of a dollar, because two is a whole unit on a cent account:
+    // a float of 0.45 cent was being shown as 0.00 while the position moved.
+    dollars: roundMoney(dollars),
     pips: parseFloat((move * 10).toFixed(1)),
   };
 }

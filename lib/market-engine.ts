@@ -1,4 +1,5 @@
 import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
+import { roundMoney } from './trade-result';
 import {
   AdaptiveStrategyEngineWeights,
   SelfLearningMemoryRecord,
@@ -107,7 +108,10 @@ export function calculateXAUUSDLotSize(
   const validDistance = Math.max(priceDistance, minDistance);
   const stopLossPips = parseFloat((validDistance * 10).toFixed(1));
 
-  const riskDollars = parseFloat((equity * (riskPercentage / 100)).toFixed(2));
+  // Four decimals, not two. On a cent account two decimals of a dollar is a
+  // whole cent, so a budget of 4.5 cent was being rounded to 5 and the number
+  // on screen disagreed with the percentage that produced it.
+  const riskDollars = roundMoney(equity * (riskPercentage / 100));
 
   let rawLot = 0.01;
 
@@ -118,7 +122,7 @@ export function calculateXAUUSDLotSize(
     rawLot = riskDollars / lossPerCentLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(500.0, rawLot));
-    const actualRiskDollars = parseFloat((lotSize * lossPerCentLot).toFixed(2));
+    const actualRiskDollars = roundMoney(lotSize * lossPerCentLot);
 
     return {
       lotSize,
@@ -137,7 +141,7 @@ export function calculateXAUUSDLotSize(
     rawLot = riskDollars / dollarLossPerProLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(50.0, rawLot));
-    const actualRiskDollars = parseFloat((lotSize * dollarLossPerProLot).toFixed(2));
+    const actualRiskDollars = roundMoney(lotSize * dollarLossPerProLot);
 
     return {
       lotSize,
@@ -155,7 +159,7 @@ export function calculateXAUUSDLotSize(
   rawLot = riskDollars / dollarLossPerStandardLot;
   rawLot = Math.floor(rawLot * 100) / 100;
   const lotSize = Math.max(0.01, Math.min(50.0, rawLot));
-  const actualRiskDollars = parseFloat((lotSize * dollarLossPerStandardLot).toFixed(2));
+  const actualRiskDollars = roundMoney(lotSize * dollarLossPerStandardLot);
 
   return {
     lotSize,

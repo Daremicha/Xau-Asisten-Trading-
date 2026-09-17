@@ -60,9 +60,49 @@ function normaliseImpact(value: unknown): ForexFactoryEvent['impact'] {
 
 const CURRENCIES: ForexFactoryEvent['currency'][] = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY'];
 
+/**
+ * Country names some feeds use where Forex Factory puts a currency code.
+ *
+ * Only unambiguous ones. A name that is not here reads as unknown rather than
+ * being forced into the nearest guess.
+ */
+const COUNTRY_TO_CURRENCY: Record<string, ForexFactoryEvent['currency']> = {
+  'UNITED STATES': 'USD',
+  'UNITED STATES OF AMERICA': 'USD',
+  US: 'USD',
+  USA: 'USD',
+  'EURO AREA': 'EUR',
+  EUROZONE: 'EUR',
+  'EURO ZONE': 'EUR',
+  'EUROPEAN UNION': 'EUR',
+  EU: 'EUR',
+  'UNITED KINGDOM': 'GBP',
+  UK: 'GBP',
+  BRITAIN: 'GBP',
+  JAPAN: 'JPY',
+  JP: 'JPY',
+  AUSTRALIA: 'AUD',
+  AU: 'AUD',
+  CANADA: 'CAD',
+  CA: 'CAD',
+  SWITZERLAND: 'CHF',
+  CH: 'CHF',
+  CHINA: 'CNY',
+  CN: 'CNY',
+};
+
+/**
+ * The currency a release belongs to.
+ *
+ * Anything unrecognised is 'Unknown', never USD. Defaulting to USD was quietly
+ * dangerous: the dollar-only calendar is what feeds the news shield, so a
+ * Japanese release from a feed that writes country names would have widened
+ * the stop on a gold trade as though it were a dollar release.
+ */
 function normaliseCurrency(value: unknown): ForexFactoryEvent['currency'] {
   const key = String(value ?? '').trim().toUpperCase();
-  return (CURRENCIES as string[]).includes(key) ? (key as ForexFactoryEvent['currency']) : 'USD';
+  if ((CURRENCIES as string[]).includes(key)) return key as ForexFactoryEvent['currency'];
+  return COUNTRY_TO_CURRENCY[key] ?? 'Unknown';
 }
 
 /** Parses the several timestamp shapes calendar providers use. */
@@ -232,6 +272,8 @@ export function filterUpcoming(events: ForexFactoryEvent[], now: number = Date.n
  * always agree about what the engine is reacting to.
  */
 export function usdOnly(events: ForexFactoryEvent[]): ForexFactoryEvent[] {
+  // Strictly USD. An event whose currency could not be read is left out rather
+  // than assumed to be a dollar release.
   return events.filter((e) => e.currency === 'USD');
 }
 

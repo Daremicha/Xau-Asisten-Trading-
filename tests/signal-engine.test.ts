@@ -624,3 +624,22 @@ describe('an entry price has already left behind', () => {
     }
   });
 });
+
+describe('the risk budget keeps cent precision', () => {
+  test('a budget smaller than a whole cent is not rounded to one', () => {
+    // A 901 cent balance at half a percent is 4.5 cent. Two decimals of a
+    // dollar rounds that to 5, so the number on screen disagreed with the
+    // percentage that produced it.
+    const calc = calculateXAUUSDLotSize(9.01, 0.5, 4300, 4290, 'Cent', 'Intraday', 'EXNESS');
+    // Four decimals of a dollar is two decimals of a cent: 4.50 cent, not 5.
+    expect(calc.riskDollars).toBeCloseTo(0.045, 6);
+    expect(calc.riskDollars).not.toBe(0.05);
+  });
+
+  test('what the lot actually risks is reported at the same precision', () => {
+    const calc = calculateXAUUSDLotSize(9.01, 0.5, 4300, 4290.45, 'Cent', 'Intraday', 'EXNESS');
+    // The minimum lot of 0.01 over a 9.55 dollar stop risks 9.55 cent.
+    expect(calc.actualRiskDollars).toBeCloseTo(0.0955, 6);
+    expect(calc.exceedsRiskBudget).toBe(true);
+  });
+});

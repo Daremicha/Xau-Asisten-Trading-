@@ -92,7 +92,10 @@ export default function BacktestLab({
 }: BacktestLabProps) {
   const isDark = theme === 'dark';
   const [months, setMonths] = useState<number>(24);
-  const [interval, setInterval] = useState<HistoryInterval>('15min');
+  // Named for what it is rather than `setInterval`, which shadowed the global
+  // timer function inside this component and would have turned any future
+  // scheduling here into a silent no-op.
+  const [executionInterval, setExecutionInterval] = useState<HistoryInterval>('15min');
   const [minConviction, setMinConviction] = useState<number>(0);
   const [progress, setProgress] = useState<BacktestProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +112,7 @@ export default function BacktestLab({
     try {
       const job = await runBacktestJob({
         months,
-        interval,
+        interval: executionInterval,
         tradingStyle,
         accountType,
         brokerId,
@@ -342,9 +345,9 @@ export default function BacktestLab({
                 type="button"
                 id={`backtest-interval-${choice}`}
                 disabled={running}
-                onClick={() => setInterval(choice)}
+                onClick={() => setExecutionInterval(choice)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
-                  interval === choice
+                  executionInterval === choice
                     ? 'bg-sky-500/15 border-sky-500/60 text-sky-400'
                     : isDark
                     ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'

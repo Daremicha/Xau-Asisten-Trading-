@@ -156,7 +156,12 @@ export interface ForexFactoryEvent {
   id: string;
   title: string;
   country: string;
-  currency: 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CAD' | 'CHF' | 'CNY';
+  /**
+   * The currency the release belongs to. 'Unknown' when the feed did not say
+   * in a form that could be read — never guessed, because a guess of USD puts
+   * a foreign release inside a XAUUSD news shield.
+   */
+  currency: 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CAD' | 'CHF' | 'CNY' | 'Unknown';
   impact: 'High' | 'Medium' | 'Low';
   time: string;
   date: string;
@@ -340,6 +345,21 @@ export interface SkippedSetup {
   threshold: number;
   /** The refused band, when that is what happened. */
   deadBand?: { label: string; min: number; max: number } | null;
+  /**
+   * When the chart will have changed enough to be worth another look, so the
+   * answer is not simply "no" with nothing to do about it.
+   */
+  nextCheck?: {
+    at: string;
+    reason: string;
+    marketClosed: boolean;
+    session: { name: string; at: string } | null;
+  } | null;
+  /**
+   * The price at which a refused level becomes tradeable again. Set only when
+   * price had run too far from it for an order to rest there.
+   */
+  watchPrice?: number | null;
   direction: 'long' | 'short';
   notes: string[];
   rationale: string;
