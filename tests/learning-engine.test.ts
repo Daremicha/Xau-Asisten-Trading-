@@ -105,11 +105,11 @@ describe('adjustments scale with evidence rather than piling up', () => {
     expect(confidenceFrom(1000)).toBeLessThan(1);
   });
 
-  test('three misses move a weight far less than thirty do', () => {
-    const three = deriveAdaptiveWeights(Array.from({ length: 3 }, () => record('MISSED', { missPips: 200 })));
-    const thirty = deriveAdaptiveWeights(Array.from({ length: 30 }, () => record('MISSED', { missPips: 200 })));
-    const driftThree = Math.abs(three.fairValueGapWeight - PRIOR_WEIGHTS.fairValueGapWeight);
-    const driftThirty = Math.abs(thirty.fairValueGapWeight - PRIOR_WEIGHTS.fairValueGapWeight);
+  test('three stop outs move the buffer far less than thirty do', () => {
+    const three = deriveAdaptiveWeights(Array.from({ length: 3 }, () => record('SL')));
+    const thirty = deriveAdaptiveWeights(Array.from({ length: 30 }, () => record('SL')));
+    const driftThree = Math.abs(three.atrBufferFactor - PRIOR_WEIGHTS.atrBufferFactor);
+    const driftThirty = Math.abs(thirty.atrBufferFactor - PRIOR_WEIGHTS.atrBufferFactor);
     expect(driftThirty).toBeGreaterThan(driftThree);
   });
 
@@ -194,16 +194,26 @@ describe('learning the actual distance orders miss by', () => {
     expect(e.medianMissPips).toBe(200);
   });
 
-  test('repeated misses pull entries closer to price', () => {
+  test('repeated misses do not pull entries toward price', () => {
+    // A 24 month replay of real candles froze this adaptation and traded the
+    // period again: it earned less than the defaults and raised the worst
+    // drawdown from 22% to 31.6%. A missed order costs nothing, so the engine
+    // no longer treats one as a problem to fix.
     const d = deriveAdaptiveWeights(Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })));
-    expect(d.entryBufferPips).toBeGreaterThan(0);
-    expect(d.adjustments.join(' ')).toContain('closer to price');
+    expect(d.entryBufferPips).toBe(0);
+    expect(d.adjustments.join(' ')).toContain('costs nothing');
   });
 
-  test('a bigger miss teaches a bigger correction', () => {
+  test('a bigger miss still teaches nothing about where to put the entry', () => {
     const small = deriveAdaptiveWeights(Array.from({ length: 20 }, () => record('MISSED', { missPips: 50 })));
     const large = deriveAdaptiveWeights(Array.from({ length: 20 }, () => record('MISSED', { missPips: 400 })));
-    expect(large.entryBufferPips).toBeGreaterThan(small.entryBufferPips);
+    expect(large.entryBufferPips).toBe(small.entryBufferPips);
+  });
+
+  test('misses no longer shift weight toward the shallower level either', () => {
+    const d = deriveAdaptiveWeights(Array.from({ length: 30 }, () => record('MISSED', { missPips: 200 })));
+    expect(d.fairValueGapWeight).toBeCloseTo(PRIOR_WEIGHTS.fairValueGapWeight, 3);
+    expect(d.orderBlockWeight).toBeCloseTo(PRIOR_WEIGHTS.orderBlockWeight, 3);
   });
 
   test('trades that filled teach nothing about entry distance', () => {
@@ -337,44 +347,34 @@ describe('starting from a backtested prior', () => {
   });
 });
 
-describe('chasing fills only when fills are worth having', () => {
-  /** A filled trade whose money result can be set, which is what decides this. */
+describe('an entry buffer only ever comes from a backtest', () => {
+  /** A filled trade whose money result can be set. */
   function filled(outcome: 'TP' | 'SL', dollars: number): SelfLearningMemoryRecord {
     return { ...record(outcome), profitOrLossDollars: dollars };
   }
 
-  test('an average filled trade that loses money stops the entry chase', () => {
-    // The case the two year replay produced: half the orders never filled, and
-    // the ones that did lost money. The old engine answered by pulling entries
-    // closer, which filled more of the losers.
-    const history = [
-      ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
-      ...Array.from({ length: 20 }, () => filled('SL', -18)),
-    ];
-    const weights = deriveAdaptiveWeights(history, 'Intraday');
-    expect(weights.entryBufferPips).toBe(0);
-    expect(weights.adjustments.join(' ')).toContain('stay at their levels');
-  });
-
-  test('an average filled trade that makes money keeps the chase', () => {
+  test('profitable fills do not license chasing the ones that missed', () => {
+    // The fills a closer entry would add are the marginal setups, not the
+    // average one, and an engine cannot see the result of a trade it never took.
     const history = [
       ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
       ...Array.from({ length: 20 }, () => filled('TP', 27)),
     ];
-    const weights = deriveAdaptiveWeights(history, 'Intraday');
-    expect(weights.entryBufferPips).toBeGreaterThan(0);
-    expect(weights.adjustments.join(' ')).toContain('closer to price');
+    expect(deriveAdaptiveWeights(history, 'Intraday').entryBufferPips).toBe(0);
   });
 
-  test('a losing fill record also stops the weight shift toward the shallower level', () => {
-    const losing = deriveAdaptiveWeights(
-      [
-        ...Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })),
-        ...Array.from({ length: 20 }, () => filled('SL', -18)),
-      ],
-      'Intraday'
-    );
-    expect(losing.adjustments.join(' ')).not.toContain('shallower level');
+  test('a buffer adopted from a backtest is honoured', () => {
+    const history = Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 }));
+    const weights = deriveAdaptiveWeights(history, 'Intraday', {
+      ...PRIOR_WEIGHTS,
+      entryBufferPips: 40,
+    });
+    expect(weights.entryBufferPips).toBe(40);
+  });
+
+  test('an adopted buffer is still capped at what the style allows', () => {
+    const weights = deriveAdaptiveWeights([], 'Scalping', { ...PRIOR_WEIGHTS, entryBufferPips: 100 });
+    expect(weights.entryBufferPips).toBe(28);
   });
 
   test('expectancy is reported per filled trade, ignoring the misses', () => {
@@ -383,7 +383,6 @@ describe('chasing fills only when fills are worth having', () => {
       filled('SL', -10),
       record('MISSED', { missPips: 100 }),
     ]);
-    // Recency weighted, so not exactly ten, but between the two results.
     expect(evidence.expectancyDollars).toBeGreaterThan(0);
     expect(evidence.expectancyDollars).toBeLessThan(30);
   });
@@ -403,12 +402,9 @@ describe('an entry may not be dragged off its own level', () => {
     expect(entryBufferCeiling(undefined)).toBe(120);
   });
 
-  test('a huge run of misses cannot exceed the style ceiling', () => {
-    const history = [
-      ...Array.from({ length: 200 }, () => record('MISSED', { missPips: 5000 })),
-      ...Array.from({ length: 50 }, () => ({ ...record('TP'), profitOrLossDollars: 50 })),
-    ];
-    expect(deriveAdaptiveWeights(history, 'Intraday').entryBufferPips).toBeLessThanOrEqual(72);
-    expect(deriveAdaptiveWeights(history, 'Scalping').entryBufferPips).toBeLessThanOrEqual(28);
+  test('an adopted buffer is clamped per style, however large it arrives', () => {
+    const wild = { ...PRIOR_WEIGHTS, entryBufferPips: 5000 };
+    expect(deriveAdaptiveWeights([], 'Intraday', wild).entryBufferPips).toBe(72);
+    expect(deriveAdaptiveWeights([], 'Scalping', wild).entryBufferPips).toBe(28);
   });
 });

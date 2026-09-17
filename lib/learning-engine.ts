@@ -299,70 +299,38 @@ export function deriveAdaptiveWeights(
   };
 
   let atrBufferFactor: number = prior.atrBufferFactor;
-  let entryBufferPips = prior.entryBufferPips;
+  // A buffer can only arrive from an adopted backtest, and the style caps how
+  // far it may move an entry off the level the entry was derived from.
+  let entryBufferPips = Math.min(entryBufferCeiling(style), prior.entryBufferPips);
 
   if (evidence.sampleSize > 0) {
     const c = evidence.confidence;
 
-    // Whether a filled trade is worth having at all. Everything below that
-    // converts misses into fills depends on this: a missed order costs nothing,
-    // so filling more of them only helps when the fills make money.
+    // Misses are not a problem to solve.
     //
-    // No fill yet means no evidence either way, and refusing to move would
-    // leave an engine that has never entered a trade unable to learn how. That
-    // case still chases; a measured loss per fill does not.
-    const fillsPay = evidence.expectancyDollars === null || evidence.expectancyDollars > 0;
+    // The engine used to read a high miss rate as "entries sit too deep" and
+    // answer by shifting weight to the shallower level and pulling entries
+    // toward price. A 24 month replay of real XAUUSD candles isolated exactly
+    // those two adaptations, because they were the only thing that had moved,
+    // froze them and traded the period again: they earned less than the engine
+    // defaults and raised the worst drawdown from 22% to 31.6%.
+    //
+    // The reason is in the arithmetic, not the sample. Pulling an entry closer
+    // converts the misses nearest the level into fills, and those are the
+    // marginal setups, not the average one. An engine can see the average
+    // result of a fill; it cannot see the result of the fills it did not take.
+    // A missed order costs nothing, so the safe side of that uncertainty is to
+    // leave entries on their levels.
+    //
+    // A buffer adopted from a backtest is still honoured, unchanged: that is
+    // evidence the engine itself cannot gather.
 
-    // Orders that never fill mean entries sit too deep. Shift weight toward the
-    // shallower level, and pull entries closer by the distance actually missed.
-    if (evidence.missRate !== null && evidence.missRate > 25 && fillsPay) {
-      confluence.fairValueGapWeight = shrinkToward(
-        confluence.fairValueGapWeight,
-        confluence.fairValueGapWeight + 0.2,
-        c,
-        MAX_WEIGHT_DRIFT
-      );
-      confluence.orderBlockWeight = shrinkToward(
-        confluence.orderBlockWeight,
-        confluence.orderBlockWeight - 0.15,
-        c,
-        MAX_WEIGHT_DRIFT
-      );
+    if (evidence.missRate !== null && evidence.missRate > 25 && evidence.sampleSize >= 5) {
       adjustments.push(
-        `${evidence.missRate.toFixed(0)}% of orders never filled, so entries now favour the shallower level.`
+        `${evidence.missRate.toFixed(
+          0
+        )}% of orders never filled. A missed order costs nothing, so entries stay on their levels; if you want more fills, change the style or the timeframe rather than the entry.`
       );
-    }
-
-    if (evidence.medianMissPips !== null && evidence.medianMissPips > 0 && fillsPay) {
-      // Close most of the observed gap, scaled by how sure we are of it, and
-      // never far enough to leave the level the entry was derived from.
-      const ceiling = entryBufferCeiling(style);
-      entryBufferPips = Math.min(
-        ceiling,
-        Math.max(prior.entryBufferPips, evidence.medianMissPips * 0.75 * c)
-      );
-      if (entryBufferPips >= 1) {
-        adjustments.push(
-          `${
-            evidence.expectancyDollars === null
-              ? 'No order has filled yet'
-              : `Filled trades are paying ${evidence.expectancyDollars.toFixed(2)} on average`
-          } and orders missed by a median of ${
-            evidence.medianMissPips
-          } pips, so entries move ${entryBufferPips.toFixed(0)} pips closer to price.`
-        );
-      }
-    } else if (evidence.medianMissPips !== null && evidence.medianMissPips > 0 && !fillsPay) {
-      // The old engine pulled entries closer here regardless, which filled more
-      // of the very setups that were losing money.
-      entryBufferPips = 0;
-      if (evidence.triggeredCount >= 5) {
-        adjustments.push(
-          `Orders are missing by a median of ${evidence.medianMissPips} pips, but a filled trade currently loses ${Math.abs(
-            evidence.expectancyDollars ?? 0
-          ).toFixed(2)} on average, so entries stay at their levels rather than chasing price.`
-        );
-      }
     }
 
     // A stop-out rate above chance suggests stops sit inside the noise; a strong
