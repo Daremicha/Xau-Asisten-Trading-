@@ -170,9 +170,16 @@ narrative around the setup. It never sets a price. The app is fully functional
 with none of them.
 
 **The self-learning loop feeds back into the numbers.** Outcomes you record
-adjust the adaptive weights, which change the entry anchor, the stop buffer and
-how each confluence is weighted on the next signal. A per-style stop ceiling
-keeps a long losing run from turning an intraday setup into a swing trade.
+adjust the adaptive weights, which change the stop buffer and how each
+confluence is weighted on the next signal. A per-style stop ceiling keeps a long
+losing run from turning an intraday setup into a swing trade.
+
+**A strike rate is judged against what the target needs.** A 1.5R target breaks
+even at 40%, a 2R target at 33%, so a healthy intraday system runs well under
+half. Stops are only widened when the strike rate is below the style's own break
+even *and* the account is losing money. Judged against a flat threshold instead,
+a profitable 44% run had its stops widened for no reason: a 24 month replay put
+that at 410.90 cent and took the worst drawdown from 22% to 29.6%.
 
 **Learning never chases fills.** Orders that never filled used to tell the engine
 its entries sat too deep, and it answered by moving them toward price. A 24 month

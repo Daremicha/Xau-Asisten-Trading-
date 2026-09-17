@@ -104,6 +104,25 @@ const MAX_ENTRY_BUFFER_PIPS = 120;
  */
 const MAX_BUFFER_SHARE_OF_STOP = 0.4;
 
+/**
+ * The strike rate a style needs just to break even.
+ *
+ * A target at 1.5R pays out on four wins in ten; at 2R, on one in three. Judging
+ * every style against a flat 45% therefore reads a perfectly healthy intraday
+ * system as broken. A 24 month replay of real candles did exactly that: a
+ * profitable run at 44.2% was diagnosed as "stops sit inside the noise", the
+ * buffer widened to 1.96x ATR, and freezing that cost 410.90 cent and took the
+ * worst drawdown from 22% to 29.6%.
+ */
+export function breakEvenWinRate(style?: TradingStyle): number {
+  // The app's own default style, for a record set that never said which it was.
+  const profile = STYLE_PROFILES[style ?? 'Intraday'];
+  return parseFloat((100 / (1 + profile.tpMultiples[0])).toFixed(1));
+}
+
+/** Margin above break even that says the stop has more room than it needs. */
+const COMFORTABLE_MARGIN_POINTS = 20;
+
 /** The furthest an entry may be pulled toward price for a given style. */
 export function entryBufferCeiling(style?: TradingStyle): number {
   const profile = style ? STYLE_PROFILES[style] : undefined;
@@ -333,13 +352,21 @@ export function deriveAdaptiveWeights(
       );
     }
 
-    // A stop-out rate above chance suggests stops sit inside the noise; a strong
-    // strike rate suggests they are wider than they need to be.
+    // Stops are only wrong when the strike rate cannot pay for the target.
+    //
+    // The measure is the style's own break even rate, not a flat number: a 1.5R
+    // target needs 40%, a 2R target needs 33%. Widening also has to be answering
+    // a real problem, so the account must actually be losing money. A profitable
+    // run below the old flat threshold used to have its stops widened for no
+    // reason, which cost money and deepened the drawdown.
+    const breakEven = breakEvenWinRate(style);
+    const losingMoney = evidence.expectancyDollars !== null && evidence.expectancyDollars <= 0;
+
     if (evidence.smoothedWinRate !== null && evidence.triggeredCount > 0) {
       const target =
-        evidence.smoothedWinRate < 45
+        evidence.smoothedWinRate < breakEven && losingMoney
           ? prior.atrBufferFactor + 0.9
-          : evidence.smoothedWinRate > 65
+          : evidence.smoothedWinRate > breakEven + COMFORTABLE_MARGIN_POINTS
           ? prior.atrBufferFactor - 0.35
           : prior.atrBufferFactor;
 
@@ -351,8 +378,18 @@ export function deriveAdaptiveWeights(
       if (Math.abs(atrBufferFactor - prior.atrBufferFactor) >= 0.02) {
         adjustments.push(
           atrBufferFactor > prior.atrBufferFactor
-            ? `Strike rate of ${evidence.smoothedWinRate}% suggests stops sit inside the noise, so the buffer widened to ${atrBufferFactor.toFixed(2)}x ATR.`
-            : `Strike rate of ${evidence.smoothedWinRate}% suggests stops are wider than needed, so the buffer tightened to ${atrBufferFactor.toFixed(2)}x ATR.`
+            ? `A ${evidence.smoothedWinRate}% strike rate is below the ${breakEven}% this target needs and the account is losing, so stops widened to ${atrBufferFactor.toFixed(
+                2
+              )}x ATR to clear the noise.`
+            : `A ${evidence.smoothedWinRate}% strike rate is comfortably above the ${breakEven}% this target needs, so stops tightened to ${atrBufferFactor.toFixed(
+                2
+              )}x ATR.`
+        );
+      } else if (evidence.smoothedWinRate < 50 && evidence.triggeredCount >= 10) {
+        adjustments.push(
+          `A ${evidence.smoothedWinRate}% strike rate is normal for a ${
+            style ?? 'Intraday'
+          } target that pays ${(100 / breakEven - 1).toFixed(1)} to 1, which breaks even at ${breakEven}%. Nothing is changed for it.`
         );
       }
     }
