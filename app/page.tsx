@@ -22,6 +22,7 @@ import {
 } from '@/lib/active-setup-store';
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
 import { trackPosition } from '@/lib/position-tracker';
+import { QUOTE_POLL_MS } from '@/lib/price-feed';
 import { roundMoney } from '@/lib/trade-result';
 import PositionStatusCard from '@/components/PositionStatusCard';
 import {
@@ -52,7 +53,7 @@ import TradingCentralCard from '@/components/TradingCentralCard';
 import SelfLearningDashboard from '@/components/SelfLearningDashboard';
 import BacktestLab from '@/components/BacktestLab';
 import type { BacktestJobResult } from '@/lib/backtest-client';
-import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
+import { chronological, normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
@@ -63,6 +64,7 @@ import {
   TradingStyle,
   AccountType,
   BrokerId,
+  ForexFactoryEvent,
 } from '@/lib/types';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
 import {
@@ -147,6 +149,8 @@ export default function Home() {
 
   // Market state. Null until the feed answers, so nothing fabricated is shown.
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  /** Provider timestamp of the quote on screen, for the age readout. */
+  const [quoteTakenAt, setQuoteTakenAt] = useState<number | null>(null);
   const [bidPrice, setBidPrice] = useState<number | null>(null);
   const [askPrice, setAskPrice] = useState<number | null>(null);
   const [change24h, setChange24h] = useState<number | null>(null);
@@ -222,7 +226,14 @@ export default function Home() {
   const killZone = useMemo(() => getICTKillZoneStatus(), []);
   // The calendar now comes from the analysis response, which reflects whatever
   // provider is actually configured. Nothing is generated on the client.
-  const economicEvents = useMemo(() => activeSetup?.economicEvents ?? [], [activeSetup]);
+  /**
+   * Upcoming releases, refreshed with the quote rather than with an analysis.
+   *
+   * They used to arrive only attached to a setup, so the panel was empty
+   * whenever nothing was open, which is most of the time, and emptied again the
+   * moment a trade was closed.
+   */
+  const [economicEvents, setEconomicEvents] = useState<ForexFactoryEvent[]>([]);
   const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
 
   // Whether the user's data actually reached the cloud. Firestore rejections
@@ -431,8 +442,12 @@ export default function Home() {
           if (!recSnap.empty) {
             const loadedRecords: SelfLearningMemoryRecord[] = [];
             recSnap.forEach((d) => loadedRecords.push(d.data() as SelfLearningMemoryRecord));
-            setLearningRecords(loadedRecords);
-            setEngineWeights(recalculateEngineWeights(loadedRecords, tradingStyleRef.current));
+            // The query asks for the newest first because that is the cheap
+            // index. Everything downstream reads this list as a history, so it
+            // is put back into the order a history is written in.
+            const ordered = chronological(loadedRecords);
+            setLearningRecords(ordered);
+            setEngineWeights(recalculateEngineWeights(ordered, tradingStyleRef.current));
           }
         } catch (err) {
           console.warn('Notice loading user cloud document:', err);
@@ -477,9 +492,21 @@ export default function Home() {
       setFeedMessage(data.message || '');
       setFeedSource(data.source ?? null);
       setMarketPrice(data.marketPrice);
+      // When the provider took this quote, so the screen can say how old it is
+      // instead of presenting a minute-old number as the current price.
+      setQuoteTakenAt(
+        typeof data.fetchedAt === 'string' && Number.isFinite(Date.parse(data.fetchedAt))
+          ? Date.parse(data.fetchedAt)
+          : Date.now()
+      );
       setBidPrice(typeof data.bid === 'number' ? data.bid : null);
       setAskPrice(typeof data.ask === 'number' ? data.ask : null);
       setChange24h(typeof data.change24h === 'number' ? data.change24h : null);
+
+      if (Array.isArray(data.economicEvents)) {
+        setEconomicEvents(data.economicEvents as ForexFactoryEvent[]);
+      }
+      setCalendarMessage(data.calendarConfigured ? null : (data.calendarMessage ?? null));
 
       if (data.structureAvailable && data.multiTimeframe && data.technicalIndicators) {
         setLiveRead({
@@ -496,21 +523,72 @@ export default function Home() {
     }
   }, [accountType, selectedBroker]);
 
+  /**
+   * How often to ask for a new quote.
+   *
+   * Every request spends from the provider's daily allowance, so the rate
+   * follows what the price is actually being used for. While an order is
+   * working, the status panel and the automatic close both read this number, so
+   * it is refreshed often. With nothing open it only has to look current. In a
+   * background tab it is not being read at all, and polling one would spend the
+   * allowance on a screen nobody is looking at.
+   */
+  const hasLiveOrder = Boolean(activeSetup && isUnresolved(activeSetup));
+
+  /**
+   * Age of the quote on screen, in seconds.
+   *
+   * The chart is TradingView's own live feed; this number comes from the market
+   * data provider a few seconds behind it. Saying how old it is turns an
+   * apparent disagreement between the two into a fact the user can read.
+   */
+  const [clockMs, setClockMs] = useState<number | null>(null);
+  useEffect(() => {
+    const id = setInterval(() => setClockMs(Date.now()), 5000);
+    // Set after mount so the first server and client render agree.
+    const first = setTimeout(() => setClockMs(Date.now()), 0);
+    return () => {
+      clearInterval(id);
+      clearTimeout(first);
+    };
+  }, []);
+
+  const quoteAgeSeconds =
+    quoteTakenAt === null || clockMs === null ? null : Math.max(0, Math.round((clockMs - quoteTakenAt) / 1000));
+
   useEffect(() => {
     let cancelled = false;
-    const tick = async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+
+    const schedule = () => {
       if (cancelled) return;
-      await loadMarketData();
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, hasLiveOrder ? QUOTE_POLL_MS.withOpenOrder : QUOTE_POLL_MS.idle);
     };
-    tick();
-    // Matched to the server cache window. Polling faster only burns the data
-    // provider's daily quota without producing a fresher price.
-    const interval = setInterval(tick, 30000);
+
+    const run = async () => {
+      if (cancelled) return;
+      if (visible()) await loadMarketData();
+      schedule();
+    };
+
+    void run();
+
+    // Coming back to the tab asks straight away rather than waiting out the
+    // interval with a price that went stale while it was hidden.
+    const onVisibility = () => {
+      if (visible()) void run();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [loadMarketData]);
+  }, [loadMarketData, hasLiveOrder]);
 
   const handleManualRefresh = async () => {
     setIsRefreshingFeed(true);
@@ -1235,6 +1313,9 @@ export default function Home() {
           currentPrice={marketPrice}
           bidPrice={bidPrice}
           askPrice={askPrice}
+          quoteAgeSeconds={quoteAgeSeconds}
+          onRefreshQuote={handleManualRefresh}
+          isRefreshingQuote={isRefreshingFeed}
           selectedTimeframe={selectedTimeframe}
           onSelectTimeframe={setSelectedTimeframe}
           activeSetup={activeSetup}
@@ -1246,6 +1327,7 @@ export default function Home() {
                 setup={activeSetup}
                 position={livePosition}
                 currentPrice={marketPrice}
+                quoteAgeSeconds={quoteAgeSeconds}
                 theme={theme}
               />
             ) : null

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  QUOTE_POLL_MS,
   cacheSeconds,
   candlesSinceUtcMidnight,
   mapTwelveDataCandles,
@@ -120,9 +121,9 @@ describe('quota aware cache window', () => {
     else process.env.MARKET_DATA_CACHE_SECONDS = original;
   });
 
-  test('defaults to sixty seconds, which keeps the free tier safe', () => {
+  test('defaults to twenty seconds, close enough to the chart to be usable', () => {
     delete process.env.MARKET_DATA_CACHE_SECONDS;
-    expect(cacheSeconds()).toBe(60);
+    expect(cacheSeconds()).toBe(20);
   });
 
   test('an explicit value is honoured', () => {
@@ -133,7 +134,7 @@ describe('quota aware cache window', () => {
   test('nonsense values fall back to the default rather than hammering the provider', () => {
     for (const bad of ['', 'abc', '-5', '0', '1']) {
       process.env.MARKET_DATA_CACHE_SECONDS = bad;
-      expect(cacheSeconds()).toBe(60);
+      expect(cacheSeconds()).toBe(20);
     }
   });
 
@@ -142,8 +143,17 @@ describe('quota aware cache window', () => {
     expect(cacheSeconds()).toBe(900);
   });
 
-  test('the default keeps eight hours of use inside the free daily quota', () => {
-    const requestsPerDay = (8 * 3600) / cacheSeconds();
+  test('a full trading day of real use stays inside the free daily quota', () => {
+    // How the app actually spends the allowance: the browser polls fast only
+    // while an order is working, slowly while watching, and not at all in a
+    // background tab. Two hours in a trade and four hours watching is a heavy
+    // day for one person.
+    delete process.env.MARKET_DATA_CACHE_SECONDS;
+    const perHour = (intervalMs: number) => 3_600_000 / intervalMs;
+    const requestsPerDay = 2 * perHour(QUOTE_POLL_MS.withOpenOrder) + 4 * perHour(QUOTE_POLL_MS.idle);
+
     expect(requestsPerDay).toBeLessThan(800);
+    // The cache never lets a second tab double that bill.
+    expect(cacheSeconds()).toBeLessThanOrEqual(QUOTE_POLL_MS.withOpenOrder / 1000);
   });
 });

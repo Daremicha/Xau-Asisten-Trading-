@@ -150,12 +150,47 @@ The app now explains the reason on screen instead of doing nothing. The most
 common message is an unauthorised domain, which means step 6 is missing or the
 domain does not match exactly.
 
+## The chart, the quote, and why they differ
+
+The candles are **TradingView's own live feed** (OANDA:XAUUSD), embedded
+directly, so they tick in real time. The bid, ask and every number the engine
+computes come from **your market data provider**, a few seconds behind. The two
+will never agree to the tick, so the chart bar prints how old the quote is, and
+a refresh button asks for a new one on demand. The toggle beside it switches
+between TradingView and the engine's own level view, with the active one
+highlighted.
+
 ## Data provider quota
 
-The free Twelve Data tier allows 800 requests a day. The app reuses one quote
-for 60 seconds and only refreshes when someone is actually looking, so eight
-hours of continuous use costs about 480 requests. Set
-`MARKET_DATA_CACHE_SECONDS` lower only if you move to a paid plan.
+The free Twelve Data tier allows 800 requests a day, so the app spends them
+where they matter:
+
+| Situation | How often it asks |
+| --- | --- |
+| An order is working | Every 20 seconds, because the status panel and the automatic close both read the price |
+| Nothing open | Every 60 seconds |
+| Tab in the background | Not at all |
+
+A quote is cached for 20 seconds server-side, so extra tabs cost nothing. Two
+hours in a trade plus four hours watching is about 600 requests, inside the free
+allowance with room to spare. `MARKET_DATA_CACHE_SECONDS` raises the cache
+window if your allowance is tighter.
+
+## Economic calendar
+
+The calendar reads the weekly Forex Factory JSON by default, so scheduled
+releases appear without any setup. It refreshes alongside the quote, which means
+the panel stays populated whether or not a setup is open.
+
+| Setting | Effect |
+| --- | --- |
+| `ECONOMIC_CALENDAR_URL` unset | The default published feed |
+| `ECONOMIC_CALENDAR_URL=<url>` | Your own provider, mapped from the usual field names |
+| `ECONOMIC_CALENDAR_URL=` (empty) | No calendar at all, and the engine ignores news |
+
+When a high-impact release is within the hour, the engine widens the stop
+buffer. A feed that cannot be reached leaves the calendar empty and says so
+rather than inventing a schedule.
 
 ## How the engine works
 

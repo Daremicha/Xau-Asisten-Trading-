@@ -4,6 +4,7 @@ import {
   confidenceFrom,
   deriveAdaptiveWeights,
   breakEvenWinRate,
+  chronological,
   entryBufferCeiling,
   matchesDefaultPrior,
   normaliseConfluence,
@@ -524,5 +525,45 @@ describe('parameters that are simply the defaults', () => {
 
   test('a rounding difference too small to act on is not a change', () => {
     expect(matchesDefaultPrior({ ...PRIOR_WEIGHTS, atrBufferFactor: 1.2501 })).toBe(true);
+  });
+});
+
+describe('records are kept in the order a history is written in', () => {
+  function at(iso: string, outcome: 'TP' | 'SL' = 'TP'): SelfLearningMemoryRecord {
+    return { ...record(outcome), id: iso, timestamp: iso };
+  }
+
+  test('newest first from the cloud comes back oldest first', () => {
+    // Firestore is queried newest first because that is the cheap index; the
+    // ledger and the equity curve both read the list as a history.
+    const fromCloud = [at('2026-03-01T00:00:00Z'), at('2026-02-01T00:00:00Z'), at('2026-01-01T00:00:00Z')];
+    expect(chronological(fromCloud).map((r) => r.id)).toEqual([
+      '2026-01-01T00:00:00Z',
+      '2026-02-01T00:00:00Z',
+      '2026-03-01T00:00:00Z',
+    ]);
+  });
+
+  test('a list already in order is left alone', () => {
+    const ordered = [at('2026-01-01T00:00:00Z'), at('2026-02-01T00:00:00Z')];
+    expect(chronological(ordered).map((r) => r.id)).toEqual(ordered.map((r) => r.id));
+  });
+
+  test('the input is not mutated', () => {
+    const original = [at('2026-03-01T00:00:00Z'), at('2026-01-01T00:00:00Z')];
+    chronological(original);
+    expect(original[0].id).toBe('2026-03-01T00:00:00Z');
+  });
+
+  test('a record with no usable timestamp is kept rather than dropped', () => {
+    const broken = { ...record('TP'), id: 'broken', timestamp: '' };
+    const mixed = [at('2026-02-01T00:00:00Z'), broken, at('2026-01-01T00:00:00Z')];
+    const sorted = chronological(mixed);
+    expect(sorted).toHaveLength(3);
+    expect(sorted.map((r) => r.id)).toContain('broken');
+  });
+
+  test('an empty history stays empty', () => {
+    expect(chronological([])).toEqual([]);
   });
 });

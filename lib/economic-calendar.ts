@@ -23,6 +23,17 @@ export interface CalendarResult {
 }
 
 const REQUEST_TIMEOUT_MS = 8_000;
+
+/**
+ * Feed used when none is configured.
+ *
+ * The weekly Forex Factory calendar, published as JSON and free to read. It is
+ * a real schedule of real releases, which is the only thing this module will
+ * serve: if it cannot be reached the calendar stays empty and says so, exactly
+ * as it did when nothing was configured at all. Override it with
+ * ECONOMIC_CALENDAR_URL to use a provider of your own.
+ */
+export const DEFAULT_CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
 const CACHE_TTL_MS = 15 * 60_000;
 
 let cached: { at: number; result: CalendarResult } | null = null;
@@ -116,7 +127,9 @@ export function mapCalendarPayload(payload: unknown): ForexFactoryEvent[] {
       id: String(row.id ?? `cal-${index}-${time}`),
       title,
       country: String(row.country ?? row.zone ?? row.region ?? 'Unknown'),
-      currency: normaliseCurrency(row.currency ?? row.country_code),
+      // Forex Factory puts the currency code in `country`; others use a name
+      // there, which normaliseCurrency rejects in favour of the default.
+      currency: normaliseCurrency(row.currency ?? row.country_code ?? row.country),
       impact: normaliseImpact(row.impact ?? row.importance ?? row.volatility),
       date: formatWib(time, false),
       time: formatWib(time, true),
@@ -146,8 +159,10 @@ const NOT_CONFIGURED: CalendarResult = {
  * nothing, so no part of the app can react to an event that does not exist.
  */
 export async function getEconomicCalendar(): Promise<CalendarResult> {
-  const url = process.env.ECONOMIC_CALENDAR_URL?.trim();
-  if (!url) return NOT_CONFIGURED;
+  const configured = process.env.ECONOMIC_CALENDAR_URL?.trim();
+  // An explicitly empty variable is a deliberate "no calendar", and is obeyed.
+  if (process.env.ECONOMIC_CALENDAR_URL !== undefined && !configured) return NOT_CONFIGURED;
+  const url = configured || DEFAULT_CALENDAR_URL;
 
   const now = Date.now();
   if (cached && now - cached.at < CACHE_TTL_MS) return cached.result;
@@ -157,7 +172,7 @@ export async function getEconomicCalendar(): Promise<CalendarResult> {
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'User-Agent': 'XAUUSD-Assistant/1.0' },
       next: { revalidate: Math.floor(CACHE_TTL_MS / 1000) },
     });
     if (!res.ok) throw new Error(`calendar provider HTTP ${res.status}`);
@@ -181,7 +196,15 @@ export async function getEconomicCalendar(): Promise<CalendarResult> {
       events: [],
       source: null,
       configured: true,
-      message: 'The economic calendar provider could not be reached, so news is being ignored for now.',
+      message: `The economic calendar at ${
+        (() => {
+          try {
+            return new URL(url).hostname;
+          } catch {
+            return 'the configured address';
+          }
+        })()
+      } could not be reached, so news is being ignored for now.`,
     };
   } finally {
     clearTimeout(timer);
