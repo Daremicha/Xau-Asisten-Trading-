@@ -10,7 +10,8 @@ import {
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from '@/lib/signal-engine';
-import { assessConviction, effectiveRiskPercentage } from '@/lib/position-sizing';
+import { assessConviction, drawdownFromHistory, effectiveRiskPercentage } from '@/lib/position-sizing';
+import { MIN_BUCKET_SAMPLES, conditionalPerformance } from '@/lib/learning-engine';
 import { computeValidity } from '@/lib/order-validity';
 import {
   normaliseProposal,
@@ -23,7 +24,7 @@ import { priceToPips, round2 } from '@/lib/candles';
 
 /** Distance between live price and the quoted entry, in pips. */
 const priceToPipsDistance = (price: number, entry: number) => priceToPips(price - entry);
-import { InstitutionalTradingSetup, EngineGenerationMetadata } from '@/lib/types';
+import { InstitutionalTradingSetup, EngineGenerationMetadata, EngineInputUsed } from '@/lib/types';
 import { validateAnalyzeBody } from '@/lib/request-validation';
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +94,12 @@ export async function POST(request: Request) {
       weights: engineWeights,
       tradingStyle: input.tradingStyle,
       candles: read.executionCandles,
+      // Every panel the screen shows now reaches the decision. The pivot read,
+      // the Wyckoff phase and the Quasimodo pattern were computed and displayed
+      // from the first version, but the engine never looked at them.
+      pivotBias: read.tradingCentral,
+      wyckoff: read.wyckoff,
+      quasimodo: read.quasimodo,
       killZoneActive: killZone.isHighVolatilityTiming,
       upcomingHighImpactEvents: highImpact,
       minutesToNextEvent,
@@ -264,6 +271,15 @@ Reply with JSON only:
       read.multiTimeframe.h4.trend,
       read.multiTimeframe.h1.trend,
     ];
+    // The account's own state, and what this kind of setup has actually
+    // returned. Both were on the screen already; neither reached the decision.
+    const drawdownPercent = drawdownFromHistory(input.equity, input.pastLearningRecords);
+    const anchorBucket = conditionalPerformance(input.pastLearningRecords).byAnchor.find(
+      (bucket) => bucket.label === decision.anchor
+    );
+    const measuredEdgeR =
+      anchorBucket && anchorBucket.samples >= MIN_BUCKET_SAMPLES ? anchorBucket.averageR : null;
+
     const conviction = assessConviction({
       confidenceScore: decision.confidenceScore,
       timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
@@ -271,6 +287,8 @@ Reply with JSON only:
       entryOutOfReach: decision.entryOutOfReach && !proposalOutcome.accepted,
       dataStale: snapshot.status === 'stale',
       proposalRejected: proposalOutcome.attempted && !proposalOutcome.accepted,
+      drawdownPercent,
+      measuredEdgeR,
     });
     // A quality floor the user set. Nothing on the chart being good enough is a
     // real answer, and a cheaper one than a bad trade: skipping costs nothing.
@@ -342,6 +360,93 @@ Reply with JSON only:
       }.`,
     ];
 
+    // What the engine actually read, recorded where the reading happened. Every
+    // panel on the screen appears here or says why it could not be used, so the
+    // claim that the analysis consults them is checkable rather than asserted.
+    const nextRelease = highImpact[0];
+    const inputsConsulted: EngineInputUsed[] = [
+      {
+        label: 'Live chart and structure',
+        value: `D1 ${read.multiTimeframe.d1.trend}, H4 ${read.multiTimeframe.h4.trend}, H1 ${read.multiTimeframe.h1.trend}, M15 ${read.multiTimeframe.m15.trend} from ${snapshot.candlesM15.length} candles.`,
+        used: true,
+      },
+      {
+        label: 'Indicators',
+        value: `EMA 50 ${read.indicators.ema50.toFixed(2)} against EMA 200 ${read.indicators.ema200.toFixed(
+          2
+        )}, RSI ${read.indicators.rsi14.toFixed(1)}, ATR ${read.indicators.atr14.toFixed(2)}.`,
+        used: true,
+      },
+      {
+        label: 'Institutional structure and confluence',
+        value: `${read.multiTimeframe.h1.orderBlock.type} with ${
+          read.multiTimeframe.h1.fairValueGap.detected ? 'an open imbalance' : 'no imbalance'
+        }, ${read.multiTimeframe.h1.pricingZone} pricing, ${
+          read.multiTimeframe.h1.liquidityPools.swept ? 'liquidity taken' : 'pools intact'
+        }.`,
+        used: true,
+      },
+      {
+        label: 'Pivot and directional bias',
+        value: `${read.tradingCentral.directionalBias} around the ${read.tradingCentral.pivotPoint.toFixed(
+          2
+        )} pivot at ${read.tradingCentral.confidenceScore}% confidence.`,
+        used: true,
+      },
+      {
+        label: 'Wyckoff and Quasimodo',
+        value: `${read.wyckoff.phase} phase${
+          read.quasimodo.detected ? `, ${read.quasimodo.type} formed` : ', no Quasimodo pattern'
+        }.`,
+        used: true,
+      },
+      {
+        label: 'Institutional trading session',
+        value: `${killZone.currentZone}${
+          killZone.isHighVolatilityTiming ? ', inside a kill zone' : ', outside the kill zones'
+        }.`,
+        used: true,
+      },
+      {
+        label: 'USD economic calendar',
+        value: calendar.configured
+          ? nextRelease
+            ? `${nextRelease.title} at ${nextRelease.time}${
+                minutesToNextEvent !== null ? `, ${Math.round(minutesToNextEvent)} minutes away` : ''
+              }.`
+            : 'No high impact USD release ahead, so no news widening applied.'
+          : calendar.message,
+        used: calendar.configured,
+      },
+      {
+        label: 'Adaptive self-learning engine',
+        value:
+          input.pastLearningRecords.length === 0
+            ? 'No closed trades yet, so the engine is on its starting parameters.'
+            : `${input.pastLearningRecords.length} closed trades${
+                measuredEdgeR === null
+                  ? ''
+                  : `, and ${decision.anchor.toLowerCase()} entries have returned ${measuredEdgeR}R`
+              }.`,
+        used: input.pastLearningRecords.length > 0,
+      },
+      {
+        label: 'Strategy backtest lab',
+        value: input.priorWeights
+          ? 'Starting parameters adopted from a backtest, with live results adjusting from there.'
+          : 'No backtested parameters adopted, so the engine defaults are the starting point.',
+        used: Boolean(input.priorWeights),
+      },
+      {
+        label: 'Portfolio and equity growth',
+        value:
+          drawdownPercent > 0
+            ? `${drawdownPercent}% below the account high water mark, so position size is reduced.`
+            : 'Account at its high water mark, so no drawdown reduction applied.',
+        used: true,
+      },
+    ];
+
     const setupPayload: InstitutionalTradingSetup = {
       id: 'setup_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       userId: input.userId,
@@ -361,6 +466,10 @@ Reply with JSON only:
       takeProfit2: finalOrder.takeProfit2,
       takeProfit3: finalOrder.takeProfit3,
       riskRewardRatio: finalOrder.riskRewardRatio,
+      // Kept on the setup so the result can be learned from by condition, not
+      // just by outcome: which level the entry came from, and how far it sat.
+      entryAnchor: proposalOutcome.accepted ? 'Market' : decision.anchor,
+      entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
       stopLossPips: lotCalculation.stopLossPips,
       recommendedLotSize: lotCalculation.lotSize,
       riskDollarAmount: lotCalculation.riskDollars,
@@ -384,6 +493,7 @@ Reply with JSON only:
         currentZone: killZone.currentZone,
         isHighVolatilityTiming: killZone.isHighVolatilityTiming,
       },
+      inputsConsulted,
       institutionalRationale,
       executionInstructionsMT5: mt5Instructions,
       // A resting order is PENDING until price reaches it; only an instant

@@ -12,9 +12,12 @@ import {
   AdaptiveStrategyEngineWeights,
   ForexFactoryEvent,
   OrderExecutionType,
+  QuasimodoPattern,
   SmcStructure,
   TechnicalIndicators,
+  TradingCentralInsight,
   TradingStyle,
+  WyckoffVolumeAnalysis,
 } from './types';
 
 export interface StyleProfile {
@@ -123,6 +126,15 @@ export interface SignalInputs {
   upcomingHighImpactEvents: ForexFactoryEvent[];
   /** Minutes until the next high impact release, when one is scheduled. */
   minutesToNextEvent: number | null;
+  /**
+   * Pivot levels and the directional bias derived from them. Shown on the
+   * screen since the first version, but until now the engine never read it.
+   */
+  pivotBias?: TradingCentralInsight | null;
+  /** Accumulation, markup, distribution or markdown, with its volume evidence. */
+  wyckoff?: WyckoffVolumeAnalysis | null;
+  /** The liquidity sweep and break pattern, when one has formed. */
+  quasimodo?: QuasimodoPattern | null;
 }
 
 function trendVote(trend: SmcStructure['trend']): number {
@@ -272,6 +284,59 @@ export function scoreConfluence(inputs: SignalInputs): {
     weight: weights.liquiditySweepWeight,
     detail: `Price sits in the ${exec.pricingZone} half of its dealing range.`,
   });
+
+  // Pivot and directional bias. The daily pivot is where the previous session
+  // settled, so which side of it price is trading on is a real piece of
+  // information, and one the screen has always shown.
+  if (inputs.pivotBias) {
+    const bias = inputs.pivotBias;
+    const abovePivot = price > bias.pivotPoint;
+    const biasVote = bias.directionalBias === 'BULLISH' ? 1 : bias.directionalBias === 'BEARISH' ? -1 : 0;
+    // Agreement between the stated bias and where price actually sits counts
+    // for more than either alone.
+    const pivotVote = biasVote === 0 ? (abovePivot ? 0.4 : -0.4) : biasVote * (abovePivot === biasVote > 0 ? 1 : 0.4);
+
+    factors.push({
+      name: 'Pivot and directional bias',
+      direction: pivotVote,
+      // Read as structure rather than as an indicator: it is a level, not an
+      // oscillator, so it shares the weight the engine gives to levels.
+      weight: weights.liquiditySweepWeight * 0.8,
+      detail: `Price ${abovePivot ? 'above' : 'below'} the ${bias.pivotPoint.toFixed(2)} pivot with a ${
+        bias.directionalBias
+      } read at ${bias.confidenceScore}% confidence.`,
+    });
+  }
+
+  // Wyckoff phase. Accumulation and markup favour longs, distribution and
+  // markdown favour shorts, and absorption at a climax argues the phase is real.
+  if (inputs.wyckoff) {
+    const phase = inputs.wyckoff.phase;
+    const base = phase === 'Accumulation' || phase === 'Markup' ? 1 : -1;
+    const conviction = inputs.wyckoff.absorptionPresent || inputs.wyckoff.volumeClimaxDetected ? 0.8 : 0.5;
+
+    factors.push({
+      name: 'Wyckoff phase',
+      direction: base * conviction,
+      weight: weights.orderBlockWeight * 0.5,
+      detail: `${phase} phase with the point of control at ${inputs.wyckoff.pointOfControlPOC.toFixed(2)}${
+        inputs.wyckoff.absorptionPresent ? ', absorption present' : ''
+      }.`,
+    });
+  }
+
+  // Quasimodo. Only a pattern that actually formed votes; an absent one is
+  // silence rather than a vote for the other side.
+  if (inputs.quasimodo?.detected) {
+    factors.push({
+      name: 'Quasimodo',
+      direction: inputs.quasimodo.type === 'Bullish QM' ? 0.9 : -0.9,
+      weight: weights.liquiditySweepWeight * 0.6,
+      detail: `${inputs.quasimodo.type} after the sweep at ${inputs.quasimodo.headLiquiditySweep.toFixed(
+        2
+      )}, optimal entry near ${inputs.quasimodo.optimalEntryZone.toFixed(2)}.`,
+    });
+  }
 
   const score = factors.reduce((acc, f) => acc + f.direction * f.weight, 0);
   return { score, factors };

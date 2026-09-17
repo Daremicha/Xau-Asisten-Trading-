@@ -204,10 +204,36 @@ trades at 1,200 or 7,500.
 narrative around the setup. It never sets a price. The app is fully functional
 with none of them.
 
+**Every panel on the screen reaches the decision.** The signal card lists what
+the engine read to produce that setup, built where the decision was made rather
+than re-derived afterwards, so the claim is checkable:
+
+| Input | What it contributes |
+| --- | --- |
+| Live chart and structure | Direction, across D1, H4, H1 and M15 |
+| Indicators | EMA stack, RSI and stochastic votes; ATR sets the stop |
+| Institutional structure and confluence | Order block, imbalance, liquidity, premium and discount |
+| Pivot and directional bias | Which side of the daily pivot price is working |
+| Wyckoff and Quasimodo | Phase and sweep pattern, weighted below the structure |
+| Institutional trading session | Conviction, the stop, and how long a pending order stays valid |
+| USD economic calendar | Widens the stop ahead of a release |
+| Adaptive self-learning engine | The weights every factor above is scaled by |
+| Strategy backtest lab | The starting parameters, when a replay earned them |
+| Portfolio and equity growth | A drawdown reduces position size |
+
 **The self-learning loop feeds back into the numbers.** Outcomes you record
 adjust the adaptive weights, which change the stop buffer and how each
 confluence is weighted on the next signal. A per-style stop ceiling keeps a long
 losing run from turning an intraday setup into a swing trade.
+
+**Results are learned by condition, not just by average.** Every closed trade
+records what the setup looked like when it was produced: the level the entry
+came from, the session, whether the timeframes agreed, whether a release was
+inside the hour, and the result in multiples of risk. The engine then measures
+each kind of setup separately, so it can find that order block entries are
+carrying the account while gap entries are draining it, and move the weighting
+accordingly. A condition needs eight closed trades before it moves anything, and
+a gap smaller than a tenth of R is treated as noise.
 
 **A strike rate is judged against what the target needs.** A 1.5R target breaks
 even at 40%, a 2R target at 33%, so a healthy intraday system runs well under

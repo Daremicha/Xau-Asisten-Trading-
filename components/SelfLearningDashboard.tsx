@@ -35,7 +35,21 @@ export default function SelfLearningDashboard({
   const winRate = evidence.smoothedWinRate === null ? null : evidence.smoothedWinRate.toFixed(1);
   // Computed with the same style segmentation as the weights shown below, so
   // the explanation always describes the bars the user is looking at.
-  const adjustments = deriveAdaptiveWeights(learningRecords, tradingStyle).adjustments;
+  const learned = deriveAdaptiveWeights(learningRecords, tradingStyle);
+  const adjustments = learned.adjustments;
+
+  /**
+   * What each kind of setup actually returned. A global strike rate says the
+   * engine is doing well or badly; this says which setups are carrying it.
+   * Only buckets with trades in them are shown, so an empty history shows
+   * nothing rather than a table of dashes.
+   */
+  const conditionRows = [
+    ...learned.conditions.byAnchor,
+    ...learned.conditions.bySession,
+    ...learned.conditions.byNews,
+    ...learned.conditions.byAlignment,
+  ].filter((bucket) => bucket.samples > 0);
 
   return (
     <div
@@ -99,6 +113,61 @@ export default function SelfLearningDashboard({
             </li>
           ))}
         </ul>
+        {conditionRows.length > 0 && (
+          <div className={`mt-3 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+            <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              What each kind of setup has returned
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className={isDark ? 'text-slate-500' : 'text-slate-400'}>
+                    <th className="text-left font-medium py-1">Condition</th>
+                    <th className="text-right font-medium py-1">Trades</th>
+                    <th className="text-right font-medium py-1">Won</th>
+                    <th className="text-right font-medium py-1">Per risk</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {conditionRows.map((bucket) => (
+                    <tr
+                      key={bucket.label}
+                      className={isDark ? 'border-t border-slate-800/70' : 'border-t border-slate-100'}
+                    >
+                      <td className={`py-1 font-sans ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {bucket.label}
+                      </td>
+                      <td className={`py-1 text-right ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {bucket.samples}
+                      </td>
+                      <td className={`py-1 text-right ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                        {bucket.winRate === null ? '—' : `${bucket.winRate}%`}
+                      </td>
+                      <td
+                        className={`py-1 text-right font-bold ${
+                          bucket.averageR === null
+                            ? isDark
+                              ? 'text-slate-500'
+                              : 'text-slate-400'
+                            : bucket.averageR > 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}
+                      >
+                        {bucket.averageR === null ? '—' : `${bucket.averageR > 0 ? '+' : ''}${bucket.averageR}R`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              Measured per unit of risk, so a wide stop and a tight one can be compared. A condition only
+              moves the engine once it carries eight closed trades.
+            </p>
+          </div>
+        )}
+
         <div className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           Confidence {(evidence.confidence * 100).toFixed(0)}% from {evidence.sampleSize} record
           {evidence.sampleSize === 1 ? '' : 's'}, weighted to {evidence.effectiveSampleSize} by recency. Newer

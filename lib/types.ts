@@ -254,6 +254,33 @@ export interface TechnicalIndicators {
   atr14: number; // Average True Range for SL buffer
 }
 
+/**
+ * The conditions a setup was produced under.
+ *
+ * Recorded with every result so the engine can learn what kind of setup works
+ * rather than only how often it wins overall. A global strike rate can say the
+ * engine is doing badly; only this can say that order block entries in the
+ * London kill zone are carrying it while gap entries outside a session are not.
+ */
+export interface TradeContext {
+  /** The level the entry was derived from. */
+  anchor: 'Order Block' | 'Fair Value Gap' | 'Market';
+  /** Conviction the engine gave the setup, zero to one hundred. */
+  convictionScore: number;
+  /** Session the order was produced in. */
+  session: string;
+  killZoneActive: boolean;
+  /** True when the daily, four hour and one hour reads all agreed. */
+  timeframesAligned: boolean;
+  /** True when a high impact USD release was inside the hour. */
+  newsNearby: boolean;
+  /** How far the order had to travel to fill, in pips. */
+  entryDistancePips: number;
+  stopLossPips: number;
+  /** Result as a multiple of the risk taken, the only cross-trade comparison. */
+  rMultiple: number;
+}
+
 export interface SelfLearningMemoryRecord {
   id: string;
   analysisId: string;
@@ -276,12 +303,27 @@ export interface SelfLearningMemoryRecord {
   tradingStyle?: TradingStyle;
   /** True when the engine closed the order itself rather than the user. */
   autoResolved?: boolean;
+  /** Conditions the setup was produced under, for conditional learning. */
+  context?: TradeContext;
   adaptiveWeightAdjustments: {
     fvgWeightDelta: number;
     orderBlockWeightDelta: number;
     newsFilterWeightDelta: number;
     atrBufferMultiplier: number;
   };
+}
+
+/**
+ * One thing the engine read when it produced a setup.
+ *
+ * Built where the decision is made rather than re-derived by the screen, so the
+ * list is what was actually consulted rather than what the card assumes was.
+ */
+export interface EngineInputUsed {
+  label: string;
+  value: string;
+  /** False when the input was unavailable and the engine went without it. */
+  used: boolean;
 }
 
 /** Why the engine declined to produce a setup, so the screen can say so. */
@@ -349,6 +391,10 @@ export interface InstitutionalTradingSetup {
   takeProfit3: number;
   riskRewardRatio: string;
   stopLossPips: number;
+  /** The level the entry was derived from, kept so the result can be learned from. */
+  entryAnchor?: 'Order Block' | 'Fair Value Gap' | 'Market';
+  /** How far the order sat from price when it was produced, in pips. */
+  entryDistancePips?: number;
   recommendedLotSize: number;
   riskDollarAmount: number;
   /** Fraction of the risk budget committed, after conviction scaling. */
@@ -383,6 +429,8 @@ export interface InstitutionalTradingSetup {
     currentZone: 'London Open' | 'New York Open' | 'London Close' | 'Asian Session' | 'Off-Hours';
     isHighVolatilityTiming: boolean;
   };
+  /** Everything the engine read to produce this setup, in its own words. */
+  inputsConsulted?: EngineInputUsed[];
   institutionalRationale: string;
   executionInstructionsMT5: string[];
   status: SignalStatus;
