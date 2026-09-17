@@ -31,6 +31,7 @@ import { formatAccountMoney } from '@/lib/account-display';
 import {
   assessAdoption,
   assessProtection,
+  assessRiskFloor,
   convictionBreakdown,
   netAboveThreshold,
   rollingWinRate,
@@ -214,6 +215,13 @@ export default function BacktestLab({
     () => (result ? assessProtection(result.control, result.guarded) : null),
     [result]
   );
+
+  /**
+   * Whether the risk percentage meant anything on this balance. On a small
+   * account the broker's minimum lot can sit above it, and then two different
+   * risk settings produce the same trades, which is worth saying out loud.
+   */
+  const riskFloor = useMemo(() => (result ? assessRiskFloor(result.control) : null), [result]);
 
   const panel = isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200';
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
@@ -825,6 +833,22 @@ export default function BacktestLab({
               </p>
             )}
           </div>
+
+          {/* When the minimum lot is larger than the risk setting */}
+          {riskFloor?.forced && (
+            <div
+              id="risk-floor-notice"
+              className={`border rounded-xl p-3 flex items-start gap-2 ${
+                isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <div className={`text-xs mb-1 ${strong}`}>The risk setting is not what was traded</div>
+                <p className={`text-[11px] leading-relaxed ${muted}`}>{riskFloor.message}</p>
+              </div>
+            </div>
+          )}
 
           {/* Protecting a trade once it has paid, and whether it is worth it */}
           {protection && (

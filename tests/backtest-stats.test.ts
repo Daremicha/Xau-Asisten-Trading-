@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   assessAdoption,
   assessProtection,
+  assessRiskFloor,
   comparePhases,
   compareRuns,
   convictionBreakdown,
@@ -36,6 +37,9 @@ function trade(overrides: Partial<BacktestTrade> = {}): BacktestTrade {
     confidenceScore: 60,
     convictionScore: 60,
     holdingHours: 1,
+    riskBudgetDollars: 100,
+    actualRiskDollars: 100,
+    minimumLotForced: false,
     ...overrides,
   };
 }
@@ -376,5 +380,51 @@ describe('whether moving the stop to entry is worth doing', () => {
     const verdict = assessProtection(centControl, centGuarded);
     expect(verdict.reason).toContain('Cent');
     expect(verdict.reason).not.toContain('$');
+  });
+});
+
+describe('whether the risk setting was real', () => {
+  test('a run where every lot fitted the budget says nothing', () => {
+    const run = result(Array.from({ length: 10 }, () => win(100)));
+    const report = assessRiskFloor(run);
+    expect(report.forced).toBe(false);
+    expect(report.message).toBe('');
+  });
+
+  test('a minimum lot above the budget is reported with the balance that would fix it', () => {
+    // Asked for 0.5% of 9.01, which is about 4.5 cent; the smallest lot risked
+    // 10 cent instead, so the setting was decorative.
+    const run = result(
+      Array.from({ length: 10 }, (_, i) =>
+        trade({
+          sequence: i + 1,
+          outcome: 'SL',
+          netDollars: -0.1,
+          equityAfter: 9.01 - 0.1 * (i + 1),
+          riskBudgetDollars: 0.045,
+          actualRiskDollars: 0.1,
+          minimumLotForced: true,
+        })
+      ),
+      9.01
+    );
+    run.summary.riskPercentage = 0.5;
+    run.summary.accountType = 'Cent';
+
+    const report = assessRiskFloor(run);
+    expect(report.forced).toBe(true);
+    expect(report.forcedTrades).toBe(10);
+    expect(report.actualPercent).toBeGreaterThan(1);
+    // Ten cent of risk is half a percent of twenty dollars, which in cent terms
+    // is what the balance would have to reach.
+    expect(report.balanceNeeded).toBeCloseTo(20, 1);
+    expect(report.message).toContain('Cent');
+    expect(report.message).toContain('changing the risk percentage changes nothing');
+  });
+
+  test('unfilled orders are not counted, since nothing was risked', () => {
+    const run = result([miss(), miss()]);
+    expect(assessRiskFloor(run).forced).toBe(false);
+    expect(assessRiskFloor(run).filledTrades).toBe(0);
   });
 });

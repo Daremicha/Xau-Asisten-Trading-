@@ -132,6 +132,15 @@ export interface BacktestTrade {
    * so what would have been a full loss cost only the spread.
    */
   protectedExit?: boolean;
+  /** What the risk percentage asked this trade to risk, in dollars. */
+  riskBudgetDollars: number;
+  /** What the lot actually risked, which the minimum lot can force higher. */
+  actualRiskDollars: number;
+  /**
+   * True when the broker's minimum lot was larger than the budget allowed, so
+   * the trade risked more than the setting asked for.
+   */
+  minimumLotForced: boolean;
 }
 
 export interface BacktestProgress {
@@ -608,6 +617,9 @@ export function createBacktest(config: BacktestConfig): Runner {
         confidenceScore: decision.confidenceScore,
         convictionScore: conviction.convictionScore,
         holdingHours: parseFloat(((missBar.time - bar.time) / 3_600_000).toFixed(2)),
+        riskBudgetDollars: lot.riskDollars,
+        actualRiskDollars: lot.actualRiskDollars,
+        minimumLotForced: lot.exceedsRiskBudget,
       };
       trades.push(trade);
       records.push(
@@ -676,6 +688,9 @@ export function createBacktest(config: BacktestConfig): Runner {
       convictionScore: conviction.convictionScore,
       holdingHours: parseFloat(((exitBar.time - fillBar.time) / 3_600_000).toFixed(2)),
       protectedExit: outcome.protectedExit ?? false,
+      riskBudgetDollars: lot.riskDollars,
+      actualRiskDollars: lot.actualRiskDollars,
+      minimumLotForced: lot.exceedsRiskBudget,
     };
 
     trades.push(trade);

@@ -495,3 +495,73 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
     )} ahead, which is too small a margin to be more than chance. Worst drawdown ${drawdowns}.`,
   };
 }
+
+export interface RiskFloorReport {
+  /** True when at least one trade had to risk more than the setting asked. */
+  forced: boolean;
+  /** Filled trades where the minimum lot was larger than the budget allowed. */
+  forcedTrades: number;
+  filledTrades: number;
+  /** Risk the setting asked for, as a share of the balance at the time. */
+  askedPercent: number;
+  /** What those trades actually risked, as a share of the balance at the time. */
+  actualPercent: number;
+  /** Balance at which the setting would start to be honoured, in dollars. */
+  balanceNeeded: number;
+  /** One sentence, or an empty string when there is nothing to warn about. */
+  message: string;
+}
+
+/**
+ * Whether the risk percentage was real or decorative.
+ *
+ * A broker's smallest lot is a floor, and on a small balance it can sit above
+ * the risk the user asked for. When it does, changing the percentage changes
+ * nothing at all: every trade is the same minimum lot either way, and the
+ * account is taking whatever risk that lot happens to carry. A backtest that
+ * shows two risk settings producing the same trades is not broken — it is this
+ * — and it should say so rather than leave the user to notice.
+ */
+export function assessRiskFloor(result: BacktestResult): RiskFloorReport {
+  const filled = result.trades.filter((t) => t.filled);
+  const forcedTrades = filled.filter((t) => t.minimumLotForced);
+  const accountType = result.summary.accountType;
+
+  const empty: RiskFloorReport = {
+    forced: false,
+    forcedTrades: 0,
+    filledTrades: filled.length,
+    askedPercent: result.summary.riskPercentage,
+    actualPercent: result.summary.riskPercentage,
+    balanceNeeded: result.summary.startingEquity,
+    message: '',
+  };
+
+  if (forcedTrades.length === 0) return empty;
+
+  // Balance at the time is what the trade was sized against, so the share is
+  // measured there rather than against the balance the run started with.
+  const shares = forcedTrades.map((t) => {
+    const balanceBefore = t.equityAfter - t.netDollars;
+    return balanceBefore > 0 ? (t.actualRiskDollars / balanceBefore) * 100 : 0;
+  });
+  const actualPercent = round(shares.reduce((acc, v) => acc + v, 0) / shares.length, 2);
+  const typicalRisk =
+    forcedTrades.reduce((acc, t) => acc + t.actualRiskDollars, 0) / forcedTrades.length;
+  const asked = result.summary.riskPercentage;
+  const balanceNeeded = asked > 0 ? money(typicalRisk / (asked / 100)) : 0;
+  const share = Math.round((forcedTrades.length / Math.max(filled.length, 1)) * 100);
+
+  return {
+    forced: true,
+    forcedTrades: forcedTrades.length,
+    filledTrades: filled.length,
+    askedPercent: asked,
+    actualPercent,
+    balanceNeeded,
+    message: `The ${asked}% risk setting could not be honoured on ${share}% of the filled trades: the broker's smallest lot already risked about ${actualPercent}% of the balance. Until the balance is nearer ${formatAccountMoney(
+      balanceNeeded,
+      accountType
+    )}, changing the risk percentage changes nothing, because every trade is the same minimum lot either way.`,
+  };
+}
