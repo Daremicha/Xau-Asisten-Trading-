@@ -27,8 +27,13 @@ import {
 import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } from '@/lib/backtest-client';
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
-import { convictionBreakdown, netAboveThreshold, rollingWinRate } from '@/lib/backtest-stats';
-import { matchesDefaultPrior, normalisePrior, type PriorWeights } from '@/lib/learning-engine';
+import {
+  assessAdoption,
+  convictionBreakdown,
+  netAboveThreshold,
+  rollingWinRate,
+} from '@/lib/backtest-stats';
+import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 
 interface BacktestLabProps {
@@ -179,9 +184,16 @@ export default function BacktestLab({
 
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
 
-  // A run that found nothing worth changing ends where it started, and there is
-  // nothing to adopt from it.
-  const endedOnDefaults = result ? matchesDefaultPrior(result.adaptive.finalWeights) : false;
+  /**
+   * The single decision behind the adopt button: is putting these parameters on
+   * a live account an improvement this period actually supports? The button is
+   * enabled only when the answer is yes, so being able to press it means
+   * something rather than inviting a judgement call.
+   */
+  const adoption = useMemo(
+    () => (result ? assessAdoption(result.control, result.frozen) : null),
+    [result]
+  );
 
   const panel = isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200';
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
@@ -423,7 +435,7 @@ export default function BacktestLab({
             </p>
             <p className={`text-xs mt-1 ${muted}`}>
               <span className={strong}>If you adopt its parameters: </span>
-              {result.adoption.explanation}
+              {adoption?.reason}
             </p>
           </div>
 
@@ -753,7 +765,7 @@ export default function BacktestLab({
                 type="button"
                 id="adopt-backtest-prior-btn"
                 onClick={() => onAdoptPrior(normalisePrior(result.adaptive.finalWeights))}
-                disabled={result.adoption.verdict === 'worse' || endedOnDefaults}
+                disabled={!adoption?.worthAdopting}
                 className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -774,32 +786,18 @@ export default function BacktestLab({
                 </button>
               )}
             </div>
-            {endedOnDefaults ? (
-              <p className={`text-[11px] mt-2 ${muted}`}>
-                The learning run found nothing worth changing and ended on the engine&apos;s own
-                defaults, which is what live analysis already uses. There is nothing here to adopt.
-              </p>
-            ) : null}
-            <p className={`text-[11px] mt-2 ${muted}`}>
-              Held fixed from the first candle, these parameters produced{' '}
-              <span className={strong}>{money(result.frozenStats.netDollars, true)}</span> against the
-              defaults&apos; <span className={strong}>{money(result.controlStats.netDollars, true)}</span>,
-              with a {result.frozenStats.maxDrawdownPercent}% worst drawdown against{' '}
-              {result.controlStats.maxDrawdownPercent}%. That test, not the learning run&apos;s own path, is
-              what adopting them would have done.
+            <p
+              className={`text-[11px] mt-2 ${
+                adoption?.worthAdopting ? 'text-emerald-400' : muted
+              }`}
+            >
+              {adoption?.reason}
             </p>
-            {result.adoption.verdict === 'worse' && (
-              <p className="text-[11px] mt-2 text-rose-400">
-                Held fixed, these parameters lost money against the engine defaults over this period, so
-                they are not offered for live use.
-              </p>
-            )}
-            {result.adoption.verdict === 'same' && !endedOnDefaults && (
-              <p className="text-[11px] mt-2 text-amber-400">
-                Held fixed, these parameters finished within noise of the defaults. Adopting them is a
-                judgement call rather than an improvement the data supports.
-              </p>
-            )}
+            <p className={`text-[11px] mt-1 ${muted}`}>
+              The button is enabled only when adopting is an improvement this period supports, so if
+              you can press it, pressing it is the right call. Otherwise your current settings are
+              already the better ones.
+            </p>
             {adoptedPrior && (
               <p className="text-[11px] mt-2 text-emerald-400">
                 Live analysis is starting from backtested parameters and keeps learning from your real
@@ -850,7 +848,9 @@ export default function BacktestLab({
             dominate the total. Past results are evidence about parameters, not a promise about the next
             trade. The third column freezes the learning run&apos;s final parameters from the first candle,
             because the weights it ended on are the end of a path rather than a configuration that was ever
-            traded as such.
+            traded as such. When that column does win and the adopt button opens, a period is still a single
+            sample: running the same test at 12 months, or on the other base timeframe, and seeing it win
+            there too is what separates a real improvement from a fit to one stretch of chart.
           </div>
         </div>
       )}
