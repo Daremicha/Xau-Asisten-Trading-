@@ -204,6 +204,37 @@ export default function BacktestLab({
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
 
   /**
+   * How a switch's button should look and read.
+   *
+   * A button has three states and only two of them used to be visible: on, and
+   * off. A rule already in use rendered exactly like a rule the period refused
+   * — both greyed out — so "nothing is lit" meant either "there is nothing to
+   * do" or "you already did it", and the user had no way to tell which. The
+   * button promises that pressing it is the right call; it has to say as
+   * plainly when pressing it is no longer needed.
+   */
+  const switchState = (inUse: boolean, supported: boolean, colour: 'sky' | 'amber' | 'rose') => {
+    if (inUse) {
+      return {
+        disabled: true,
+        label: 'Already in use on live setups',
+        className:
+          'flex items-center justify-center gap-1.5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-3 py-2 rounded-xl cursor-default',
+      };
+    }
+    const palette = {
+      sky: 'bg-sky-500 hover:bg-sky-400',
+      amber: 'bg-amber-500 hover:bg-amber-400',
+      rose: 'bg-rose-500 hover:bg-rose-400',
+    }[colour];
+    return {
+      disabled: !supported,
+      label: null,
+      className: `flex items-center justify-center gap-1.5 ${palette} disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer`,
+    };
+  };
+
+  /**
    * The single decision behind the adopt button: is putting these parameters on
    * a live account an improvement this period actually supports? The button is
    * enabled only when the answer is yes, so being able to press it means
@@ -382,6 +413,25 @@ export default function BacktestLab({
             </button>
           )}
         </div>
+      </div>
+
+      {/* What live analysis is actually using, so it never has to be inferred
+          from which buttons happen to be lit. */}
+      <div
+        id="live-settings-strip"
+        className={`border rounded-xl px-3 py-2 mb-4 text-[11px] leading-relaxed ${panel} ${muted}`}
+      >
+        <span className={strong}>Live analysis is using:</span>{' '}
+        {[
+          adoptedPrior ? 'backtested starting parameters' : 'the engine defaults',
+          protectStopAtR !== null
+            ? `the stop moved to entry at ${protectStopAtR}R`
+            : 'stops left where the engine puts them',
+          skipConvictionBand !== null
+            ? `no setups scoring ${skipConvictionBand.min} to ${skipConvictionBand.max - 1}`
+            : 'every conviction band',
+        ].join(' • ')}
+        .
       </div>
 
       {/* Progress */}
@@ -817,16 +867,21 @@ export default function BacktestLab({
             </div>
 
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-              <button
-                type="button"
-                id="adopt-backtest-prior-btn"
-                onClick={() => onAdoptPrior(normalisePrior(result.adaptive.finalWeights))}
-                disabled={!adoption?.worthAdopting}
-                className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Use these as the live starting parameters</span>
-              </button>
+              {(() => {
+                const state = switchState(adoptedPrior !== null, adoption?.worthAdopting ?? false, 'amber');
+                return (
+                  <button
+                    type="button"
+                    id="adopt-backtest-prior-btn"
+                    onClick={() => onAdoptPrior(normalisePrior(result.adaptive.finalWeights))}
+                    disabled={state.disabled}
+                    className={state.className}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{state.label ?? 'Use these as the live starting parameters'}</span>
+                  </button>
+                );
+              })()}
               {adoptedPrior && (
                 <button
                   type="button"
@@ -905,16 +960,25 @@ export default function BacktestLab({
               </div>
 
               <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                <button
-                  type="button"
-                  id="adopt-break-even-btn"
-                  onClick={() => onProtectStop(1)}
-                  disabled={!protection.worthUsing || protectStopAtR !== null}
-                  className="flex items-center justify-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Use this rule on live setups</span>
-                </button>
+                {(() => {
+                  const state = switchState(protectStopAtR !== null, protection.worthUsing, 'sky');
+                  return (
+                    <button
+                      type="button"
+                      id="adopt-break-even-btn"
+                      onClick={() => onProtectStop(1)}
+                      disabled={state.disabled}
+                      className={state.className}
+                    >
+                      {state.label ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                      )}
+                      <span>{state.label ?? 'Use this rule on live setups'}</span>
+                    </button>
+                  );
+                })()}
                 {protectStopAtR !== null && (
                   <button
                     type="button"
@@ -958,18 +1022,26 @@ export default function BacktestLab({
               </p>
 
               <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                <button
-                  type="button"
-                  id="adopt-dead-band-btn"
-                  onClick={() => deadBand.band && onSkipBand({ min: deadBand.band.min, max: deadBand.band.max })}
-                  disabled={!deadBand.worthSkipping || skipConvictionBand !== null}
-                  className="flex items-center justify-center gap-1.5 bg-rose-500 hover:bg-rose-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  <span>
-                    {deadBand.band ? `Refuse ${deadBand.band.label.toLowerCase()} on live setups` : 'Refuse this band on live setups'}
-                  </span>
-                </button>
+                {(() => {
+                  const state = switchState(skipConvictionBand !== null, deadBand.worthSkipping, 'rose');
+                  return (
+                    <button
+                      type="button"
+                      id="adopt-dead-band-btn"
+                      onClick={() => deadBand.band && onSkipBand({ min: deadBand.band.min, max: deadBand.band.max })}
+                      disabled={state.disabled}
+                      className={state.className}
+                    >
+                      {state.label ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                      <span>
+                        {state.label ??
+                          (deadBand.band
+                            ? `Refuse ${deadBand.band.label.toLowerCase()} on live setups`
+                            : 'Refuse this band on live setups')}
+                      </span>
+                    </button>
+                  );
+                })()}
                 {skipConvictionBand !== null && (
                   <button
                     type="button"
