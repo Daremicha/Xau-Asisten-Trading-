@@ -16,10 +16,11 @@
 import { Candle } from './candles';
 import { createBacktest, type BacktestResult } from './backtest-engine';
 import {
-  compareAdoption,
+  assessAdoption,
   compareRuns,
   comparePhases,
   summariseTrades,
+  type AdoptionVerdict,
   type LearningComparison,
   type PhaseComparison,
   type BacktestStats,
@@ -87,8 +88,11 @@ export interface BacktestJobResult {
   adaptiveStats: BacktestStats;
   frozenStats: BacktestStats;
   comparison: LearningComparison;
-  /** Frozen learned parameters against the engine defaults. */
-  adoption: LearningComparison;
+  /**
+   * Whether putting the learned parameters on a live account is an improvement
+   * this period supports. The adopt button is enabled only when it is.
+   */
+  adoption: AdoptionVerdict;
   phases: PhaseComparison;
   ranAt: string;
 }
@@ -302,7 +306,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     adaptiveStats: summariseTrades(adaptive.trades, options.equity),
     frozenStats: summariseTrades(frozen.trades, options.equity),
     comparison: compareRuns(control, adaptive),
-    adoption: compareAdoption(control, frozen),
+    adoption: assessAdoption(control, frozen),
     phases: comparePhases(adaptive),
     ranAt: new Date().toISOString(),
   };

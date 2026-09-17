@@ -10,6 +10,7 @@
 import { BacktestResult, BacktestTrade } from './backtest-engine';
 import { roundMoney } from './trade-result';
 import { formatAccountMoney } from './account-display';
+import { matchesDefaultPrior } from './learning-engine';
 
 export interface BacktestStats {
   /** Orders the engine produced, filled or not. */
@@ -182,55 +183,12 @@ export interface LearningComparison {
   explanation: string;
 }
 
-/** Wording that changes with what is being compared against the control. */
-interface ComparisonPhrasing {
-  better: (amount: string) => string;
-  worse: (amount: string) => string;
-  same: string;
-}
-
-const LEARNING_PHRASING: ComparisonPhrasing = {
-  better: (amount) =>
-    `Learning from each result earned ${amount} more over the same candles than running on fixed parameters.`,
-  worse: (amount) =>
-    `Learning from each result earned ${amount} less than running on fixed parameters over this period, so the adaptation did not pay here.`,
-  same: 'Both runs finished within noise of each other, so learning neither helped nor hurt over this period.',
-};
-
-const ADOPTION_PHRASING: ComparisonPhrasing = {
-  better: (amount) =>
-    `Held fixed from the start, the learned parameters earned ${amount} more than the engine defaults over the same candles.`,
-  worse: (amount) =>
-    `Held fixed from the start, the learned parameters earned ${amount} less than the engine defaults, so adopting them would have cost money over this period.`,
-  same: 'Held fixed from the start, the learned parameters finished within noise of the engine defaults, so adopting them changes little.',
-};
-
 /**
  * The comparison the whole exercise exists for: the same period traded twice,
  * once on the engine's starting parameters and once with the learning engine
  * updating after every closed trade.
  */
 export function compareRuns(control: BacktestResult, adaptive: BacktestResult): LearningComparison {
-  return compareAgainstControl(control, adaptive, LEARNING_PHRASING);
-}
-
-/**
- * What adopting the learned parameters would actually have done.
- *
- * The learning run's final weights are the end of a path, not a configuration
- * that was ever traded as such. Freezing them from the first candle and
- * replaying the same period is the only honest test of the adopt button, and
- * this compares that run against the defaults.
- */
-export function compareAdoption(control: BacktestResult, frozen: BacktestResult): LearningComparison {
-  return compareAgainstControl(control, frozen, ADOPTION_PHRASING);
-}
-
-function compareAgainstControl(
-  control: BacktestResult,
-  adaptive: BacktestResult,
-  phrasing: ComparisonPhrasing
-): LearningComparison {
   const controlStats = summariseTrades(control.trades, control.summary.startingEquity);
   const adaptiveStats = summariseTrades(adaptive.trades, adaptive.summary.startingEquity);
 
@@ -259,10 +217,16 @@ function compareAgainstControl(
     verdict,
     explanation:
       verdict === 'better'
-        ? phrasing.better(formatAccountMoney(netDelta, control.summary.accountType))
+        ? `Learning from each result earned ${formatAccountMoney(
+            netDelta,
+            control.summary.accountType
+          )} more over the same candles than running on fixed parameters.`
         : verdict === 'worse'
-        ? phrasing.worse(formatAccountMoney(Math.abs(netDelta), control.summary.accountType))
-        : phrasing.same,
+        ? `Learning from each result earned ${formatAccountMoney(
+            Math.abs(netDelta),
+            control.summary.accountType
+          )} less than running on fixed parameters over this period, so the adaptation did not pay here.`
+        : 'Both runs finished within noise of each other, so learning neither helped nor hurt over this period.',
   };
 }
 
@@ -339,4 +303,96 @@ export function netAboveThreshold(trades: BacktestTrade[], threshold: number): n
       .filter((t) => t.filled && t.convictionScore >= threshold)
       .reduce((acc, t) => acc + t.netDollars, 0)
   );
+}
+
+/**
+ * Margin over the defaults below which a win is not distinguishable from luck.
+ *
+ * One period contains its own accidents. A set of parameters that beats the
+ * defaults by a hair over two years has not shown an edge, it has shown noise,
+ * and adopting it would be reading the accidents as a rule.
+ */
+const ADOPTION_MARGIN_SHARE = 0.05;
+
+export interface AdoptionVerdict {
+  /** True only when adopting is an improvement this period actually supports. */
+  worthAdopting: boolean;
+  /** One sentence, always set, saying why it is or is not worth adopting. */
+  reason: string;
+  /** Frozen net minus the defaults' net. */
+  netDelta: number;
+  /** Frozen worst drawdown minus the defaults', in percentage points. */
+  drawdownDelta: number;
+}
+
+/**
+ * Whether the learned parameters are worth putting on a live account.
+ *
+ * The button they control is a promise: if it can be pressed, adopting is an
+ * improvement. So it takes more than earning a little more. The parameters must
+ * differ from the defaults at all, beat them by a margin larger than one
+ * period's luck, and not buy that with a deeper drawdown.
+ */
+export function assessAdoption(control: BacktestResult, frozen: BacktestResult): AdoptionVerdict {
+  const accountType = control.summary.accountType;
+  const controlStats = summariseTrades(control.trades, control.summary.startingEquity);
+  const frozenStats = summariseTrades(frozen.trades, frozen.summary.startingEquity);
+
+  const netDelta = money(frozenStats.netDollars - controlStats.netDollars);
+  const drawdownDelta = round(frozenStats.maxDrawdownPercent - controlStats.maxDrawdownPercent, 1);
+  const amount = (value: number) => formatAccountMoney(Math.abs(value), accountType);
+  const drawdowns = `${frozenStats.maxDrawdownPercent}% against ${controlStats.maxDrawdownPercent}%`;
+
+  const no = (reason: string): AdoptionVerdict => ({
+    worthAdopting: false,
+    reason,
+    netDelta,
+    drawdownDelta,
+  });
+
+  if (matchesDefaultPrior(frozen.finalWeights)) {
+    return no(
+      'The learning run found nothing worth changing and ended on the engine’s own defaults, which is what live analysis already uses. There is nothing here to adopt.'
+    );
+  }
+
+  if (netDelta <= 0) {
+    return no(
+      `Held fixed from the first candle, these parameters earned ${amount(
+        netDelta
+      )} less than the engine defaults. Adopting them would have cost money over this period.`
+    );
+  }
+
+  // Either five percent of what the defaults made, or a tenth of a percent of
+  // the balance, whichever is larger. The second keeps a tiny account honest.
+  const margin = Math.max(
+    ADOPTION_MARGIN_SHARE * Math.abs(controlStats.netDollars),
+    control.summary.startingEquity * 0.001
+  );
+
+  if (netDelta < margin) {
+    return no(
+      `Held fixed, these parameters earned ${amount(
+        netDelta
+      )} more than the defaults, which is too small a margin to be more than chance over a single period.`
+    );
+  }
+
+  if (drawdownDelta > 0) {
+    return no(
+      `Held fixed, these parameters earned ${amount(
+        netDelta
+      )} more than the defaults, but took a deeper worst drawdown, ${drawdowns}. That is a rougher ride for the same edge.`
+    );
+  }
+
+  return {
+    worthAdopting: true,
+    reason: `Held fixed from the first candle, these parameters earned ${amount(
+      netDelta
+    )} more than the engine defaults, with a worst drawdown of ${drawdowns}. This period supports adopting them.`,
+    netDelta,
+    drawdownDelta,
+  };
 }

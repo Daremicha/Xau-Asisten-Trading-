@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  compareAdoption,
+  assessAdoption,
   comparePhases,
   compareRuns,
   convictionBreakdown,
@@ -236,30 +236,62 @@ describe('which conviction bands actually paid', () => {
   });
 });
 
-describe('what adopting the learned parameters would have done', () => {
-  const control = result(Array.from({ length: 20 }, () => loss(-40)));
+describe('whether the learned parameters are worth adopting', () => {
+  /** A frozen run carrying parameters that differ from the defaults. */
+  function frozenRun(trades: BacktestTrade[], startingEquity = 5000): BacktestResult {
+    const run = result(trades, startingEquity);
+    run.finalWeights = { ...run.finalWeights, atrBufferFactor: 1.9 };
+    return run;
+  }
 
-  test('a frozen run that beat the defaults is worded as an adoption, not as learning', () => {
-    const frozen = result(Array.from({ length: 20 }, () => win(60)));
-    const comparison = compareAdoption(control, frozen);
-    expect(comparison.verdict).toBe('better');
-    expect(comparison.explanation).toContain('Held fixed from the start');
-    expect(comparison.explanation).not.toContain('Learning from each result');
+  const control = result(Array.from({ length: 20 }, () => win(100)));
+
+  test('parameters that are simply the defaults are nothing to adopt', () => {
+    const frozen = result(Array.from({ length: 20 }, () => win(400)));
+    // finalWeights left at the engine defaults, as a run that changed nothing.
+    const verdict = assessAdoption(control, frozen);
+    expect(verdict.worthAdopting).toBe(false);
+    expect(verdict.reason).toContain('nothing here to adopt');
   });
 
-  test('a frozen run that lost against the defaults says adopting would have cost money', () => {
-    const frozen = result(Array.from({ length: 20 }, () => loss(-90)));
-    expect(compareAdoption(control, frozen).explanation).toContain('would have cost money');
+  test('parameters that lost money are refused', () => {
+    const verdict = assessAdoption(control, frozenRun(Array.from({ length: 20 }, () => win(40))));
+    expect(verdict.worthAdopting).toBe(false);
+    expect(verdict.reason).toContain('would have cost money');
   });
 
-  test('money in the comparison follows the account, not the dollar', () => {
-    const centControl = result(Array.from({ length: 20 }, () => loss(-0.4)), 9.1);
+  test('a win too small to separate from luck is refused', () => {
+    // Two percent better over one period is an accident, not an edge.
+    const frozen = frozenRun([...Array.from({ length: 19 }, () => win(100)), win(140)]);
+    const verdict = assessAdoption(control, frozen);
+    expect(verdict.worthAdopting).toBe(false);
+    expect(verdict.reason).toContain('too small a margin');
+  });
+
+  test('a win bought with a deeper drawdown is refused', () => {
+    // Same money in the end, reached through a hole the control never dug.
+    const frozen = frozenRun([loss(-900), ...Array.from({ length: 20 }, () => win(180))]);
+    const verdict = assessAdoption(control, frozen);
+    expect(verdict.drawdownDelta).toBeGreaterThan(0);
+    expect(verdict.worthAdopting).toBe(false);
+    expect(verdict.reason).toContain('deeper worst drawdown');
+  });
+
+  test('a clear win with no worse drawdown is what the button is for', () => {
+    const frozen = frozenRun(Array.from({ length: 20 }, () => win(160)));
+    const verdict = assessAdoption(control, frozen);
+    expect(verdict.worthAdopting).toBe(true);
+    expect(verdict.netDelta).toBe(1200);
+    expect(verdict.reason).toContain('supports adopting them');
+  });
+
+  test('money in the verdict follows the account, not the dollar', () => {
+    const centControl = result(Array.from({ length: 20 }, () => win(0.1)), 9.1);
     centControl.summary.accountType = 'Cent';
-    const centAdaptive = result(Array.from({ length: 20 }, () => win(0.6)), 9.1);
-    centAdaptive.summary.accountType = 'Cent';
-    // 20 trades either side: a 20 dollar swing reads as 2000 cent, never as "$20".
-    const explanation = compareRuns(centControl, centAdaptive).explanation;
-    expect(explanation).toContain('Cent');
-    expect(explanation).not.toContain('$');
+    const centFrozen = frozenRun(Array.from({ length: 20 }, () => win(0.3)), 9.1);
+    centFrozen.summary.accountType = 'Cent';
+    const verdict = assessAdoption(centControl, centFrozen);
+    expect(verdict.reason).toContain('Cent');
+    expect(verdict.reason).not.toContain('$');
   });
 });

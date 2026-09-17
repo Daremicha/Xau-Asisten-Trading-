@@ -218,10 +218,22 @@ the learning run against its second half.
 The third run is what the adopt button rests on. The weights a learning run
 ends on are the end of a path, not a configuration that was ever traded as
 such, so they are replayed once more from the first candle before being offered
-for live use. If that frozen run loses to the defaults, the button is refused.
+for live use.
 
-If it holds up, **Use these as the live starting parameters** adopts the weights
-it ended on. Live analysis then shrinks toward
+**The button is a promise: if it can be pressed, adopting is an improvement.**
+It opens only when all of these hold, and says which one failed when it does
+not:
+
+| Condition | Why |
+| --- | --- |
+| The parameters differ from the engine defaults | Otherwise pressing it changes nothing |
+| The frozen run earned more than the defaults | Otherwise adopting costs money |
+| It earned more by at least 5% of what the defaults made | A hair's margin over one period is luck, not an edge |
+| Its worst drawdown is no deeper | A rougher ride for the same edge is not an improvement |
+
+A period is still a single sample. When the button does open, running the same
+test at 12 months, or on the other base timeframe, and seeing it win there too
+is what separates a real improvement from a fit to one stretch of chart. Live analysis then shrinks toward
 those instead of the built-in defaults, and your real trades keep adjusting
 from there. The choice is stored with your profile and can be reverted.
 
