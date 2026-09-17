@@ -755,9 +755,9 @@ Ready for direct execution in MetaTrader 5.`;
               </p>
             </div>
 
-            {/* Why each target sits where it does. A take profit at a multiple of
-                the stop says nothing about whether price goes there; a level
-                does, so the level is named. */}
+            {/* Why each target sits where it does. The reward multiple sets the
+                distance so the trade pays for its stop; a level nearby decides
+                where inside that window the order rests, and is named. */}
             {setup.targetBasis && setup.targetBasis.length > 0 && (
               <div
                 id="target-basis"
@@ -783,8 +783,8 @@ Ready for direct execution in MetaTrader 5.`;
                 </div>
                 {setup.targetsFellBack && (
                   <p className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                    Nothing structural was close enough to reach, so these sit at the distance this style
-                    usually covers rather than on a level.
+                    No level sat near where the reward the trade needs puts the target, so it stays on that
+                    distance rather than being pulled in to whatever was nearest.
                   </p>
                 )}
               </div>

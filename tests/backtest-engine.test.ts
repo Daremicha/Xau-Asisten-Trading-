@@ -381,18 +381,20 @@ describe('replaying with parameters already adopted', () => {
     expect(sameStops).toBe(false);
   });
 
-  test('an adaptive run starts from the prior and leaves it alone when nothing is wrong', () => {
-    const fromPrior = runBacktest(
-      config(candles, {
-        warmupBars: 1400,
-        adaptive: true,
-        startingPrior: { atrBufferFactor: 1.0 },
-      })
-    );
-    // The prior is the starting point, and a run that is winning gives the
-    // engine no reason to move it. That the evidence can move it is covered
-    // where the rule lives, in the learning engine's own tests.
-    expect(fromPrior.finalWeights.atrBufferFactor).toBe(1.0);
+  test('an adaptive run starts from the prior and drifts from it, not from the defaults', () => {
+    const prior = { atrBufferFactor: 1.0 };
+    const frozen = runBacktest(config(candles, { warmupBars: 1400, startingPrior: prior }));
+    const fromPrior = runBacktest(config(candles, { warmupBars: 1400, adaptive: true, startingPrior: prior }));
+
+    // The prior is where the run begins: before any evidence has accumulated
+    // the two runs place the same order.
+    expect(fromPrior.trades[0].stopLoss).toBe(frozen.trades[0].stopLoss);
     expect(fromPrior.trades.length).toBeGreaterThan(0);
+
+    // On a random walk the engine is losing, so the stop rule is entitled to
+    // widen. What it is not entitled to do is wander: the drift is bounded
+    // against the prior it started from, never reset to the engine defaults.
+    const drift = Math.abs(fromPrior.finalWeights.atrBufferFactor - prior.atrBufferFactor);
+    expect(drift).toBeLessThanOrEqual(0.9);
   });
 });

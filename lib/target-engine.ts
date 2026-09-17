@@ -1,15 +1,22 @@
 /**
  * Where a take profit actually belongs.
  *
- * Targets used to be a fixed multiple of the stop: 1.5R, 2.6R, 4R, whatever the
- * chart looked like. That is a tidy way to describe a trade and a poor way to
- * get paid. Price does not stop at multiples of your risk; it stops at levels,
- * and it only reaches the ones inside the distance it usually covers before the
- * idea expires.
+ * Two things are true at once, and the engine has now been burned by each of
+ * them in turn.
  *
- * So a target here is a real level, close enough to be reached in the time the
- * style holds for, and placed just short of it so the order fills before the
- * queue that gathers at the level itself.
+ * Price does not stop at multiples of your risk; it stops at levels. A target
+ * that ignores structure sits in empty space and watches price turn a dollar
+ * short of it.
+ *
+ * But a target also has to pay for the stop it carries. Placing targets purely
+ * on the nearest level raised the strike rate and lost money anyway: winners
+ * that small cannot cover the losers, whatever fraction of them come in.
+ *
+ * So the distance comes first, from the style's reward multiple, and structure
+ * decides only where inside a window around that distance the order actually
+ * sits. Reward to risk can never fall below three quarters of the multiple, and
+ * when a real level sits near it the target is placed just in front of that
+ * level instead of on the round number.
  */
 
 import { Candle, findSwingPoints, priceToPips, round2 } from './candles';
@@ -27,29 +34,6 @@ export interface TargetLevel {
 }
 
 /**
- * How far price usually travels before a setup of this style is done with,
- * expressed in ATR of the execution timeframe.
- *
- * A scalp lives for an hour or two, a swing for days, and the distance a target
- * may sit at has to follow that or it is decoration. These are deliberately
- * conservative: the point is a target that gets hit, not one that looks good.
- */
-const REACH_IN_ATR: Record<TradingStyle, number> = {
-  Scalping: 1.6,
-  Intraday: 3.2,
-  Swing: 6.0,
-};
-
-/**
- * Share of that reach each target may sit at.
- *
- * The first target is the one that matters: it is where most of a position is
- * closed, so it sits well inside what the market covers routinely. The third is
- * allowed to be ambitious because it is the runner.
- */
-const TARGET_REACH_SHARE: [number, number, number] = [0.6, 0.9, 1.25];
-
-/**
  * How far in front of a level a target sits, as a share of the distance to it.
  *
  * Everyone can see the previous day's high. Orders pile up there, and price
@@ -62,12 +46,14 @@ const FRONT_RUN_SHARE = 0.12;
 const MAX_FRONT_RUN_DOLLARS = 3.0;
 
 /**
- * Closest the first target may sit, as a multiple of the risk taken.
+ * How far either side of the reward multiple a level may sit and still be used.
  *
- * A target nearer than half the stop needs better than two wins in three just
- * to break even, which is not a trade that gets more certain by being closer.
+ * Wide enough that most trades find real structure to sit in front of, narrow
+ * enough that the trade keeps its arithmetic: at the bottom of the window a
+ * 1.5R target is still 1.125R, which breaks even at 47 percent rather than the
+ * 62 percent a 0.6R target needs.
  */
-const MIN_FIRST_TARGET_R = 0.5;
+const SNAP_WINDOW: [number, number] = [0.75, 1.25];
 
 export interface TargetInputs {
   entry: number;
@@ -75,6 +61,13 @@ export interface TargetInputs {
   direction: 'long' | 'short';
   tradingStyle: TradingStyle;
   atr: number;
+  /**
+   * The style's reward multiples, which set the distance of each target.
+   *
+   * Passed in rather than imported so the style profiles stay in one place and
+   * the signal engine keeps owning them.
+   */
+  rewardMultiples: [number, number, number];
   structures: { d1: SmcStructure; h4: SmcStructure; h1: SmcStructure; m15: SmcStructure };
   candles: Candle[];
   pivotBias?: TradingCentralInsight | null;
@@ -160,30 +153,25 @@ export interface SelectedTargets {
   /** Reward to risk on the first target, which is the one that gets hit. */
   riskReward: number;
   /**
-   * True when no level was close enough to reach, so the targets fall back to
-   * the distance the market typically covers rather than to a level.
+   * True when at least one target found no level near its reward multiple and
+   * so sits on the multiple itself.
    */
   usedFallback: boolean;
-}
-
-/** Distance price covers routinely for this style, in dollars. */
-export function reachDistance(tradingStyle: TradingStyle, atr: number): number {
-  return Math.max(atr, 0.01) * REACH_IN_ATR[tradingStyle];
 }
 
 /**
  * Places the three targets.
  *
- * Each one is the best level inside its share of the reach, moved a little
- * nearer so it fills before the crowd. When nothing real sits inside that
- * distance the target falls back to the distance itself, which is still a
- * statement about what the market does rather than about the size of the stop.
+ * The reward multiple sets the distance. Structure then gets one chance to move
+ * the target, to a level inside a window around that distance, where it sits
+ * just in front of the level rather than on it. When no level is in the window
+ * the target stays on the multiple, which is a worse looking target and a
+ * better trade than one dragged in to the first thing price might touch.
  */
 export function selectTargets(inputs: TargetInputs): SelectedTargets {
-  const { entry, stop, direction, tradingStyle, atr } = inputs;
+  const { entry, stop, direction, atr, rewardMultiples } = inputs;
   const sign = direction === 'long' ? 1 : -1;
   const risk = Math.abs(entry - stop);
-  const reach = reachDistance(tradingStyle, atr);
 
   const levels = collectTargetLevels(inputs);
   const basis: string[] = [];
@@ -194,50 +182,46 @@ export function selectTargets(inputs: TargetInputs): SelectedTargets {
   const spent = new Set<number>();
   let usedFallback = false;
 
-  // A target has to be far enough away to be worth the stop it carries. Half
-  // the risk is the floor: below that even a very high strike rate loses money,
-  // so a level closer than this is skipped rather than used.
-  const minimumFirst = Math.max(risk * MIN_FIRST_TARGET_R, atr * 0.3, 0.2);
   const separation = Math.max(0.3, atr * 0.15);
 
   for (let i = 0; i < 3; i++) {
-    const floor = i === 0 ? minimumFirst : Math.abs(chosen[i - 1] - entry) + separation;
-    // The ceiling can never sit below the floor, or a quiet market would put a
-    // target on top of the entry.
-    const ceiling = Math.max(reach * TARGET_REACH_SHARE[i], floor + separation);
+    // Where the target belongs before the chart gets a say: the risk taken,
+    // multiplied by what this style asks to be paid for taking it.
+    const previous = i === 0 ? 0 : Math.abs(chosen[i - 1] - entry);
+    const base = Math.max(risk * rewardMultiples[i], previous + separation, atr * 0.3, 0.2);
 
-    const inWindow = levels
+    // The window structure may move the target within. The stop already
+    // carries the market's volatility, so a window around the multiple is a
+    // window around what this market does, without a second distance rule to
+    // fight it.
+    const low = Math.max(base * SNAP_WINDOW[0], previous + separation);
+    const ceiling = Math.max(base * SNAP_WINDOW[1], low);
+
+    const candidate = levels
       .filter((level) => {
         if (spent.has(level.price)) return false;
         const distance = Math.abs(level.price - entry);
-        return distance > floor && distance <= ceiling;
+        return distance >= low && distance <= ceiling;
       })
-      // The nearest qualifying level, not the furthest. The point of placing a
-      // target on structure is that price reaches it, and the nearest one is
-      // the one it reaches most often.
-      .sort((a, b) => Math.abs(a.price - entry) - Math.abs(b.price - entry));
-
-    // Among those, prefer the nearest that still pays for its stop. A target
-    // inside one to one needs better than even odds just to break even, so it
-    // is taken only when the market is offering nothing further inside reach.
-    const paysForItself =
-      i === 0 && risk > 0 ? inWindow.find((level) => Math.abs(level.price - entry) >= risk) : undefined;
-    const candidate = paysForItself ?? inWindow[0];
+      // Nearest to the multiple, so the snap is a nudge onto structure rather
+      // than a different trade.
+      .sort((a, b) => Math.abs(Math.abs(a.price - entry) - base) - Math.abs(Math.abs(b.price - entry) - base))[0];
 
     if (candidate) {
       spent.add(candidate.price);
       const distance = Math.abs(candidate.price - entry);
       const toll = Math.min(distance * FRONT_RUN_SHARE, MAX_FRONT_RUN_DOLLARS);
-      // Paying the toll must not drag the target back inside the floor.
-      const placed = Math.max(distance - toll, floor);
+      // Paying the toll must not drag the target back below the window.
+      const placed = Math.max(distance - toll, low);
       chosen.push(round2(entry + sign * placed));
-      basis.push(`${candidate.label} at ${candidate.price.toFixed(2)}, entered ${toll.toFixed(2)} in front of it`);
+      basis.push(
+        `${(placed / Math.max(risk, 0.0001)).toFixed(2)}R, in front of ${candidate.label.toLowerCase()} at ${candidate.price.toFixed(2)}`
+      );
     } else {
       usedFallback = true;
-      const distance = Math.max(ceiling, floor + Math.max(0.3, atr * 0.2));
-      chosen.push(round2(entry + sign * distance));
+      chosen.push(round2(entry + sign * base));
       basis.push(
-        `No level inside ${ceiling.toFixed(2)} dollars, so the target sits at the distance a ${tradingStyle.toLowerCase()} move usually covers`
+        `${rewardMultiples[i].toFixed(1)}R, with no level near it to sit in front of`
       );
     }
   }
