@@ -532,16 +532,17 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
 
   const riskDistance = Math.abs(entryPrice - stopLoss);
 
-  // Targets sit on levels price has a reason to stop at, inside the distance a
-  // move of this style routinely covers, rather than at multiples of the stop.
-  // A target at 2.6 times the risk is a description of the trade; it says
-  // nothing about whether price goes there.
+  // The reward multiple sets how far each target sits; structure only decides
+  // where inside a window around that distance the order actually rests. Both
+  // halves matter: a target that ignores structure sits in empty space, and a
+  // target that ignores the multiple stops paying for the stop it carries.
   const targets = selectTargets({
     entry: entryPrice,
     stop: stopLoss,
     direction,
     tradingStyle,
     atr: indicators.atr14,
+    rewardMultiples: profile.tpMultiples,
     structures,
     candles: inputs.candles,
     pivotBias: inputs.pivotBias,

@@ -212,3 +212,24 @@ describe('the conviction floor', () => {
     expect(readLocalProfile().minConviction).toBeNull();
   });
 });
+
+describe('the break-even rule', () => {
+  test('is read back when the user turned it on', () => {
+    installStorage({ [LOCAL_KEYS.protectStopAtR]: '1' });
+    expect(readLocalProfile().protectStopAtR).toBe(1);
+  });
+
+  test('nothing stored means the trade is held exactly as quoted', () => {
+    installStorage({});
+    expect(readLocalProfile().protectStopAtR).toBeNull();
+  });
+
+  test('a value outside what the rule means is ignored rather than applied', () => {
+    installStorage({ [LOCAL_KEYS.protectStopAtR]: '0' });
+    expect(readLocalProfile().protectStopAtR).toBeNull();
+    installStorage({ [LOCAL_KEYS.protectStopAtR]: '40' });
+    expect(readLocalProfile().protectStopAtR).toBeNull();
+    installStorage({ [LOCAL_KEYS.protectStopAtR]: 'yes' });
+    expect(readLocalProfile().protectStopAtR).toBeNull();
+  });
+});

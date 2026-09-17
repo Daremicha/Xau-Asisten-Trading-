@@ -396,3 +396,172 @@ export function assessAdoption(control: BacktestResult, frozen: BacktestResult):
     drawdownDelta,
   };
 }
+
+export interface ProtectionVerdict {
+  /** True only when moving the stop to entry improved this period. */
+  worthUsing: boolean;
+  /** One sentence, always set, saying what the rule did over the period. */
+  reason: string;
+  /** Trades that ended on a stop already moved to entry, instead of a full loss. */
+  savedTrades: number;
+  /** Protected net minus the unprotected net. */
+  netDelta: number;
+  /** Protected worst drawdown minus the unprotected one, in percentage points. */
+  drawdownDelta: number;
+  /** Win rate of the protected run, which a scratch exit counts against. */
+  winRate: number | null;
+}
+
+/**
+ * Whether moving the stop to entry once a trade has paid is worth doing live.
+ *
+ * This is the rule every trader reaches for after a run of stop outs, and it is
+ * not free: a trade that touches the trigger and then goes on to the target
+ * still ends at nothing if price dips back first. Over a period it either paid
+ * for that or it did not, and the only way to know is to trade the same setups
+ * both ways, which is what the two runs here are.
+ *
+ * The bar is deliberately not "it lost less": a rule that costs money to make
+ * the equity curve look calmer is still a rule that costs money. It passes when
+ * it earned at least as much, and made the worst stretch meaningfully easier to
+ * sit through, or when it plainly earned more.
+ */
+export function assessProtection(control: BacktestResult, guarded: BacktestResult): ProtectionVerdict {
+  const accountType = control.summary.accountType;
+  const controlStats = summariseTrades(control.trades, control.summary.startingEquity);
+  const guardedStats = summariseTrades(guarded.trades, guarded.summary.startingEquity);
+
+  const netDelta = money(guardedStats.netDollars - controlStats.netDollars);
+  const drawdownDelta = round(guardedStats.maxDrawdownPercent - controlStats.maxDrawdownPercent, 1);
+  const savedTrades = guarded.trades.filter((t) => t.protectedExit).length;
+  const amount = (value: number) => formatAccountMoney(Math.abs(value), accountType);
+  const drawdowns = `${guardedStats.maxDrawdownPercent}% against ${controlStats.maxDrawdownPercent}%`;
+
+  const base = { savedTrades, netDelta, drawdownDelta, winRate: guardedStats.winRate };
+
+  if (savedTrades === 0) {
+    return {
+      ...base,
+      worthUsing: false,
+      reason:
+        'No trade over this period ever went far enough in profit to move its stop, so the rule would have changed nothing.',
+    };
+  }
+
+  // Earning more is the plain case, and it needs a margin: over one period a
+  // handful of cent either way is the sample, not the rule.
+  const margin = Math.max(
+    ADOPTION_MARGIN_SHARE * Math.abs(controlStats.netDollars),
+    control.summary.startingEquity * 0.001
+  );
+
+  if (netDelta >= margin && drawdownDelta <= 0) {
+    return {
+      ...base,
+      worthUsing: true,
+      reason: `The stop was moved to entry on ${savedTrades} trades, and the period earned ${amount(
+        netDelta
+      )} more that way, with a worst drawdown of ${drawdowns}. This period supports using it.`,
+    };
+  }
+
+  // The other case it passes: the money is no worse and the ride is clearly
+  // easier, which is what this rule is actually for.
+  if (netDelta >= 0 && drawdownDelta <= -1) {
+    return {
+      ...base,
+      worthUsing: true,
+      reason: `The stop was moved to entry on ${savedTrades} trades. The period earned ${amount(
+        netDelta
+      )} more and the worst drawdown fell to ${drawdowns}, so the same money came with a calmer ride.`,
+    };
+  }
+
+  if (netDelta < 0) {
+    return {
+      ...base,
+      worthUsing: false,
+      reason: `The stop was moved to entry on ${savedTrades} trades, and it cost ${amount(
+        netDelta
+      )} over the period: the trades it scratched were on their way to the target more often than they were on their way back. Worst drawdown ${drawdowns}.`,
+    };
+  }
+
+  return {
+    ...base,
+    worthUsing: false,
+    reason: `The stop was moved to entry on ${savedTrades} trades and the period ended ${amount(
+      netDelta
+    )} ahead, which is too small a margin to be more than chance. Worst drawdown ${drawdowns}.`,
+  };
+}
+
+export interface RiskFloorReport {
+  /** True when at least one trade had to risk more than the setting asked. */
+  forced: boolean;
+  /** Filled trades where the minimum lot was larger than the budget allowed. */
+  forcedTrades: number;
+  filledTrades: number;
+  /** Risk the setting asked for, as a share of the balance at the time. */
+  askedPercent: number;
+  /** What those trades actually risked, as a share of the balance at the time. */
+  actualPercent: number;
+  /** Balance at which the setting would start to be honoured, in dollars. */
+  balanceNeeded: number;
+  /** One sentence, or an empty string when there is nothing to warn about. */
+  message: string;
+}
+
+/**
+ * Whether the risk percentage was real or decorative.
+ *
+ * A broker's smallest lot is a floor, and on a small balance it can sit above
+ * the risk the user asked for. When it does, changing the percentage changes
+ * nothing at all: every trade is the same minimum lot either way, and the
+ * account is taking whatever risk that lot happens to carry. A backtest that
+ * shows two risk settings producing the same trades is not broken — it is this
+ * — and it should say so rather than leave the user to notice.
+ */
+export function assessRiskFloor(result: BacktestResult): RiskFloorReport {
+  const filled = result.trades.filter((t) => t.filled);
+  const forcedTrades = filled.filter((t) => t.minimumLotForced);
+  const accountType = result.summary.accountType;
+
+  const empty: RiskFloorReport = {
+    forced: false,
+    forcedTrades: 0,
+    filledTrades: filled.length,
+    askedPercent: result.summary.riskPercentage,
+    actualPercent: result.summary.riskPercentage,
+    balanceNeeded: result.summary.startingEquity,
+    message: '',
+  };
+
+  if (forcedTrades.length === 0) return empty;
+
+  // Balance at the time is what the trade was sized against, so the share is
+  // measured there rather than against the balance the run started with.
+  const shares = forcedTrades.map((t) => {
+    const balanceBefore = t.equityAfter - t.netDollars;
+    return balanceBefore > 0 ? (t.actualRiskDollars / balanceBefore) * 100 : 0;
+  });
+  const actualPercent = round(shares.reduce((acc, v) => acc + v, 0) / shares.length, 2);
+  const typicalRisk =
+    forcedTrades.reduce((acc, t) => acc + t.actualRiskDollars, 0) / forcedTrades.length;
+  const asked = result.summary.riskPercentage;
+  const balanceNeeded = asked > 0 ? money(typicalRisk / (asked / 100)) : 0;
+  const share = Math.round((forcedTrades.length / Math.max(filled.length, 1)) * 100);
+
+  return {
+    forced: true,
+    forcedTrades: forcedTrades.length,
+    filledTrades: filled.length,
+    askedPercent: asked,
+    actualPercent,
+    balanceNeeded,
+    message: `The ${asked}% risk setting could not be honoured on ${share}% of the filled trades: the broker's smallest lot already risked about ${actualPercent}% of the balance. Until the balance is nearer ${formatAccountMoney(
+      balanceNeeded,
+      accountType
+    )}, changing the risk percentage changes nothing, because every trade is the same minimum lot either way.`,
+  };
+}

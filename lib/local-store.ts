@@ -23,6 +23,8 @@ export const LOCAL_KEYS = {
   backtestPrior: 'xauusd_backtest_prior',
   /** Lowest conviction the user is willing to trade. */
   minConviction: 'xauusd_min_conviction',
+  /** Multiple of risk at which a live setup says to move the stop to entry. */
+  protectStopAtR: 'xauusd_protect_stop_at_r',
 } as const;
 
 export interface LocalProfile {
@@ -38,6 +40,11 @@ export interface LocalProfile {
   backtestPrior: PriorWeights | null;
   /** Conviction floor, or null when the user has not set one. */
   minConviction: number | null;
+  /**
+   * Multiple of risk at which setups instruct moving the stop to entry, or null
+   * when trades are held to the target or the stop as quoted.
+   */
+  protectStopAtR: number | null;
 }
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
@@ -112,6 +119,13 @@ export function readLocalProfile(): LocalProfile {
     minConviction: (() => {
       const value = readNumber(LOCAL_KEYS.minConviction);
       return value !== null && value >= 0 && value <= 100 ? value : null;
+    })(),
+    // A stop moved before half an R has been earned is not protection, and one
+    // moved after three is not a rule anyone would follow, so anything outside
+    // that reads as no preference at all.
+    protectStopAtR: (() => {
+      const value = readNumber(LOCAL_KEYS.protectStopAtR);
+      return value !== null && value >= 0.5 && value <= 3 ? value : null;
     })(),
   };
 }

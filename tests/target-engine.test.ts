@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collectTargetLevels, reachDistance, selectTargets, type TargetInputs } from '../lib/target-engine';
+import { collectTargetLevels, selectTargets, type TargetInputs } from '../lib/target-engine';
 import type { Candle } from '../lib/candles';
 import type { SmcStructure } from '../lib/types';
 
@@ -38,6 +38,7 @@ function inputs(overrides: Partial<TargetInputs> = {}): TargetInputs {
     direction: 'long',
     tradingStyle: 'Intraday',
     atr: 4,
+    rewardMultiples: [1.5, 2.6, 4.0],
     structures: { d1: structure(), h4: structure(), h1: structure(), m15: structure() },
     candles: candles(),
     pivotBias: {
@@ -92,9 +93,11 @@ describe('levels a target can sit at', () => {
 describe('where the targets land', () => {
   test('a target sits in front of the level it was drawn from', () => {
     const result = selectTargets(inputs());
-    // 2006 resistance is the nearest reachable level; the target stops short.
-    expect(result.takeProfit1).toBeLessThan(2006);
-    expect(result.basis[0]).toContain('in front of it');
+    // Risk is ten dollars and the style asks 1.5R, so the target belongs near
+    // 2015. The Asia high at 2012 is the level inside that window, and the
+    // target stops short of it.
+    expect(result.takeProfit1).toBeLessThan(2012);
+    expect(result.basis[0]).toContain('in front of');
   });
 
   test('targets step away from the entry in order', () => {
@@ -111,9 +114,10 @@ describe('where the targets land', () => {
     expect(result.takeProfit3).toBeLessThan(result.takeProfit2);
   });
 
-  test('no target sits closer than half the risk, however near the level is', () => {
+  test('a level far nearer than the reward multiple is ignored, not used', () => {
     // A level one dollar away against a ten dollar stop would need better than
-    // nine wins in ten to pay for itself.
+    // nine wins in ten to pay for itself. Snapping to it is how a rising strike
+    // rate turns into a falling account.
     const result = selectTargets(
       inputs({
         pivotBias: {
@@ -127,8 +131,20 @@ describe('where the targets land', () => {
         },
       })
     );
-    expect(result.takeProfit1 - 2000).toBeGreaterThanOrEqual(5);
-    expect(result.riskReward).toBeGreaterThanOrEqual(0.5);
+    // The target lands where the multiple says, in front of the Asia high at
+    // 2012, and nowhere near the dollar wide pivot.
+    expect(result.takeProfit1).toBeGreaterThan(2011);
+    expect(result.riskReward).toBeGreaterThanOrEqual(1.125);
+    expect(result.basis[0]).not.toContain('2001');
+  });
+
+  test('reward to risk never falls below three quarters of the multiple', () => {
+    for (const direction of ['long', 'short'] as const) {
+      for (const atr of [1, 4, 12]) {
+        const result = selectTargets(inputs({ direction, atr }));
+        expect(result.riskReward).toBeGreaterThanOrEqual(1.5 * 0.75 - 0.01);
+      }
+    }
   });
 
   test('reward to risk is measured from where the target actually landed', () => {
@@ -137,7 +153,7 @@ describe('where the targets land', () => {
     expect(result.riskReward).toBeCloseTo(measured, 2);
   });
 
-  test('nothing reachable falls back to the distance the market covers, and says so', () => {
+  test('an empty chart leaves the target on the multiple, and says so', () => {
     const empty = structure({
       liquidityPools: { pdh: 9000, pdl: 1000, asiaHigh: 9000, asiaLow: 1000, swept: false },
       orderBlock: { type: 'Bullish OB', high: 9000, low: 8999, mitigated: false, volumeConfirmation: false },
@@ -157,23 +173,9 @@ describe('where the targets land', () => {
       })
     );
     expect(result.usedFallback).toBe(true);
-    expect(result.basis[0]).toContain('No level inside');
-    expect(result.takeProfit1).toBeGreaterThan(2000);
-  });
-});
-
-describe('how far a style reaches', () => {
-  test('reach grows with the holding window', () => {
-    expect(reachDistance('Scalping', 4)).toBeLessThan(reachDistance('Intraday', 4));
-    expect(reachDistance('Intraday', 4)).toBeLessThan(reachDistance('Swing', 4));
-  });
-
-  test('reach follows volatility, not a fixed number of dollars', () => {
-    expect(reachDistance('Intraday', 8)).toBeCloseTo(reachDistance('Intraday', 4) * 2, 5);
-  });
-
-  test('a dead market still produces a usable distance', () => {
-    expect(reachDistance('Intraday', 0)).toBeGreaterThan(0);
+    expect(result.basis[0]).toContain('no level near it');
+    // Nothing on the chart, so the target is exactly the style's multiple.
+    expect(result.takeProfit1).toBeCloseTo(2015, 2);
   });
 });
 
@@ -183,9 +185,9 @@ describe('three targets, three levels', () => {
     const named = result.basis.map((line) => line.split(' at ')[0]);
     // Either each target names a different level, or the later ones say plainly
     // that nothing was left to aim at.
-    const levelBacked = result.basis.filter((line) => line.includes('in front of it'));
+    const levelBacked = result.basis.filter((line) => line.includes('in front of'));
     const uniqueLevels = new Set(
-      result.basis.filter((line) => line.includes('in front of it')).map((line) => line.split(' at ')[1])
+      result.basis.filter((line) => line.includes('in front of')).map((line) => line.split(' at ')[1])
     );
     expect(uniqueLevels.size).toBe(levelBacked.length);
     expect(named.length).toBe(3);
