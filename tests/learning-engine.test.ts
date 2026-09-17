@@ -3,6 +3,7 @@ import {
   PRIOR_WEIGHTS,
   confidenceFrom,
   deriveAdaptiveWeights,
+  breakEvenWinRate,
   entryBufferCeiling,
   normaliseConfluence,
   normalisePrior,
@@ -406,5 +407,75 @@ describe('an entry may not be dragged off its own level', () => {
     const wild = { ...PRIOR_WEIGHTS, entryBufferPips: 5000 };
     expect(deriveAdaptiveWeights([], 'Intraday', wild).entryBufferPips).toBe(72);
     expect(deriveAdaptiveWeights([], 'Scalping', wild).entryBufferPips).toBe(28);
+  });
+});
+
+describe('a strike rate is judged against what the target needs', () => {
+  /** Interleaved wins and losses, so recency weighting sees the same mix. */
+  function mix(count: number, winShare: number, style: TradingStyle) {
+    return Array.from({ length: count }, (_, i) =>
+      record(i % Math.round(1 / winShare) === 0 ? 'TP' : 'SL', { style })
+    );
+  }
+
+  test('break even follows the style target, not a flat number', () => {
+    // 1.5R pays out on four wins in ten; 2R on one in three.
+    expect(breakEvenWinRate('Intraday')).toBe(40);
+    expect(breakEvenWinRate('Swing')).toBe(33.3);
+    expect(breakEvenWinRate('Scalping')).toBe(45.5);
+    expect(breakEvenWinRate(undefined)).toBe(40);
+  });
+
+  test('a profitable intraday run at 44% is left alone', () => {
+    // The user's own case: 44.2% won, profit factor 1.13, and the old rule
+    // widened its stops anyway because 44 is under a flat 45.
+    const history = mix(40, 0.5, 'Intraday').map((r, i) =>
+      i % 9 === 0 ? { ...r, outcome: 'SL' as const, profitOrLossDollars: -70 } : r
+    );
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.atrBufferFactor).toBe(PRIOR_WEIGHTS.atrBufferFactor);
+  });
+
+  test('a losing run below its break even widens the stop', () => {
+    const history = Array.from({ length: 30 }, () => record('SL', { style: 'Intraday' }));
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.atrBufferFactor).toBeGreaterThan(PRIOR_WEIGHTS.atrBufferFactor);
+    expect(weights.adjustments.join(' ')).toContain('below the 40% this target needs');
+  });
+
+  test('a strike rate below break even but still making money changes nothing', () => {
+    // Under the target's break even on paper, yet the account is up: the holding
+    // limit closes some trades in profit short of the target. Nothing to fix.
+    const history = Array.from({ length: 30 }, (_, i) => ({
+      ...record(i % 3 === 0 ? 'TP' : 'SL', { style: 'Intraday' }),
+      profitOrLossDollars: i % 3 === 0 ? 400 : -70,
+    }));
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.atrBufferFactor).toBe(PRIOR_WEIGHTS.atrBufferFactor);
+  });
+
+  test('a swing run at 38% is healthy, where an intraday one would not be', () => {
+    const losing = Array.from({ length: 30 }, (_, i) => ({
+      ...record(i % 3 === 0 ? 'TP' : 'SL'),
+      profitOrLossDollars: i % 3 === 0 ? 20 : -70,
+    }));
+    const swing = deriveAdaptiveWeights(
+      losing.map((r) => ({ ...r, tradingStyle: 'Swing' as TradingStyle })),
+      'Swing'
+    );
+    const intraday = deriveAdaptiveWeights(
+      losing.map((r) => ({ ...r, tradingStyle: 'Intraday' as TradingStyle })),
+      'Intraday'
+    );
+    // Same trades: 33% strike rate pays for a 2R target and not for a 1.5R one.
+    expect(swing.atrBufferFactor).toBe(PRIOR_WEIGHTS.atrBufferFactor);
+    expect(intraday.atrBufferFactor).toBeGreaterThan(PRIOR_WEIGHTS.atrBufferFactor);
+  });
+
+  test('a strike rate far above break even still tightens the stop', () => {
+    const history = Array.from({ length: 30 }, () => record('TP', { style: 'Intraday' }));
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.atrBufferFactor).toBeLessThan(PRIOR_WEIGHTS.atrBufferFactor);
+    expect(weights.adjustments.join(' ')).toContain('comfortably above');
   });
 });
