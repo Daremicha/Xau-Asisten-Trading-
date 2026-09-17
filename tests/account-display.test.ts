@@ -5,6 +5,7 @@ import {
   accountUnitLabel,
   formatAccountMoney,
   formatAccountTick,
+  formatAxisNumber,
   isCentAccount,
   toAccountUnits,
 } from '../lib/account-display';
@@ -65,5 +66,24 @@ describe('formatting', () => {
   test('the unit label follows the account type', () => {
     expect(accountUnitLabel('Cent')).toBe('Cent');
     expect(accountUnitLabel('Standard')).toBe('USD');
+  });
+});
+
+describe('an axis tick names the number, not the unit', () => {
+  test('a cent account drops the suffix the heading already carries', () => {
+    expect(formatAxisNumber(10.24, 'Cent')).toBe(`1${GROUP_SEPARATOR}024`);
+    expect(formatAxisNumber(9.01, 'Cent')).toBe('901');
+  });
+
+  test('a dollar account drops the sign for the same reason', () => {
+    expect(formatAxisNumber(5000, 'Standard')).toBe('5,000');
+  });
+
+  test('a negative balance keeps its sign', () => {
+    expect(formatAxisNumber(-1.5, 'Cent')).toBe('-150');
+  });
+
+  test('the full form still carries the unit, since it stands alone', () => {
+    expect(formatAccountTick(10.24, 'Cent')).toBe(`1${GROUP_SEPARATOR}024 Cent`);
   });
 });

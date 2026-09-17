@@ -27,7 +27,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { AccountType, SelfLearningMemoryRecord, InstitutionalTradingSetup } from '@/lib/types';
-import { formatAccountMoney, formatAccountTick } from '@/lib/account-display';
+import { formatAccountMoney, formatAccountTick, formatAxisNumber } from '@/lib/account-display';
 import { computeTradeResult, roundMoney } from '@/lib/trade-result';
 import { chronological } from '@/lib/learning-engine';
 
@@ -171,7 +171,7 @@ export default function PortfolioGrowthCard({
   const orderedRecords = useMemo(() => chronological(learningRecords), [learningRecords]);
 
   // Reconstruct equity trajectory point-by-point from trade outcomes
-  const { chartData, totalPnLDollars, totalPnLPercent, winRate, totalWins, totalLosses, profitFactor, maxDrawdownPercent, peakEquity } =
+  const { chartData, totalPnLDollars, winRate, totalWins, totalLosses, profitFactor, maxDrawdownPercent, peakEquity } =
     useMemo(() => {
       // Start with base capital point
       const base = initialEquity > 0 ? initialEquity : 5000;
@@ -260,14 +260,12 @@ export default function PortfolioGrowthCard({
       }
 
       const netPnL = runningEquity - base;
-      const netPct = base > 0 ? (netPnL / base) * 100 : 0;
       const rate = wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0;
       const pf = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99.9 : 0;
 
       return {
         chartData: points,
         totalPnLDollars: roundMoney(netPnL),
-        totalPnLPercent: parseFloat(netPct.toFixed(2)),
         winRate: parseFloat(rate.toFixed(1)),
         totalWins: wins,
         totalLosses: losses,
@@ -276,6 +274,56 @@ export default function PortfolioGrowthCard({
         peakEquity: roundMoney(peak),
       };
     }, [orderedRecords, initialEquity, currentEquity, accountType]);
+
+  /**
+   * How much width one trade gets on the curve.
+   *
+   * Wide enough for the label under it to stay at full size however many trades
+   * accumulate, which is the whole reason the chart scrolls instead of fitting.
+   */
+  const POINT_WIDTH = 52;
+  /** Room for the scale panel that stays put while the plot scrolls. */
+  const AXIS_WIDTH = 68;
+  /** Shared bottom margin, so the two halves align to the pixel. */
+  const CHART_BOTTOM = 5;
+  /** And a shared x axis height, for the same reason. */
+  const X_AXIS_HEIGHT = 30;
+  /** Beyond this many points the curve is scrolling, and says so. */
+  const VISIBLE_POINTS = 12;
+
+  const plotWidth = Math.max(240, chartData.length * POINT_WIDTH);
+
+  /**
+   * One vertical scale for both halves of the chart.
+   *
+   * Recharts would otherwise pick a domain per chart, and the fixed axis would
+   * quietly describe a different scale from the curve beside it.
+   */
+  const equityDomain = useMemo((): [number, number] => {
+    const values = chartData.map((point) => point.equity);
+    const baseline = initialEquity > 0 ? initialEquity : 5000;
+    const low = Math.min(baseline, ...values);
+    const high = Math.max(baseline, ...values);
+    const pad = Math.max((high - low) * 0.08, Math.abs(high) * 0.002, 0.01);
+    return [low - pad, high + pad];
+  }, [chartData, initialEquity]);
+
+  /** Change of the balance actually on screen, against the baseline beside it. */
+  const balanceChangePercent =
+    initialEquity > 0
+      ? parseFloat((((currentEquity - initialEquity) / initialEquity) * 100).toFixed(2))
+      : 0;
+
+  /** Where the recorded trades alone would put the balance. */
+  const ledgerBalance = roundMoney(initialEquity + totalPnLDollars);
+  /**
+   * The gap between the two, or null when they agree.
+   *
+   * Half a cent of tolerance, because the balance is rounded for display and a
+   * rounding difference is not a disagreement worth a warning.
+   */
+  const ledgerGap =
+    Math.abs(currentEquity - ledgerBalance) > 0.005 ? roundMoney(currentEquity - ledgerBalance) : null;
 
   const isNetPositive = totalPnLDollars >= 0;
 
@@ -392,17 +440,20 @@ export default function PortfolioGrowthCard({
             {formatAccountMoney(currentEquity, accountType)}
           </div>
           <div className="flex items-center gap-1 text-[10px] mt-1">
+            {/* Measured from the balance actually shown above it, so the two
+                numbers on this tile can never contradict each other. The
+                ledger's own total lives on the next tile. */}
             <span
               className={`font-semibold flex items-center ${
-                totalPnLDollars >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                balanceChangePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
-              {totalPnLDollars >= 0 ? (
+              {balanceChangePercent >= 0 ? (
                 <ArrowUpRight className="w-3 h-3" />
               ) : (
                 <ArrowDownRight className="w-3 h-3" />
               )}
-              {totalPnLPercent >= 0 ? `+${totalPnLPercent}%` : `${totalPnLPercent}%`}
+              {balanceChangePercent >= 0 ? `+${balanceChangePercent}%` : `${balanceChangePercent}%`}
             </span>
             <span className="opacity-50" suppressHydrationWarning>from {formatUnitsSimple(initialEquity)}</span>
           </div>
@@ -429,6 +480,16 @@ export default function PortfolioGrowthCard({
           <div className="text-[10px] opacity-60 mt-1">
             {learningRecords.length} resolved trade{learningRecords.length === 1 ? '' : 's'}
           </div>
+          {/* The balance and the ledger are kept by different paths: one is the
+              number the account carries, the other is what the recorded trades
+              add up to. When they drift apart, saying so beats quietly showing
+              two figures that cannot both be right. */}
+          {ledgerGap !== null && (
+            <div id="ledger-balance-gap" className="text-[10px] mt-1 text-amber-500 leading-snug">
+              Ledger and balance differ by {formatAccountMoney(Math.abs(ledgerGap), accountType)}: these
+              trades put the balance at {formatUnitsSimple(ledgerBalance)}.
+            </div>
+          )}
         </div>
 
         {/* Card 3: Win Rate */}
@@ -481,7 +542,7 @@ export default function PortfolioGrowthCard({
                 Equity Curve Trajectory
               </span>
               <span className="text-[10px] font-mono opacity-60">
-                WIB Timezone Synchronized
+                {accountType === 'Cent' ? 'Cent' : 'USD'} &bull; WIB Timezone Synchronized
               </span>
             </div>
 
@@ -497,10 +558,43 @@ export default function PortfolioGrowthCard({
             </div>
           </div>
 
-          {/* Recharts Area Curve */}
-          <div className="w-full h-56 mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 15, left: 10, bottom: 5 }}>
+          {/* The curve scrolls sideways rather than squeezing.
+              Every trade keeps the same width, so a hundred of them read as
+              easily as ten instead of collapsing the labels into a grey smear.
+              The scale stays put in its own panel on the left, because a chart
+              you can scroll away from its own axis is a chart of nothing. */}
+          <div className="flex mt-2">
+            <div className="shrink-0 h-56" style={{ width: AXIS_WIDTH }} aria-hidden>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 10, bottom: CHART_BOTTOM }}>
+                  <YAxis
+                    stroke={isDark ? '#64748b' : '#94a3b8'}
+                    fontSize={12}
+                    width={AXIS_WIDTH - 12}
+                    tickLine={false}
+                    axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                    tickFormatter={(val) => formatAxisNumber(val, accountType)}
+                    domain={equityDomain}
+                  />
+                  {/* The x axis and series are invisible, and both have to be
+                      here: Recharts lays an axis out against a plot, and with
+                      nothing to plot it draws no ticks at all. They also give
+                      this panel the same inner height as the curve, which is
+                      what keeps the two aligned. */}
+                  <XAxis dataKey="label" hide height={X_AXIS_HEIGHT} />
+                  <Area dataKey="equity" stroke="none" fill="none" isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div
+              id="equity-curve-scroller"
+              className="flex-1 overflow-x-auto overflow-y-hidden"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              <div className="h-56" style={{ width: plotWidth, minWidth: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 14, bottom: CHART_BOTTOM }}>
                 <defs>
                   <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop
@@ -525,19 +619,16 @@ export default function PortfolioGrowthCard({
                 <XAxis
                   dataKey="label"
                   stroke={isDark ? '#64748b' : '#94a3b8'}
-                  fontSize={11}
+                  fontSize={12}
+                  interval={0}
+                  height={X_AXIS_HEIGHT}
                   tickLine={false}
                   axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
                 />
 
-                <YAxis
-                  stroke={isDark ? '#64748b' : '#94a3b8'}
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                  tickFormatter={(val) => formatAccountTick(val, accountType)}
-                  domain={['auto', 'auto']}
-                />
+                {/* Hidden here, drawn once in the fixed panel, sharing a domain
+                    so the two halves line up exactly. */}
+                <YAxis hide domain={equityDomain} />
 
                 <Tooltip content={<CustomTooltip isDark={isDark} accountType={accountType} />} />
 
@@ -573,9 +664,17 @@ export default function PortfolioGrowthCard({
                     strokeWidth: 2,
                   }}
                 />
-              </AreaChart>
-            </ResponsiveContainer>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
+
+          {chartData.length > VISIBLE_POINTS && (
+            <div className={`text-[10px] mt-1.5 text-right ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+              {chartData.length - 1} trades recorded. Scroll the curve sideways to read the earlier ones.
+            </div>
+          )}
 
           {learningRecords.length === 0 && (
             <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
