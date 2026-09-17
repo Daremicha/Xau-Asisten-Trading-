@@ -31,6 +31,7 @@ import {
   Clock,
   Filter,
   Info,
+  Layers,
 } from 'lucide-react';
 
 interface SignalCardProps {
@@ -753,6 +754,41 @@ Ready for direct execution in MetaTrader 5.`;
                 {setup.institutionalRationale}
               </p>
             </div>
+
+            {/* What the engine actually read. Built where the decision was made,
+                so this is the real list rather than the card's assumption. */}
+            {setup.inputsConsulted && setup.inputsConsulted.length > 0 && (
+              <div
+                id="engine-inputs-consulted"
+                className={`border rounded-xl p-3.5 ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div
+                  className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
+                    isDark ? 'text-slate-300' : 'text-slate-800'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-sky-400" />
+                  <span>What the engine read for this setup</span>
+                </div>
+                <div className="space-y-1.5">
+                  {setup.inputsConsulted.map((input) => (
+                    <div key={input.label} className="flex items-start gap-2 text-[11px] leading-relaxed">
+                      <span className={`mt-0.5 shrink-0 ${input.used ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        {input.used ? <CheckCircle className="w-3 h-3" /> : <Info className="w-3 h-3" />}
+                      </span>
+                      <span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                          {input.label}:
+                        </span>{' '}
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{input.value}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* MetaTrader 5 Quick Execution Instructions */}
             <div

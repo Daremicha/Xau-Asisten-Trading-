@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesis } from '@/lib/gen-engine';
-import { SelfLearningMemoryRecord } from '@/lib/types';
+import { SelfLearningMemoryRecord, TradeContext } from '@/lib/types';
 import { validateLearnBody } from '@/lib/request-validation';
 import { computeTradeResult } from '@/lib/trade-result';
 
@@ -132,6 +132,38 @@ Respond strictly in valid JSON format:
       }
     }
 
+    // What the setup looked like when it was produced. Recorded with the
+    // result so the engine can learn which kinds of setup pay rather than only
+    // how often it wins overall.
+    const riskDistance = Math.abs(setup.entryPrice - setup.stopLoss);
+    const context: TradeContext = {
+      anchor: setup.entryAnchor ?? 'Market',
+      convictionScore: setup.convictionScore ?? 0,
+      session: setup.killZoneStatus?.currentZone ?? 'Off-Hours',
+      killZoneActive: Boolean(setup.killZoneStatus?.isHighVolatilityTiming),
+      timeframesAligned:
+        new Set([
+          setup.multiTimeframeAlignment?.d1?.trend,
+          setup.multiTimeframeAlignment?.h4?.trend,
+          setup.multiTimeframeAlignment?.h1?.trend,
+        ]).size === 1 && setup.multiTimeframeAlignment?.d1?.trend !== 'Ranging',
+      newsNearby: (setup.economicEvents ?? []).some((event) => {
+        if (event.impact !== 'High') return false;
+        const at = Date.parse(event.scheduledTimestamp ?? '');
+        if (!Number.isFinite(at)) return false;
+        const minutes = (at - Date.parse(setup.timestamp)) / 60_000;
+        return minutes >= 0 && minutes <= 60;
+      }),
+      entryDistancePips: setup.entryDistancePips ?? 0,
+      stopLossPips: setup.stopLossPips,
+      // Risk measured on the trade's own stop, so a wide and a tight stop can
+      // be compared to each other at all.
+      rMultiple:
+        riskDistance > 0 && !isMissed
+          ? parseFloat(((Math.abs(closedPrice - setup.entryPrice) / riskDistance) * (isProfit ? 1 : -1)).toFixed(2))
+          : 0,
+    };
+
     const learningRecord: SelfLearningMemoryRecord = {
       id: 'learn_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       analysisId: setup.id,
@@ -151,6 +183,7 @@ Respond strictly in valid JSON format:
       strategyEvolutionLesson,
       tradingStyle: setup.tradingStyle,
       autoResolved,
+      context,
       adaptiveWeightAdjustments: {
         fvgWeightDelta,
         orderBlockWeightDelta,

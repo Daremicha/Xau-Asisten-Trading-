@@ -121,13 +121,13 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                 isDark ? 'text-slate-100' : 'text-slate-900'
               }`}
             >
-              Upcoming Economic Calendar
+              Upcoming USD Calendar
               <span className="text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-semibold border border-rose-500/20">
                 Live Filtered
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Real-time feed showing strictly upcoming high-impact catalysts in WIB (UTC+7 Jakarta).
+              Gold is priced in dollars, so only USD releases are listed. Times in WIB (UTC+7 Jakarta).
             </p>
           </div>
         </div>

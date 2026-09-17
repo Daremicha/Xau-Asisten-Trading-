@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { assessConviction, effectiveRiskPercentage, type ConvictionInputs } from '../lib/position-sizing';
+import {
+  assessConviction,
+  drawdownFromHistory,
+  effectiveRiskPercentage,
+  type ConvictionInputs,
+} from '../lib/position-sizing';
 
 const NEUTRAL: ConvictionInputs = {
   confidenceScore: 50,
@@ -107,5 +112,75 @@ describe('the effective risk percentage', () => {
 
   test('never returns a negative', () => {
     expect(effectiveRiskPercentage(-1, 0.5)).toBe(0);
+  });
+});
+
+describe('the account state sizes the trade too', () => {
+  const base = {
+    confidenceScore: 70,
+    timeframesAligned: true,
+    killZoneActive: true,
+    entryOutOfReach: false,
+    dataStale: false,
+    proposalRejected: false,
+  };
+
+  test('a deep drawdown commits less', () => {
+    const healthy = assessConviction(base);
+    const hurting = assessConviction({ ...base, drawdownPercent: 25 });
+    expect(hurting.multiplier).toBeLessThan(healthy.multiplier);
+    expect(hurting.notes.join(' ')).toContain('high water mark');
+  });
+
+  test('a shallow drawdown trims rather than cuts', () => {
+    const light = assessConviction({ ...base, drawdownPercent: 12 });
+    const heavy = assessConviction({ ...base, drawdownPercent: 25 });
+    expect(light.multiplier).toBeGreaterThan(heavy.multiplier);
+    expect(light.multiplier).toBeLessThan(assessConviction(base).multiplier);
+  });
+
+  test('an account at its high water mark is not penalised', () => {
+    expect(assessConviction({ ...base, drawdownPercent: 0 }).multiplier).toBe(
+      assessConviction(base).multiplier
+    );
+  });
+
+  test('a kind of setup that has been losing commits less', () => {
+    const losing = assessConviction({ ...base, measuredEdgeR: -0.5 });
+    expect(losing.multiplier).toBeLessThan(assessConviction(base).multiplier);
+    expect(losing.notes.join(' ')).toContain('in your own history');
+  });
+
+  test('a kind of setup that has been paying commits more', () => {
+    const paying = assessConviction({ ...base, measuredEdgeR: 0.6, confidenceScore: 50 });
+    const neutral = assessConviction({ ...base, confidenceScore: 50 });
+    expect(paying.multiplier).toBeGreaterThan(neutral.multiplier);
+  });
+
+  test('no measured edge changes nothing', () => {
+    expect(assessConviction({ ...base, measuredEdgeR: null }).multiplier).toBe(
+      assessConviction(base).multiplier
+    );
+  });
+});
+
+describe('drawdown read from the trade history', () => {
+  const trade = (profitOrLossDollars: number) => ({ profitOrLossDollars });
+
+  test('an account at a new high is not in drawdown', () => {
+    expect(drawdownFromHistory(1200, [trade(100), trade(100)])).toBe(0);
+  });
+
+  test('the fall is measured from the peak, not from the start', () => {
+    // 1000 up to 1500, back to 1200: a fifth off the high water mark.
+    expect(drawdownFromHistory(1200, [trade(500), trade(-300)])).toBe(20);
+  });
+
+  test('no history means no drawdown to report', () => {
+    expect(drawdownFromHistory(5000, [])).toBe(0);
+  });
+
+  test('a record with no money on it counts as flat rather than breaking the sum', () => {
+    expect(drawdownFromHistory(900, [trade(200), {}, trade(-300)])).toBe(25);
   });
 });

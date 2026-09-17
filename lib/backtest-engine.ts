@@ -463,6 +463,11 @@ export function createBacktest(config: BacktestConfig): Runner {
       weights,
       tradingStyle,
       candles: read.executionCandles,
+      // The same panels the live engine reads, so the replay tests the engine
+      // that actually runs rather than a reduced version of it.
+      pivotBias: read.tradingCentral,
+      wyckoff: read.wyckoff,
+      quasimodo: read.quasimodo,
       killZoneActive: killZone.isHighVolatilityTiming,
       // A historical economic calendar is not available to the app, so the news
       // shield is deliberately inactive rather than guessed at.

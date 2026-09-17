@@ -206,6 +206,96 @@ function newestFirst(records: SelfLearningMemoryRecord[]): SelfLearningMemoryRec
   });
 }
 
+/** Performance of one kind of setup, measured rather than assumed. */
+export interface ConditionBucket {
+  label: string;
+  /** Trades that actually filled and resolved in this bucket. */
+  samples: number;
+  winRate: number | null;
+  /** Average money result per filled trade in this bucket. */
+  expectancy: number | null;
+  /** Average result as a multiple of risk, comparable across stop widths. */
+  averageR: number | null;
+}
+
+/** Trades needed in a bucket before it is allowed to move anything. */
+export const MIN_BUCKET_SAMPLES = 8;
+
+function bucketOf(label: string, records: SelfLearningMemoryRecord[]): ConditionBucket {
+  const filled = records.filter((r) => r.outcome !== 'MISSED');
+  if (filled.length === 0) {
+    return { label, samples: 0, winRate: null, expectancy: null, averageR: null };
+  }
+
+  const wins = filled.filter((r) => r.outcome === 'TP').length;
+  const money = filled.reduce((acc, r) => acc + (r.profitOrLossDollars || 0), 0);
+  const rs = filled.map((r) => r.context?.rMultiple ?? 0);
+
+  return {
+    label,
+    samples: filled.length,
+    winRate: parseFloat(((wins / filled.length) * 100).toFixed(1)),
+    expectancy: parseFloat((money / filled.length).toFixed(4)),
+    averageR: parseFloat((rs.reduce((a, b) => a + b, 0) / filled.length).toFixed(2)),
+  };
+}
+
+/**
+ * Splits the history by the conditions each setup was produced under.
+ *
+ * A global strike rate can only say the engine is doing well or badly. This can
+ * say which kinds of setup are carrying it and which are draining it, which is
+ * the difference between an engine that adjusts a number and one that learns
+ * something.
+ */
+export function conditionalPerformance(records: SelfLearningMemoryRecord[]): {
+  byAnchor: ConditionBucket[];
+  bySession: ConditionBucket[];
+  byNews: ConditionBucket[];
+  byAlignment: ConditionBucket[];
+} {
+  const withContext = records.filter((r) => r.context);
+
+  const group = (key: (r: SelfLearningMemoryRecord) => string, labels: string[]) =>
+    labels.map((label) => bucketOf(label, withContext.filter((r) => key(r) === label)));
+
+  return {
+    byAnchor: group((r) => r.context?.anchor ?? 'Market', ['Order Block', 'Fair Value Gap', 'Market']),
+    bySession: group(
+      (r) => (r.context?.killZoneActive ? 'Kill zone' : 'Outside kill zone'),
+      ['Kill zone', 'Outside kill zone']
+    ),
+    byNews: group(
+      (r) => (r.context?.newsNearby ? 'Near a release' : 'Clear of releases'),
+      ['Near a release', 'Clear of releases']
+    ),
+    byAlignment: group(
+      (r) => (r.context?.timeframesAligned ? 'Timeframes agreed' : 'Timeframes split'),
+      ['Timeframes agreed', 'Timeframes split']
+    ),
+  };
+}
+
+/**
+ * The better of two buckets, when there is enough evidence to name one.
+ *
+ * Both sides need a real sample, and the gap between them has to be worth
+ * acting on rather than the noise of a handful of trades.
+ */
+export function preferredBucket(
+  a: ConditionBucket,
+  b: ConditionBucket
+): { winner: ConditionBucket; loser: ConditionBucket; gap: number } | null {
+  if (a.samples < MIN_BUCKET_SAMPLES || b.samples < MIN_BUCKET_SAMPLES) return null;
+  if (a.averageR === null || b.averageR === null) return null;
+
+  const gap = Math.abs(a.averageR - b.averageR);
+  // A tenth of R between two buckets is not a finding.
+  if (gap < 0.1) return null;
+
+  return a.averageR > b.averageR ? { winner: a, loser: b, gap } : { winner: b, loser: a, gap };
+}
+
 /** Summarises what the record set actually supports. */
 export function summariseEvidence(records: SelfLearningMemoryRecord[]): LearningEvidence {
   const ordered = newestFirst(records);
@@ -293,6 +383,8 @@ export interface AdaptiveWeightsWithEvidence extends AdaptiveStrategyEngineWeigh
   /** How many pips closer to price entries should sit, learned from misses. */
   entryBufferPips: number;
   evidence: LearningEvidence;
+  /** What each kind of setup actually returned, for the dashboard and sizing. */
+  conditions: ReturnType<typeof conditionalPerformance>;
   /** Plain sentences describing what changed and why. */
   adjustments: string[];
 }
@@ -349,6 +441,7 @@ export function deriveAdaptiveWeights(
         })();
 
   const evidence = summariseEvidence(segment);
+  const conditions = conditionalPerformance(segment);
   const adjustments: string[] = [];
 
   const confluence: {
@@ -397,6 +490,58 @@ export function deriveAdaptiveWeights(
         `${evidence.missRate.toFixed(
           0
         )}% of orders never filled. A missed order costs nothing, so entries stay on their levels; if you want more fills, change the style or the timeframe rather than the entry.`
+      );
+    }
+
+    // What each kind of setup actually returned. Measured, not assumed, and
+    // only allowed to move anything once a bucket carries real trades.
+    const orderBlockBucket = conditions.byAnchor.find((b) => b.label === 'Order Block');
+    const gapBucket = conditions.byAnchor.find((b) => b.label === 'Fair Value Gap');
+    const anchorVerdict =
+      orderBlockBucket && gapBucket ? preferredBucket(orderBlockBucket, gapBucket) : null;
+
+    if (anchorVerdict) {
+      // The old rule moved this weight on how often orders filled, which says
+      // nothing about whether filling them was worth it. This moves it on what
+      // the two kinds of entry actually returned per unit of risk.
+      const towardOrderBlock = anchorVerdict.winner.label === 'Order Block' ? 1 : -1;
+      const size = Math.min(0.2, anchorVerdict.gap * 0.25);
+
+      confluence.orderBlockWeight = shrinkToward(
+        confluence.orderBlockWeight,
+        confluence.orderBlockWeight + towardOrderBlock * size,
+        c,
+        MAX_WEIGHT_DRIFT
+      );
+      confluence.fairValueGapWeight = shrinkToward(
+        confluence.fairValueGapWeight,
+        confluence.fairValueGapWeight - towardOrderBlock * size,
+        c,
+        MAX_WEIGHT_DRIFT
+      );
+
+      adjustments.push(
+        `${anchorVerdict.winner.label} entries returned ${anchorVerdict.winner.averageR}R against ${
+          anchorVerdict.loser.averageR
+        }R for ${anchorVerdict.loser.label.toLowerCase()} entries over ${
+          anchorVerdict.winner.samples + anchorVerdict.loser.samples
+        } trades, so the weighting moved toward them.`
+      );
+    }
+
+    // Trades taken near a release, measured against the rest: a shield that
+    // strengthens on evidence rather than on the word "news" in a post mortem.
+    const [nearNews, clearOfNews] = conditions.byNews;
+    const newsVerdict = preferredBucket(nearNews, clearOfNews);
+    if (newsVerdict && newsVerdict.loser.label === 'Near a release') {
+      confluence.newsImpactWeight = shrinkToward(
+        confluence.newsImpactWeight,
+        confluence.newsImpactWeight + Math.min(0.2, newsVerdict.gap * 0.25),
+        c,
+        MAX_WEIGHT_DRIFT
+      );
+      adjustments.push(
+        `Trades taken inside an hour of a release returned ${nearNews.averageR}R against ${clearOfNews.averageR}R clear of one, so the news shield strengthened.`
       );
     }
 
@@ -468,6 +613,7 @@ export function deriveAdaptiveWeights(
     // Never report a strike rate the evidence does not support.
     historicalWinRate: evidence.winRate ?? 0,
     evidence,
+    conditions,
     adjustments:
       adjustments.length > 0
         ? adjustments

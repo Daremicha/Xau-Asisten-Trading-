@@ -23,6 +23,21 @@ export interface ConvictionInputs {
   dataStale: boolean;
   /** True when a language model proposal was rejected for breaking a rule. */
   proposalRejected: boolean;
+  /**
+   * How far the account sits below its own high water mark, as a percentage.
+   *
+   * The portfolio panel tracked this from the first version and nothing ever
+   * read it. A drawdown is the one signal that does not come from the chart: it
+   * says the edge and the current market disagree, whatever the setup looks
+   * like, and the standard answer is to commit less until they agree again.
+   */
+  drawdownPercent?: number;
+  /**
+   * What this kind of setup has actually returned, in multiples of risk, once
+   * enough of them have closed to mean anything. Null when the history is too
+   * thin to say.
+   */
+  measuredEdgeR?: number | null;
 }
 
 export interface ConvictionResult {
@@ -65,6 +80,33 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
     notes.push('Execution falls inside an institutional kill zone.');
   }
 
+  // The account's own state, which no amount of chart reading can see.
+  const drawdown = inputs.drawdownPercent ?? 0;
+  if (drawdown >= 20) {
+    score -= 20;
+    notes.push(
+      `The account is ${drawdown.toFixed(1)}% below its high water mark, so position size is cut while the edge and the market disagree.`
+    );
+  } else if (drawdown >= 10) {
+    score -= 10;
+    notes.push(`The account is ${drawdown.toFixed(1)}% below its high water mark, so size is trimmed.`);
+  }
+
+  // What this kind of setup has actually returned, when enough have closed.
+  if (typeof inputs.measuredEdgeR === 'number') {
+    if (inputs.measuredEdgeR <= -0.2) {
+      score -= 12;
+      notes.push(
+        `Setups like this one have returned ${inputs.measuredEdgeR.toFixed(2)}R in your own history, so less is committed to it.`
+      );
+    } else if (inputs.measuredEdgeR >= 0.2) {
+      score += 8;
+      notes.push(
+        `Setups like this one have returned ${inputs.measuredEdgeR.toFixed(2)}R in your own history.`
+      );
+    }
+  }
+
   if (inputs.entryOutOfReach) {
     score -= 25;
     notes.push('No point of interest was within reach, so the entry may never fill.');
@@ -104,4 +146,32 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
 export function effectiveRiskPercentage(requested: number, multiplier: number): number {
   // Rounded to four places so a cent account still sees the difference.
   return parseFloat(Math.max(0, requested * multiplier).toFixed(4));
+}
+
+/**
+ * How far the account sits below its own high water mark.
+ *
+ * Reconstructed from the closed trades rather than stored, so it needs nothing
+ * the analysis request does not already carry: the current balance, and the
+ * money each recorded trade moved. Returns zero when there is no history, which
+ * is the honest answer for an account that has not traded yet.
+ */
+export function drawdownFromHistory(
+  equity: number,
+  records: Array<{ profitOrLossDollars?: number }>
+): number {
+  if (equity <= 0 || records.length === 0) return 0;
+
+  const moves = records.map((r) => (Number.isFinite(r.profitOrLossDollars) ? r.profitOrLossDollars! : 0));
+  const start = equity - moves.reduce((acc, m) => acc + m, 0);
+
+  let running = start;
+  let peak = start;
+  for (const move of moves) {
+    running += move;
+    if (running > peak) peak = running;
+  }
+
+  if (peak <= 0 || equity >= peak) return 0;
+  return parseFloat((((peak - equity) / peak) * 100).toFixed(1));
 }

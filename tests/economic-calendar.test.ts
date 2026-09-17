@@ -4,6 +4,7 @@ import {
   filterUpcoming,
   DEFAULT_CALENDAR_URL,
   getEconomicCalendar,
+  usdOnly,
   mapCalendarPayload,
   minutesToNextHighImpact,
   parseEventTime,
@@ -193,5 +194,33 @@ describe('the shape the default feed publishes', () => {
     ]);
     expect(events[0].currency).toBe('USD');
     expect(events[0].country).toBe('United States');
+  });
+});
+
+describe('only the releases that move gold', () => {
+  const events = mapCalendarPayload([
+    { title: 'Core CPI m/m', country: 'USD', date: '2026-09-18T12:30:00Z', impact: 'High' },
+    { title: 'ECB Press Conference', country: 'EUR', date: '2026-09-18T12:45:00Z', impact: 'High' },
+    { title: 'Bank Holiday', country: 'JPY', date: '2026-09-18T00:00:00Z', impact: 'Low' },
+    { title: 'Employment Change', country: 'AUD', date: '2026-09-18T01:30:00Z', impact: 'Medium' },
+  ]);
+
+  test('the dollar side is kept and the rest is dropped', () => {
+    // An ounce of gold priced in dollars: the dollar half is what a release moves.
+    const kept = usdOnly(events);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].title).toBe('Core CPI m/m');
+  });
+
+  test('the news shield reads the same list the screen shows', () => {
+    const now = Date.parse('2026-09-18T11:30:00Z');
+    // Without the filter the nearest high impact release would be the ECB one.
+    expect(minutesToNextHighImpact(usdOnly(events), now)).toBe(60);
+  });
+
+  test('a calendar with no dollar releases is simply empty, not an error', () => {
+    const nonUsd = events.filter((e) => e.currency !== 'USD');
+    expect(usdOnly(nonUsd)).toEqual([]);
+    expect(minutesToNextHighImpact(usdOnly(nonUsd))).toBeNull();
   });
 });

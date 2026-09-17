@@ -5,7 +5,9 @@ import {
   deriveAdaptiveWeights,
   breakEvenWinRate,
   chronological,
+  conditionalPerformance,
   entryBufferCeiling,
+  preferredBucket,
   matchesDefaultPrior,
   normaliseConfluence,
   normalisePrior,
@@ -565,5 +567,123 @@ describe('records are kept in the order a history is written in', () => {
 
   test('an empty history stays empty', () => {
     expect(chronological([])).toEqual([]);
+  });
+});
+
+describe('learning which kinds of setup actually pay', () => {
+  /** A resolved trade with the conditions it was produced under. */
+  function withContext(
+    outcome: 'TP' | 'SL',
+    context: Partial<NonNullable<SelfLearningMemoryRecord['context']>>,
+    dollars = outcome === 'TP' ? 150 : -70
+  ): SelfLearningMemoryRecord {
+    return {
+      ...record(outcome),
+      profitOrLossDollars: dollars,
+      context: {
+        anchor: 'Order Block',
+        convictionScore: 60,
+        session: 'London Open',
+        killZoneActive: true,
+        timeframesAligned: true,
+        newsNearby: false,
+        entryDistancePips: 40,
+        stopLossPips: 120,
+        rMultiple: outcome === 'TP' ? 1.5 : -1,
+        ...context,
+      },
+    };
+  }
+
+  test('each kind of setup is measured on its own', () => {
+    const history = [
+      ...Array.from({ length: 10 }, () => withContext('TP', { anchor: 'Order Block' })),
+      ...Array.from({ length: 10 }, () => withContext('SL', { anchor: 'Fair Value Gap' })),
+    ];
+    const conditions = conditionalPerformance(history);
+    const ob = conditions.byAnchor.find((b) => b.label === 'Order Block');
+    const fvg = conditions.byAnchor.find((b) => b.label === 'Fair Value Gap');
+
+    expect(ob?.samples).toBe(10);
+    expect(ob?.winRate).toBe(100);
+    expect(ob?.averageR).toBe(1.5);
+    expect(fvg?.averageR).toBe(-1);
+  });
+
+  test('a missed order belongs to no bucket, because it never happened', () => {
+    const missed = { ...record('MISSED'), context: withContext('TP', {}).context };
+    expect(conditionalPerformance([missed]).byAnchor.every((b) => b.samples === 0)).toBe(true);
+  });
+
+  test('the weighting moves toward the entry that actually returned more', () => {
+    const history = [
+      ...Array.from({ length: 12 }, () => withContext('TP', { anchor: 'Order Block' })),
+      ...Array.from({ length: 12 }, () => withContext('SL', { anchor: 'Fair Value Gap' })),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.orderBlockWeight).toBeGreaterThan(PRIOR_WEIGHTS.orderBlockWeight);
+    expect(weights.fairValueGapWeight).toBeLessThan(PRIOR_WEIGHTS.fairValueGapWeight);
+    expect(weights.adjustments.join(' ')).toContain('Order Block entries returned');
+  });
+
+  test('it moves the other way just as readily', () => {
+    const history = [
+      ...Array.from({ length: 12 }, () => withContext('SL', { anchor: 'Order Block' })),
+      ...Array.from({ length: 12 }, () => withContext('TP', { anchor: 'Fair Value Gap' })),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.fairValueGapWeight).toBeGreaterThan(PRIOR_WEIGHTS.fairValueGapWeight);
+  });
+
+  test('a thin bucket moves nothing at all', () => {
+    // Four trades a side is a story, not evidence.
+    const history = [
+      ...Array.from({ length: 4 }, () => withContext('TP', { anchor: 'Order Block' })),
+      ...Array.from({ length: 4 }, () => withContext('SL', { anchor: 'Fair Value Gap' })),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.orderBlockWeight).toBeCloseTo(PRIOR_WEIGHTS.orderBlockWeight, 3);
+  });
+
+  test('two buckets that performed alike are left alone', () => {
+    const history = [
+      ...Array.from({ length: 10 }, () => withContext('TP', { anchor: 'Order Block' })),
+      ...Array.from({ length: 10 }, () => withContext('TP', { anchor: 'Fair Value Gap' })),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.orderBlockWeight).toBeCloseTo(PRIOR_WEIGHTS.orderBlockWeight, 3);
+  });
+
+  test('losing around releases strengthens the news shield on evidence', () => {
+    const history = [
+      ...Array.from({ length: 10 }, () => withContext('SL', { newsNearby: true })),
+      ...Array.from({ length: 10 }, () => withContext('TP', { newsNearby: false })),
+    ];
+    const weights = deriveAdaptiveWeights(history, 'Intraday');
+    expect(weights.newsImpactWeight).toBeGreaterThan(PRIOR_WEIGHTS.newsImpactWeight);
+    expect(weights.adjustments.join(' ')).toContain('inside an hour of a release');
+  });
+
+  test('a bucket with too few trades on one side names no winner', () => {
+    const many = { label: 'a', samples: 20, winRate: 60, expectancy: 5, averageR: 0.9 };
+    const few = { label: 'b', samples: 3, winRate: 20, expectancy: -5, averageR: -0.8 };
+    expect(preferredBucket(many, few)).toBeNull();
+  });
+
+  test('a gap too small to act on names no winner', () => {
+    const a = { label: 'a', samples: 20, winRate: 55, expectancy: 1, averageR: 0.51 };
+    const b = { label: 'b', samples: 20, winRate: 54, expectancy: 1, averageR: 0.45 };
+    expect(preferredBucket(a, b)).toBeNull();
+  });
+
+  test('records from before this existed are simply not counted', () => {
+    // Old rows carry no context; they must not be read as a bucket of zeros.
+    const legacy = Array.from({ length: 20 }, () => record('SL'));
+    const conditions = conditionalPerformance(legacy);
+    expect(conditions.byAnchor.every((b) => b.samples === 0)).toBe(true);
+    expect(deriveAdaptiveWeights(legacy, 'Intraday').orderBlockWeight).toBeCloseTo(
+      PRIOR_WEIGHTS.orderBlockWeight,
+      3
+    );
   });
 });
