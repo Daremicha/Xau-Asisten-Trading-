@@ -174,13 +174,16 @@ adjust the adaptive weights, which change the entry anchor, the stop buffer and
 how each confluence is weighted on the next signal. A per-style stop ceiling
 keeps a long losing run from turning an intraday setup into a swing trade.
 
-**Learning chases fills only when fills pay.** Orders that never filled tell the
-engine its entries sit too deep, and it answers by moving them closer to price.
-That only helps when an average filled trade makes money: a missed order costs
-nothing, so filling more of a losing setup is worse than missing it. The engine
-measures the money result of an average fill and leaves entries at their levels
-when it is negative. The correction is also capped at 40% of the style's maximum
-stop, so an entry can never be dragged off the level that justified it.
+**Learning never chases fills.** Orders that never filled used to tell the engine
+its entries sat too deep, and it answered by moving them toward price. A 24 month
+replay of real candles isolated that adaptation, froze it and traded the period
+again: it earned less than the engine's defaults and raised the worst drawdown
+from 22% to 31.6%. The arithmetic explains why. Pulling an entry closer converts
+the misses nearest the level into fills, and those are the marginal setups rather
+than the average one, which is the only thing the engine can measure. A missed
+order costs nothing, so entries stay on their levels. An entry buffer can still
+arrive from a backtest that measured one — that is evidence the live engine
+cannot gather — capped at 40% of the style's maximum stop.
 
 **Missing data is reported, never invented.** If no provider answers, the app
 says so and refuses to build a signal rather than showing a made up price.
