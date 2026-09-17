@@ -158,6 +158,15 @@ export default function Home() {
 
   // Live feed status and the structural read derived from real candles.
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading');
+  /**
+   * Whether the quote on screen is the instrument being traded.
+   *
+   * When the spot providers are all unreachable the feed can fall back to the
+   * COMEX futures contract, which tracks gold from tens of dollars away. The
+   * chart is still worth showing; the price is not fit to resolve an order
+   * against, so automatic fills and closes hold until spot comes back.
+   */
+  const [quoteIsSpot, setQuoteIsSpot] = useState<boolean>(true);
   const [feedMessage, setFeedMessage] = useState<string>('Connecting to the market data provider.');
   const [feedSource, setFeedSource] = useState<string | null>(null);
   const [liveRead, setLiveRead] = useState<LiveRead | null>(null);
@@ -524,6 +533,7 @@ export default function Home() {
       }
 
       setFeedStatus(data.status === 'stale' ? 'stale' : 'live');
+      setQuoteIsSpot(data.instrument !== 'futures');
       setFeedMessage(data.message || '');
       setFeedSource(data.source ?? null);
       setMarketPrice(data.marketPrice);
@@ -667,6 +677,10 @@ export default function Home() {
   useEffect(() => {
     if (!activeSetup || !livePosition || livePosition.state !== 'closed') return;
     if (isEvaluatingOutcome || marketPrice === null) return;
+    // Never close a spot trade on a futures price: the two are tens of dollars
+    // apart, so the level it appears to have reached is not a level the market
+    // the user trades in ever touched.
+    if (!quoteIsSpot) return;
     if (autoClosedRef.current === activeSetup.id) return;
 
     autoClosedRef.current = activeSetup.id;
@@ -686,12 +700,15 @@ export default function Home() {
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, livePosition, isEvaluatingOutcome, marketPrice]);
+  }, [activeSetup, livePosition, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const autoResolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!activeSetup || !pendingVerdict || pendingVerdict.state === 'waiting') return;
     if (isEvaluatingOutcome || marketPrice === null) return;
+    // Same rule as the automatic close: a missed entry recorded from a futures
+    // quote is a miss that never happened.
+    if (!quoteIsSpot) return;
     if (autoResolvedRef.current === activeSetup.id) return;
 
     autoResolvedRef.current = activeSetup.id;
@@ -701,7 +718,7 @@ export default function Home() {
     // handleSimulateOutcome is recreated each render but closes over the same
     // setup, so listing it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, pendingVerdict, isEvaluatingOutcome, marketPrice]);
+  }, [activeSetup, pendingVerdict, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const [autoResolveNotice, setAutoResolveNotice] = useState<string | null>(null);
 
@@ -1203,6 +1220,7 @@ export default function Home() {
         marketPrice={marketPrice}
         change24h={change24h}
         feedStatus={feedStatus}
+        quoteIsSpot={quoteIsSpot}
         selectedBroker={selectedBroker}
         notificationPermission={notificationPermission}
         onRequestNotification={handleRequestNotification}

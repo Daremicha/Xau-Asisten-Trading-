@@ -265,6 +265,33 @@ Reply with JSON only:
       }
     }
 
+    // A feed quoting something other than spot XAUUSD. COMEX futures track
+    // gold and trade tens of dollars away from it, so an entry, a stop and a
+    // target read from that series are all shifted by the basis and none of
+    // them line up with the broker the user actually trades at. A wrong level
+    // offered confidently is worse than no level.
+    if (snapshot.instrument !== 'spot') {
+      return NextResponse.json({
+        success: true,
+        setup: null,
+        skipped: {
+          reason: 'feed-mismatch',
+          convictionScore: 0,
+          band: 'Low',
+          threshold: input.minConviction,
+          direction: decision.direction,
+          notes: [
+            `The only market data available right now is ${snapshot.source}.`,
+            'That contract settles for future delivery, so it trades at the cost of carry away from spot XAUUSD — commonly tens of dollars.',
+            'Entry, stop and target read from it would all be shifted by that difference and would not match your broker, so none are offered.',
+          ],
+          rationale: decision.rationale,
+          nextCheck: nextCheck(input.tradingStyle),
+        },
+        dataStatus: snapshot.status,
+      });
+    }
+
     // An order price has already left behind. Checked on the order that would
     // actually be offered, so an accepted model proposal is held to it too.
     // Offering one of these is worse than offering nothing: the app records it

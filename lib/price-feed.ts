@@ -11,8 +11,21 @@ import { Candle, round2 } from './candles';
 
 export type FeedStatus = 'live' | 'stale' | 'unavailable';
 
+/**
+ * What the quoted price actually is.
+ *
+ * Spot XAUUSD and COMEX gold futures are different instruments. They move
+ * together but they do not trade at the same number: the futures carry the cost
+ * of holding metal to delivery, which on a normal day is tens of dollars. Every
+ * level this app quotes has to be in the instrument the user trades at their
+ * broker, so the snapshot says which one it is carrying.
+ */
+export type QuotedInstrument = 'spot' | 'futures';
+
 export interface MarketSnapshot {
   status: FeedStatus;
+  /** Spot, or a futures contract that trades at a basis away from it. */
+  instrument: QuotedInstrument;
   /** Human readable provider name, null when nothing could be reached. */
   source: string | null;
   /** ISO timestamp of the moment the data was pulled from the provider. */
@@ -40,6 +53,7 @@ export interface MarketSnapshot {
 
 export interface ProviderResult {
   source: string;
+  instrument: QuotedInstrument;
   price: number;
   /**
    * When the price itself was taken. A live tick is now; a candle close is as
@@ -279,6 +293,7 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
 
   return {
     source: 'Twelve Data (XAU/USD spot)',
+    instrument: 'spot',
     price: livePrice ?? last.close,
     priceTakenAt: livePrice === null ? last.time : Date.now(),
     dayHigh: dayCandles.length ? Math.max(...dayCandles.map((c) => c.high)) : null,
@@ -321,9 +336,31 @@ export function mapYahooCandles(payload: unknown): Candle[] {
   return candles.sort((a, b) => a.time - b.time);
 }
 
-async function fromYahoo(): Promise<ProviderResult | null> {
+/**
+ * Yahoo's symbols, most faithful first.
+ *
+ * `XAUUSD=X` is spot gold, the same instrument a retail broker quotes.
+ * `GC=F` is the front month COMEX future, which is a different contract
+ * trading at the cost of carry away from spot — tens of dollars on an ordinary
+ * day. It is kept as a last resort because a chart that is forty dollars off
+ * is still better than no chart, but nothing may quote an order from it.
+ */
+export const YAHOO_SYMBOLS: Array<{ symbol: string; instrument: QuotedInstrument; source: string }> = [
+  { symbol: 'XAUUSD=X', instrument: 'spot', source: 'Yahoo Finance (XAUUSD spot)' },
+  {
+    symbol: 'GC=F',
+    instrument: 'futures',
+    source: 'Yahoo Finance (COMEX GC=F front month futures, not spot)',
+  },
+];
+
+async function fromYahooSymbol(
+  entry: (typeof YAHOO_SYMBOLS)[number]
+): Promise<ProviderResult | null> {
   const res = await fetchWithTimeout(
-    'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=15m&range=5d',
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+      entry.symbol
+    )}?interval=15m&range=5d`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
   if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
@@ -339,8 +376,8 @@ async function fromYahoo(): Promise<ProviderResult | null> {
   const dayCandles = candlesSinceUtcMidnight(candles, last.time);
 
   return {
-    // Gold futures track spot closely but are not identical, so the label says so.
-    source: 'Yahoo Finance (COMEX GC=F front month)',
+    source: entry.source,
+    instrument: entry.instrument,
     price,
     // Yahoo's meta carries the live quote; only the fallback is candle-aged.
     priceTakenAt: toFiniteNumber(meta?.regularMarketPrice) === null ? last.time : Date.now(),
@@ -354,6 +391,21 @@ async function fromYahoo(): Promise<ProviderResult | null> {
     // resamples as it always did and says which candles it used.
     candlesD1: [],
   };
+}
+
+/** Spot first, the futures contract only when spot cannot be had at all. */
+async function fromYahoo(): Promise<ProviderResult | null> {
+  let lastError: unknown = null;
+  for (const entry of YAHOO_SYMBOLS) {
+    try {
+      const result = await fromYahooSymbol(entry);
+      if (result && Number.isFinite(result.price) && result.price > 0) return result;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
 }
 
 const DAY_MS = 86_400_000;
@@ -428,6 +480,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     previousClose: null,
     candlesM15: [],
     candlesD1: [],
+    instrument: 'spot',
     message:
       'No market data provider could be reached. Set TWELVE_DATA_API_KEY for a spot XAU/USD feed, or check outbound network access.',
   };
@@ -451,8 +504,16 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
   // A live provider serving a price too old to trade on is still stale.
   const effective: 'live' | 'stale' = status === 'live' && ageMs > PRICE_TOO_OLD_MS ? 'stale' : status;
 
+  // A futures feed is never presented as though it were the instrument the
+  // user trades. It is worth showing, and worth refusing to quote orders from.
+  const instrumentNote =
+    result.instrument === 'futures'
+      ? ` This is the COMEX futures contract, not spot XAUUSD: it trades at the cost of carry away from the price your broker quotes, so no order levels are produced from it.`
+      : '';
+
   return {
     status: effective,
+    instrument: result.instrument,
     source: result.source,
     fetchedAt: new Date(result.priceTakenAt).toISOString(),
     ageMs,
@@ -463,7 +524,7 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
     candlesM15: result.candlesM15,
     candlesD1: result.candlesD1,
     message:
-      effective === 'live'
+      (effective === 'live'
         ? `Live data from ${result.source}.`
         : status === 'live'
         ? `${result.source} is answering, but the freshest price it gave is ${Math.round(
@@ -471,6 +532,6 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
           )} seconds old, which is not current enough for a market order.`
         : `Provider unreachable. Showing the last known quote from ${result.source}, ${Math.round(
             ageMs / 1000
-          )} seconds old. Do not trade on it.`,
+          )} seconds old. Do not trade on it.`) + instrumentNote,
   };
 }

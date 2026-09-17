@@ -8,6 +8,7 @@ import {
   mapYahooCandles,
   parseTwelveDataTime,
   previousDayClose,
+  YAHOO_SYMBOLS,
 } from '../lib/price-feed';
 
 describe('Twelve Data parsing', () => {
@@ -170,6 +171,7 @@ describe('a market order needs a price that still exists', () => {
     const snapshot = __toSnapshotForTest(
       {
         source: 'Twelve Data (XAU/USD spot)',
+        instrument: 'spot' as const,
         price: 4287.49,
         priceTakenAt: takenAt,
         dayHigh: null,
@@ -189,6 +191,7 @@ describe('a market order needs a price that still exists', () => {
     const snapshot = __toSnapshotForTest(
       {
         source: 'Twelve Data (XAU/USD spot)',
+        instrument: 'spot' as const,
         price: 4287.49,
         priceTakenAt: Date.now() - CANDLE_MS,
         dayHigh: null,
@@ -208,6 +211,7 @@ describe('a market order needs a price that still exists', () => {
     const snapshot = __toSnapshotForTest(
       {
         source: 'Twelve Data (XAU/USD spot)',
+        instrument: 'spot' as const,
         price: 4293.76,
         priceTakenAt: Date.now(),
         dayHigh: null,
@@ -222,5 +226,65 @@ describe('a market order needs a price that still exists', () => {
     expect(snapshot.status).toBe('live');
     expect(snapshot.ageMs).toBeLessThan(1000);
     expect(snapshot.message).toContain('Live data from');
+  });
+});
+
+describe('which instrument the quote actually is', () => {
+  test('a spot feed says so, and its message says nothing about futures', () => {
+    const snapshot = __toSnapshotForTest(
+      {
+        source: 'Twelve Data (XAU/USD spot)',
+        instrument: 'spot' as const,
+        price: 4380.6,
+        priceTakenAt: Date.now(),
+        dayHigh: null,
+        dayLow: null,
+        previousClose: null,
+        candlesM15: [],
+        candlesD1: [],
+      },
+      Date.now(),
+      'live'
+    );
+    expect(snapshot.instrument).toBe('spot');
+    expect(snapshot.message).not.toContain('futures');
+  });
+
+  test('a futures feed is carried, labelled, and says no levels come from it', () => {
+    // The reported bug: the header read "XAUUSD Live Spot $4380.60" while the
+    // spot chart beside it read 4341.84 — the COMEX basis, thirty nine dollars
+    // of it, quoted as though it were the instrument being traded.
+    const snapshot = __toSnapshotForTest(
+      {
+        source: 'Yahoo Finance (COMEX GC=F front month futures, not spot)',
+        instrument: 'futures' as const,
+        price: 4380.6,
+        priceTakenAt: Date.now(),
+        dayHigh: null,
+        dayLow: null,
+        previousClose: null,
+        candlesM15: [],
+        candlesD1: [],
+      },
+      Date.now(),
+      'live'
+    );
+    expect(snapshot.instrument).toBe('futures');
+    expect(snapshot.message).toContain('not spot XAUUSD');
+    expect(snapshot.message).toContain('no order levels are produced from it');
+  });
+});
+
+describe('the fallback provider prefers the instrument being traded', () => {
+  test('spot is tried before the futures contract', () => {
+    expect(YAHOO_SYMBOLS[0].instrument).toBe('spot');
+    expect(YAHOO_SYMBOLS[0].symbol).toBe('XAUUSD=X');
+  });
+
+  test('the futures contract is last, and is never described as spot', () => {
+    const futures = YAHOO_SYMBOLS[YAHOO_SYMBOLS.length - 1];
+    expect(futures.instrument).toBe('futures');
+    expect(futures.symbol).toBe('GC=F');
+    expect(futures.source).toContain('not spot');
   });
 });
