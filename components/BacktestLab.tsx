@@ -28,7 +28,7 @@ import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } f
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
 import { convictionBreakdown, netAboveThreshold, rollingWinRate } from '@/lib/backtest-stats';
-import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
+import { matchesDefaultPrior, normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 
 interface BacktestLabProps {
@@ -178,6 +178,10 @@ export default function BacktestLab({
   }, [result]);
 
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
+
+  // A run that found nothing worth changing ends where it started, and there is
+  // nothing to adopt from it.
+  const endedOnDefaults = result ? matchesDefaultPrior(result.adaptive.finalWeights) : false;
 
   const panel = isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200';
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
@@ -749,7 +753,7 @@ export default function BacktestLab({
                 type="button"
                 id="adopt-backtest-prior-btn"
                 onClick={() => onAdoptPrior(normalisePrior(result.adaptive.finalWeights))}
-                disabled={result.adoption.verdict === 'worse'}
+                disabled={result.adoption.verdict === 'worse' || endedOnDefaults}
                 className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -770,6 +774,12 @@ export default function BacktestLab({
                 </button>
               )}
             </div>
+            {endedOnDefaults ? (
+              <p className={`text-[11px] mt-2 ${muted}`}>
+                The learning run found nothing worth changing and ended on the engine&apos;s own
+                defaults, which is what live analysis already uses. There is nothing here to adopt.
+              </p>
+            ) : null}
             <p className={`text-[11px] mt-2 ${muted}`}>
               Held fixed from the first candle, these parameters produced{' '}
               <span className={strong}>{money(result.frozenStats.netDollars, true)}</span> against the
@@ -784,7 +794,7 @@ export default function BacktestLab({
                 they are not offered for live use.
               </p>
             )}
-            {result.adoption.verdict === 'same' && (
+            {result.adoption.verdict === 'same' && !endedOnDefaults && (
               <p className="text-[11px] mt-2 text-amber-400">
                 Held fixed, these parameters finished within noise of the defaults. Adopting them is a
                 judgement call rather than an improvement the data supports.
