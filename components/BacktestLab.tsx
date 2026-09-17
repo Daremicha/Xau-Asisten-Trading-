@@ -23,12 +23,14 @@ import {
   TrendingDown,
   TrendingUp,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } from '@/lib/backtest-client';
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
 import {
   assessAdoption,
+  assessProtection,
   convictionBreakdown,
   netAboveThreshold,
   rollingWinRate,
@@ -48,6 +50,12 @@ interface BacktestLabProps {
   /** Parameters currently adopted from a backtest, if any. */
   adoptedPrior: PriorWeights | null;
   onAdoptPrior: (weights: PriorWeights | null) => void;
+  /**
+   * Multiple of risk at which live setups say to move the stop to entry, or
+   * null when trades are left to run to the target or the stop as quoted.
+   */
+  protectStopAtR: number | null;
+  onProtectStop: (atR: number | null) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -70,6 +78,8 @@ export default function BacktestLab({
   onResult,
   adoptedPrior,
   onAdoptPrior,
+  protectStopAtR,
+  onProtectStop,
   theme = 'dark',
 }: BacktestLabProps) {
   const isDark = theme === 'dark';
@@ -192,6 +202,16 @@ export default function BacktestLab({
    */
   const adoption = useMemo(
     () => (result ? assessAdoption(result.control, result.frozen) : null),
+    [result]
+  );
+
+  /**
+   * The same promise for the management rule: the button turns on only when
+   * this period's own trades say moving the stop to entry was the better way to
+   * hold them.
+   */
+  const protection = useMemo(
+    () => (result ? assessProtection(result.control, result.guarded) : null),
     [result]
   );
 
@@ -805,6 +825,74 @@ export default function BacktestLab({
               </p>
             )}
           </div>
+
+          {/* Protecting a trade once it has paid, and whether it is worth it */}
+          {protection && (
+            <div className={`border rounded-xl p-3 ${panel}`}>
+              <div className={`text-xs mb-2 flex items-center gap-1.5 ${strong}`}>
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+                Moving the stop to entry once a trade is 1R up
+              </div>
+              <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] ${muted}`}>
+                <div>
+                  Net<br />
+                  <span className={strong}>{money(result.guardedStats.netDollars, true)}</span>
+                </div>
+                <div>
+                  Against<br />
+                  <span className={strong}>{money(result.controlStats.netDollars, true)}</span>
+                </div>
+                <div>
+                  Worst drawdown<br />
+                  <span className={strong}>{result.guardedStats.maxDrawdownPercent}%</span>
+                </div>
+                <div>
+                  Trades saved<br />
+                  <span className={strong}>{protection.savedTrades}</span>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                <button
+                  type="button"
+                  id="adopt-break-even-btn"
+                  onClick={() => onProtectStop(1)}
+                  disabled={!protection.worthUsing || protectStopAtR !== null}
+                  className="flex items-center justify-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Use this rule on live setups</span>
+                </button>
+                {protectStopAtR !== null && (
+                  <button
+                    type="button"
+                    id="clear-break-even-btn"
+                    onClick={() => onProtectStop(null)}
+                    className={`text-xs px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                      isDark
+                        ? 'border-slate-800 text-slate-400 hover:text-slate-200'
+                        : 'border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Leave stops where the engine puts them
+                  </button>
+                )}
+              </div>
+              <p className={`text-[11px] mt-2 ${protection.worthUsing ? 'text-emerald-400' : muted}`}>
+                {protection.reason}
+              </p>
+              <p className={`text-[11px] mt-1 ${muted}`}>
+                A scratch exit counts as a loss in the win rate above, because it is not a win. What
+                it is not is a full stop out, which is the whole point of the rule.
+              </p>
+              {protectStopAtR !== null && (
+                <p className="text-[11px] mt-2 text-emerald-400">
+                  Live setups now carry the instruction to move the stop to entry once the trade is
+                  {' '}{protectStopAtR}R in profit.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Last trades */}
           {result.adaptive.trades.length > 0 && (

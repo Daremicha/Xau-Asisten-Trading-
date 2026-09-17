@@ -77,6 +77,12 @@ export interface BacktestConfig {
    */
   minConviction?: number;
   /**
+   * Move the stop to entry once a trade is this many multiples of its risk in
+   * profit. Null leaves every stop where the engine put it, which is the
+   * control. See `OrderPlan.breakEvenAtR`.
+   */
+  breakEvenAtR?: number | null;
+  /**
    * Bars of history required before the first decision. Defaults to what the
    * timeframe needs; pinning it makes two runs over different slice lengths
    * directly comparable.
@@ -121,6 +127,11 @@ export interface BacktestTrade {
   convictionScore: number;
   /** Hours the order was on the book or in the market. */
   holdingHours: number;
+  /**
+   * True when the trade ended on a stop that had already been moved to entry,
+   * so what would have been a full loss cost only the spread.
+   */
+  protectedExit?: boolean;
 }
 
 export interface BacktestProgress {
@@ -269,6 +280,17 @@ export interface OrderPlan {
   expiresAt: number;
   /** Milliseconds a filled position may stay open before it is closed at market. */
   maxHoldMs: number;
+  /**
+   * Move the stop to the fill price once price has travelled this multiple of
+   * the risk in favour. Null or zero leaves the stop where the engine put it.
+   *
+   * This is the only management rule the simulator knows, and it exists because
+   * it is the one traders reach for when a run of stop outs hurts: a trade that
+   * has already paid once should not be allowed to become a full loss. Whether
+   * it actually earns more is a question for the data, not for an opinion,
+   * which is why it is an option here rather than a default.
+   */
+  breakEvenAtR?: number | null;
 }
 
 export type OrderOutcome =
@@ -281,6 +303,8 @@ export type OrderOutcome =
       exitPrice: number;
       outcome: 'TP' | 'SL';
       reason: string;
+      /** True when the trade ended on a stop that had been moved to entry. */
+      protectedExit?: boolean;
     }
   /** History ran out before the order resolved, so there is nothing to record. */
   | { kind: 'unresolved' };
@@ -335,6 +359,13 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
 
   const fillBar = candles[fillIndex];
   const fillPrice = plan.instant ? decisionBar.close : plan.entryPrice;
+  const riskDistance = Math.abs(fillPrice - plan.stopLoss);
+  const armAt = plan.breakEvenAtR && plan.breakEvenAtR > 0 && riskDistance > 0
+    ? riskDistance * plan.breakEvenAtR
+    : null;
+  // The stop can move once, from where the engine put it to the fill price.
+  let stop = plan.stopLoss;
+  let protectedStop = false;
   // A market order opens at the close of its decision bar, so that bar's own
   // high and low are already history and cannot close the trade. A resting
   // order fills inside its bar, which can also take it out.
@@ -345,16 +376,29 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
     const c = candles[j];
     // The order of events inside a bar cannot be recovered from open, high, low
     // and close, so the losing side is assumed to come first.
-    if (isLong ? c.low <= plan.stopLoss : c.high >= plan.stopLoss) {
+    if (isLong ? c.low <= stop : c.high >= stop) {
       return {
         kind: 'filled',
         fillIndex,
         fillPrice,
         exitIndex: j,
-        exitPrice: plan.stopLoss,
+        exitPrice: stop,
         outcome: 'SL',
-        reason: 'Price traded through the invalidation.',
+        reason: protectedStop
+          ? 'Price came back to the entry after the stop had been moved there, so the trade cost only its spread.'
+          : 'Price traded through the invalidation.',
+        protectedExit: protectedStop,
       };
+    }
+    // Arming happens after this bar's stop has been checked, so a bar that
+    // reaches the trigger and the old stop is taken as a loss. The intrabar
+    // order is unknown and the simulator does not get to guess in its favour.
+    if (armAt !== null && !protectedStop) {
+      const travelled = isLong ? c.high - fillPrice : fillPrice - c.low;
+      if (travelled >= armAt) {
+        stop = fillPrice;
+        protectedStop = true;
+      }
     }
     if (isLong ? c.high >= plan.takeProfit1 : c.low <= plan.takeProfit1) {
       return {
@@ -524,6 +568,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       decidedAt: i,
       expiresAt: bar.time + validity.validForMinutes * MINUTE_MS,
       maxHoldMs,
+      breakEvenAtR: config.breakEvenAtR ?? null,
     });
 
     if (outcome.kind === 'unresolved') {
@@ -630,6 +675,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       confidenceScore: decision.confidenceScore,
       convictionScore: conviction.convictionScore,
       holdingHours: parseFloat(((exitBar.time - fillBar.time) / 3_600_000).toFixed(2)),
+      protectedExit: outcome.protectedExit ?? false,
     };
 
     trades.push(trade);

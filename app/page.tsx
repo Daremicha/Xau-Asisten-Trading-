@@ -205,6 +205,12 @@ export default function Home() {
    * bands were paying for themselves.
    */
   const [minConviction, setMinConviction] = useState<number>(0);
+  /**
+   * Multiple of risk at which a setup tells the user to move the stop to entry,
+   * or null when trades are held exactly as quoted. Turned on from the backtest
+   * lab, and only when a run supports it.
+   */
+  const [protectStopAtR, setProtectStopAtR] = useState<number | null>(null);
   /** Set when the engine declined a setup for scoring below that floor. */
   const [skippedSetup, setSkippedSetup] = useState<SkippedSetup | null>(null);
 
@@ -283,6 +289,7 @@ export default function Home() {
     if (profile.selectedBroker) setSelectedBroker(profile.selectedBroker);
     if (profile.backtestPrior) setBacktestPrior(profile.backtestPrior);
     if (profile.minConviction !== null) setMinConviction(profile.minConviction);
+    if (profile.protectStopAtR !== null) setProtectStopAtR(profile.protectStopAtR);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
       setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
@@ -422,6 +429,15 @@ export default function Home() {
             }
             if (data.backtestPrior && typeof data.backtestPrior === 'object') {
               setBacktestPrior(normalisePrior(data.backtestPrior as Partial<PriorWeights>));
+            }
+            if (
+              typeof data.protectStopAtR === 'number' &&
+              data.protectStopAtR >= 0.5 &&
+              data.protectStopAtR <= 3
+            ) {
+              setProtectStopAtR(data.protectStopAtR);
+            } else if (data.protectStopAtR === null) {
+              setProtectStopAtR(null);
             }
             // Restore an order the user never resolved, preferring whichever
             // copy is newer between this browser and the cloud.
@@ -721,6 +737,35 @@ export default function Home() {
         setDoc(
           doc(db, 'users', currentUser.uid),
           { minConviction: score, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
+    }
+  };
+
+  /**
+   * Turns the break-even rule on or off for live setups. The backtest lab only
+   * offers it when a run over real history says it was the better way to hold
+   * the same trades.
+   */
+  const handleProtectStop = (atR: number | null) => {
+    setProtectStopAtR(atR);
+
+    try {
+      if (atR === null) {
+        localStorage.removeItem(LOCAL_KEYS.protectStopAtR);
+      } else {
+        localStorage.setItem(LOCAL_KEYS.protectStopAtR, atR.toString());
+      }
+    } catch {
+      // A browser refusing storage simply forgets the choice on reload.
+    }
+
+    if (currentUser) {
+      void saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { protectStopAtR: atR, updatedAt: new Date().toISOString() },
           { merge: true }
         )
       );
@@ -1351,6 +1396,7 @@ export default function Home() {
               isEvaluatingOutcome={isEvaluatingOutcome}
               userEquity={equity}
               currentPrice={marketPrice}
+              protectStopAtR={protectStopAtR}
               theme={theme}
             />
           </div>
@@ -1446,6 +1492,8 @@ export default function Home() {
           onResult={setBacktestResult}
           adoptedPrior={backtestPrior}
           onAdoptPrior={handleAdoptBacktestPrior}
+          protectStopAtR={protectStopAtR}
+          onProtectStop={handleProtectStop}
           theme={theme}
         />
       </main>

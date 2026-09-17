@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   assessAdoption,
+  assessProtection,
   comparePhases,
   compareRuns,
   convictionBreakdown,
@@ -291,6 +292,88 @@ describe('whether the learned parameters are worth adopting', () => {
     const centFrozen = frozenRun(Array.from({ length: 20 }, () => win(0.3)), 9.1);
     centFrozen.summary.accountType = 'Cent';
     const verdict = assessAdoption(centControl, centFrozen);
+    expect(verdict.reason).toContain('Cent');
+    expect(verdict.reason).not.toContain('$');
+  });
+});
+
+describe('whether moving the stop to entry is worth doing', () => {
+  /** A trade that ended on a stop already moved to entry: the spread, not the stop. */
+  const scratch = (net: number) => trade({ outcome: 'SL', netDollars: net, rMultiple: net / 100, protectedExit: true });
+
+  const control = result([...Array.from({ length: 10 }, () => win(100)), ...Array.from({ length: 10 }, () => loss(-100))]);
+
+  test('a period where no trade ever got far enough says so plainly', () => {
+    const guarded = result(Array.from({ length: 20 }, () => win(100)));
+    const verdict = assessProtection(control, guarded);
+    expect(verdict.savedTrades).toBe(0);
+    expect(verdict.worthUsing).toBe(false);
+    expect(verdict.reason).toContain('would have changed nothing');
+  });
+
+  test('turning full losses into scratches for more money is what the button is for', () => {
+    const guarded = result([
+      ...Array.from({ length: 10 }, () => win(100)),
+      ...Array.from({ length: 10 }, () => scratch(-5)),
+    ]);
+    const verdict = assessProtection(control, guarded);
+    expect(verdict.savedTrades).toBe(10);
+    expect(verdict.netDelta).toBe(950);
+    expect(verdict.worthUsing).toBe(true);
+    expect(verdict.reason).toContain('supports using it');
+  });
+
+  test('scratching trades that were on their way to the target is refused', () => {
+    // The rule caught six losers and cut four winners off at nothing.
+    const guarded = result([
+      ...Array.from({ length: 6 }, () => win(100)),
+      ...Array.from({ length: 4 }, () => scratch(-5)),
+      ...Array.from({ length: 6 }, () => loss(-100)),
+      ...Array.from({ length: 4 }, () => scratch(-5)),
+    ]);
+    const verdict = assessProtection(control, guarded);
+    expect(verdict.netDelta).toBeLessThan(0);
+    expect(verdict.worthUsing).toBe(false);
+    expect(verdict.reason).toContain('cost');
+  });
+
+  test('a gain too small to separate from luck is refused', () => {
+    const guarded = result([
+      ...Array.from({ length: 10 }, () => win(100)),
+      ...Array.from({ length: 9 }, () => loss(-100)),
+      scratch(-97),
+    ]);
+    const verdict = assessProtection(control, guarded);
+    expect(verdict.netDelta).toBeGreaterThan(0);
+    expect(verdict.worthUsing).toBe(false);
+    expect(verdict.reason).toContain('too small a margin');
+  });
+
+  test('the same money through a shallower hole passes', () => {
+    // Identical net, but the losing stretch is scratches rather than stops.
+    const rough = result([
+      ...Array.from({ length: 6 }, () => loss(-100)),
+      ...Array.from({ length: 10 }, () => win(100)),
+      ...Array.from({ length: 4 }, () => loss(-100)),
+    ]);
+    const calm = result([
+      ...Array.from({ length: 6 }, () => scratch(-20)),
+      ...Array.from({ length: 10 }, () => win(20)),
+      ...Array.from({ length: 4 }, () => scratch(-20)),
+    ]);
+    const verdict = assessProtection(rough, calm);
+    expect(verdict.netDelta).toBeGreaterThanOrEqual(0);
+    expect(verdict.drawdownDelta).toBeLessThanOrEqual(-1);
+    expect(verdict.worthUsing).toBe(true);
+    expect(verdict.reason).toContain('calmer ride');
+  });
+
+  test('money in the verdict follows the account, not the dollar', () => {
+    const centControl = result(Array.from({ length: 10 }, () => loss(-0.5)), 9.1);
+    centControl.summary.accountType = 'Cent';
+    const centGuarded = result(Array.from({ length: 10 }, () => scratch(-0.02)), 9.1);
+    centGuarded.summary.accountType = 'Cent';
+    const verdict = assessProtection(centControl, centGuarded);
     expect(verdict.reason).toContain('Cent');
     expect(verdict.reason).not.toContain('$');
   });

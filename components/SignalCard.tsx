@@ -49,6 +49,12 @@ interface SignalCardProps {
   isEvaluatingOutcome: boolean;
   userEquity: number;
   currentPrice: number | null;
+  /**
+   * Multiple of risk at which the stop should be moved to entry, or null when
+   * the trade is held exactly as quoted. Set from the backtest lab, and only
+   * when a run over real history supported it.
+   */
+  protectStopAtR?: number | null;
   theme?: 'dark' | 'light';
 }
 
@@ -63,6 +69,7 @@ export default function SignalCard({
   onConvertToMarketOrder,
   isEvaluatingOutcome,
   currentPrice,
+  protectStopAtR = null,
   theme = 'dark',
 }: SignalCardProps) {
   const isDark = theme === 'dark';
@@ -223,6 +230,15 @@ Ready for direct execution in MetaTrader 5.`;
     if (!setup?.validUntil || nowMs === null) return null;
     const deadline = new Date(setup.validUntil).getTime();
     return Number.isFinite(deadline) ? (deadline - nowMs) / 60000 : null;
+  })();
+
+  // The price at which the stop may be moved to entry, when the rule is on.
+  const breakEvenTrigger = (() => {
+    if (!setup || protectStopAtR === null) return null;
+    const risk = Math.abs(setup.entryPrice - setup.stopLoss);
+    if (risk <= 0) return null;
+    const isLong = setup.orderType.includes('BUY');
+    return setup.entryPrice + (isLong ? 1 : -1) * risk * protectStopAtR;
   })();
 
   const priceRanPastTarget =
@@ -654,6 +670,26 @@ Ready for direct execution in MetaTrader 5.`;
                 </div>
               </div>
             </div>
+
+            {/* How to hold the trade, when the rule is on. A stop that has been
+                moved to entry is the difference between a run of stop outs and
+                a run of scratches, and the level is spelled out so there is
+                nothing to work out in the moment. */}
+            {protectStopAtR !== null && (
+              <div
+                id="break-even-instruction"
+                className={`border rounded-xl p-3 flex items-start gap-2 ${
+                  isDark ? 'bg-sky-500/5 border-sky-500/25' : 'bg-sky-50 border-sky-200'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <span className="font-bold">Once price reaches ${breakEvenTrigger?.toFixed(2)}</span>, move the
+                  stop to your entry at ${setup.entryPrice.toFixed(2)}. From that point the trade can
+                  cost you the spread but not the stop, and the targets are unchanged.
+                </p>
+              </div>
+            )}
 
             {/* Precision Lot Size & Risk Calibration Banner */}
             <div

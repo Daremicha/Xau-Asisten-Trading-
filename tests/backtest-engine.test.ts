@@ -356,6 +356,95 @@ describe('a conviction floor', () => {
   });
 });
 
+describe('moving the stop to entry once a trade has paid', () => {
+  test('a trade that ran a full R and came back costs the spread, not the stop', () => {
+    const candles = [
+      bar(0, 2010, 2012, 2008, 2010),
+      bar(1, 2004, 2004, 1999, 2002), // fills at 2000, still well short of 1R
+      bar(2, 2002, 2010.5, 2001, 2010), // runs a full R in favour, so the stop moves up
+      bar(3, 2010, 2011, 1989, 1990), // comes all the way back through the old stop
+    ];
+    const result = simulateOrder(candles, plan({ breakEvenAtR: 1 }));
+    expect(result.kind).toBe('filled');
+    if (result.kind !== 'filled') return;
+    expect(result.exitPrice).toBe(2000);
+    expect(result.protectedExit).toBe(true);
+    expect(result.reason).toContain('moved there');
+  });
+
+  test('without the rule the same trade is a full stop out', () => {
+    const candles = [
+      bar(0, 2010, 2012, 2008, 2010),
+      bar(1, 2004, 2004, 1999, 2002),
+      bar(2, 2002, 2010.5, 2001, 2010),
+      bar(3, 2010, 2011, 1989, 1990),
+    ];
+    const result = simulateOrder(candles, plan());
+    expect(result.kind).toBe('filled');
+    if (result.kind !== 'filled') return;
+    expect(result.exitPrice).toBe(1990);
+    expect(result.protectedExit).toBeFalsy();
+  });
+
+  test('a trade that never travels far enough keeps the stop it was given', () => {
+    const candles = [
+      bar(0, 2010, 2012, 2008, 2010),
+      bar(1, 2004, 2004, 1999, 2002),
+      bar(2, 2002, 2004, 2001, 2003), // only 0.4R in favour
+      bar(3, 2003, 2004, 1989, 1990),
+    ];
+    const result = simulateOrder(candles, plan({ breakEvenAtR: 1 }));
+    expect(result.kind).toBe('filled');
+    if (result.kind !== 'filled') return;
+    expect(result.exitPrice).toBe(1990);
+    expect(result.protectedExit).toBeFalsy();
+  });
+
+  test('the bar that arms the stop cannot also be saved by it', () => {
+    // High and low in one bar, and which came first is unknowable, so the
+    // simulator takes the loss rather than assuming the favourable order.
+    const candles = [
+      bar(0, 2010, 2012, 2008, 2010),
+      bar(1, 2004, 2004, 1999, 2002),
+      bar(2, 2002, 2011, 1989, 1991),
+    ];
+    const result = simulateOrder(candles, plan({ breakEvenAtR: 1 }));
+    expect(result.kind).toBe('filled');
+    if (result.kind !== 'filled') return;
+    expect(result.exitPrice).toBe(1990);
+    expect(result.protectedExit).toBeFalsy();
+  });
+
+  test('a short trade is protected the same way', () => {
+    const candles = [
+      bar(0, 1990, 1992, 1988, 1990),
+      bar(1, 1996, 2001, 1995, 1998), // fills the sell at 2000
+      bar(2, 1998, 1999, 1989.5, 1990), // runs 1R in favour
+      bar(3, 1990, 2002, 1990, 2001), // comes back through the entry
+    ];
+    const result = simulateOrder(
+      candles,
+      plan({ direction: 'short', entryPrice: 2000, stopLoss: 2010, takeProfit1: 1985, breakEvenAtR: 1 })
+    );
+    expect(result.kind).toBe('filled');
+    if (result.kind !== 'filled') return;
+    expect(result.exitPrice).toBe(2000);
+    expect(result.protectedExit).toBe(true);
+  });
+
+  test('a protected run and the control trade the same setups', () => {
+    const candles = walk(4000);
+    const control = runBacktest(config(candles, { warmupBars: 1400 }));
+    const guarded = runBacktest(config(candles, { warmupBars: 1400, breakEvenAtR: 1 }));
+    // The rule manages trades, it does not decide them: the first order of both
+    // runs is the same order.
+    expect(guarded.trades[0].entryPrice).toBe(control.trades[0].entryPrice);
+    expect(guarded.trades[0].stopLoss).toBe(control.trades[0].stopLoss);
+    // And it does change outcomes, or there would be nothing to measure.
+    expect(guarded.trades.some((t) => t.protectedExit)).toBe(true);
+  });
+});
+
 describe('replaying with parameters already adopted', () => {
   const candles = walk(6000);
 
