@@ -6,6 +6,7 @@ import { getContractSpecification } from '@/lib/market-engine';
 import { round2 } from '@/lib/candles';
 import { AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { publicErrorMessage } from '@/lib/safe-error';
+import { budgetState } from '@/lib/request-budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +22,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountType = parseAccountType(url.searchParams.get('accountType'));
   const brokerId = parseBrokerId(url.searchParams.get('brokerId'));
+  // The browser says whether an order is working. That is the one moment the
+  // status panel is being read against the chart, and the only moment worth
+  // spending the provider's reserve on.
+  const live = url.searchParams.get('live') === '1';
 
   try {
-    const snapshot = await getMarketSnapshot();
+    const snapshot = await getMarketSnapshot(live);
 
     // No provider reachable. Report it rather than serving an invented price.
     if (snapshot.status === 'unavailable' || snapshot.price === null) {
@@ -80,6 +85,9 @@ export async function GET(request: Request) {
       high24h: snapshot.dayHigh,
       low24h: snapshot.dayLow,
       candleCount: snapshot.candlesM15.length,
+      // What the day's allowance looks like, so the screen can say plainly when
+      // the quote is being held back rather than simply lagging.
+      quotaPaced: budgetState().paced,
       // Trim to what a chart needs so the payload stays small.
       candlesM15: snapshot.candlesM15.slice(-192),
       structureAvailable: read !== null,

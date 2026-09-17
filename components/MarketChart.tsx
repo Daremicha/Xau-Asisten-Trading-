@@ -16,6 +16,11 @@ interface MarketChartProps {
   /** Real state of the market data connection. */
   feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
   /**
+   * True when the provider's daily allowance is being rationed. A held quote
+   * and a lagging one look the same on screen and mean different things.
+   */
+  quotaPaced?: boolean;
+  /**
    * Age of the quoted bid and ask, in seconds. The candles come from
    * TradingView's own live feed; these numbers come from the market data
    * provider a few seconds behind it, and saying so is the difference between
@@ -38,6 +43,7 @@ export default function MarketChart({
   activeSetup,
   indicators = null,
   feedStatus = 'loading',
+  quotaPaced = false,
   quoteAgeSeconds = null,
   onRefreshQuote,
   isRefreshingQuote = false,
@@ -115,9 +121,14 @@ export default function MarketChart({
                       : 'text-slate-500'
                     : 'text-amber-500 font-semibold'
                 }
-                title="Age of the bid and ask from the market data provider. The candles are TradingView's own live feed."
+                title={
+                  quotaPaced
+                    ? "The provider's daily request allowance is being rationed, so this quote is held deliberately rather than merely lagging. The candles are TradingView's own live feed."
+                    : "Age of the bid and ask from the market data provider. The candles are TradingView's own live feed."
+                }
               >
                 quote {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s` : `${Math.floor(quoteAgeSeconds / 60)}m`} old
+                {quotaPaced ? ', rationed' : ''}
               </span>
             )}
 

@@ -167,6 +167,14 @@ export default function Home() {
    * against, so automatic fills and closes hold until spot comes back.
    */
   const [quoteIsSpot, setQuoteIsSpot] = useState<boolean>(true);
+  /**
+   * True when the provider's daily allowance is being rationed, so the quote is
+   * deliberately held rather than merely slow. Worth saying out loud: the two
+   * look identical on screen and mean different things.
+   */
+  const [quotaPaced, setQuotaPaced] = useState<boolean>(false);
+  /** Whether an order is working, read by the poller without re-creating it. */
+  const liveOrderRef = React.useRef<boolean>(false);
   const [feedMessage, setFeedMessage] = useState<string>('Connecting to the market data provider.');
   const [feedSource, setFeedSource] = useState<string | null>(null);
   const [liveRead, setLiveRead] = useState<LiveRead | null>(null);
@@ -520,8 +528,14 @@ export default function Home() {
    */
   const loadMarketData = useCallback(async () => {
     try {
+      // Read through a ref so the polling effect is not rebuilt every time an
+      // order opens or closes. The flag tells the server this is the moment
+      // worth spending a provider request on.
+      const lane = liveOrderRef.current ? '&live=1' : '';
       const res = await fetch(
-        `/api/market-data?accountType=${encodeURIComponent(accountType)}&brokerId=${encodeURIComponent(selectedBroker)}`,
+        `/api/market-data?accountType=${encodeURIComponent(accountType)}&brokerId=${encodeURIComponent(
+          selectedBroker
+        )}${lane}`,
         { cache: 'no-store' }
       );
       const data = await res.json();
@@ -534,6 +548,7 @@ export default function Home() {
 
       setFeedStatus(data.status === 'stale' ? 'stale' : 'live');
       setQuoteIsSpot(data.instrument !== 'futures');
+      setQuotaPaced(Boolean(data.quotaPaced));
       setFeedMessage(data.message || '');
       setFeedSource(data.source ?? null);
       setMarketPrice(data.marketPrice);
@@ -579,6 +594,9 @@ export default function Home() {
    * allowance on a screen nobody is looking at.
    */
   const hasLiveOrder = Boolean(activeSetup && isUnresolved(activeSetup));
+  useEffect(() => {
+    liveOrderRef.current = hasLiveOrder;
+  }, [hasLiveOrder]);
 
   /**
    * Age of the quote on screen, in seconds.
@@ -1442,6 +1460,7 @@ export default function Home() {
           activeSetup={activeSetup}
           indicators={displayIndicators}
           feedStatus={feedStatus}
+          quotaPaced={quotaPaced}
           statusPanel={
             activeSetup && livePosition && isUnresolved(activeSetup) ? (
               <PositionStatusCard

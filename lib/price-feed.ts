@@ -8,6 +8,7 @@
  */
 
 import { Candle, round2 } from './candles';
+import { budgetState, takeRequest } from './request-budget';
 
 export type FeedStatus = 'live' | 'stale' | 'unavailable';
 
@@ -93,11 +94,24 @@ const DEFAULT_CACHE_SECONDS = 20;
  * look current. A background tab spends nothing.
  */
 export const QUOTE_POLL_MS = {
-  /** An order is working: the panel and the auto close both read this price. */
-  withOpenOrder: 20_000,
+  /**
+   * An order is working, so the status panel is being watched. The browser
+   * asks this often; whether the server goes to the provider is a separate
+   * question, decided by the request budget.
+   */
+  withOpenOrder: 10_000,
   /** Nothing open: the quote only has to look current. */
-  idle: 60_000,
+  idle: 45_000,
 } as const;
+
+/**
+ * How current a tick is kept while an order is live.
+ *
+ * This is what the entry status panel reads, so it is the number that decides
+ * whether the panel agrees with the chart beside it. Spending on it is the
+ * whole point of the reserve in the request budget.
+ */
+const LIVE_TICK_MS = 10_000;
 
 export function cacheSeconds(): number {
   const raw = Number(process.env.MARKET_DATA_CACHE_SECONDS);
@@ -120,6 +134,17 @@ const REQUEST_TIMEOUT_MS = 8_000;
 
 /** Fifteen minute candles requested per refresh: about ten days of market. */
 const EXECUTION_CANDLES = 1000;
+/**
+ * Shortest gap between candle downloads.
+ *
+ * Structure only changes when a candle closes, so refetching a thousand
+ * candles beside every tick bought nothing and cost half the daily budget.
+ * Ninety seconds is a floor; the real trigger is a fifteen minute candle
+ * having closed since the last download, which is at most ninety six
+ * downloads a day.
+ */
+const CANDLE_MIN_GAP_MS = 90_000;
+const M15_MS = 15 * 60_000;
 /** Daily candles requested, which is most of a trading year. */
 const DAILY_CANDLES = 250;
 /**
@@ -133,12 +158,33 @@ const DAILY_CACHE_MS = 60 * 60_000;
 let cached: { at: number; result: ProviderResult } | null = null;
 let inFlight: Promise<ProviderResult | null> | null = null;
 let cachedDaily: { at: number; candles: Candle[] } | null = null;
+/** The expensive half: a thousand candles, only worth refetching on a close. */
+let cachedCandles: { at: number; newest: number; candles: Candle[] } | null = null;
+/** The cheap half: one number, which is the one the panel is watching. */
+let cachedTick: { at: number; price: number } | null = null;
 
 /** Resets the module cache. Exposed for tests. */
 export function __resetFeedCache() {
   cached = null;
   inFlight = null;
   cachedDaily = null;
+  cachedCandles = null;
+  cachedTick = null;
+}
+
+/**
+ * Whether the candle series is worth downloading again.
+ *
+ * Only once a fifteen minute candle has closed since the last download, and
+ * never more often than the floor above. Everything the candles feed —
+ * structure, indicators, the daily read — is computed from closed candles, so
+ * between closes a refetch returns the same analysis at full price.
+ */
+function candlesAreStale(now: number): boolean {
+  if (!cachedCandles) return true;
+  if (now - cachedCandles.at < CANDLE_MIN_GAP_MS) return false;
+  const closedSince = Math.floor(now / M15_MS) * M15_MS;
+  return cachedCandles.newest < closedSince;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
@@ -209,7 +255,22 @@ export function mapTwelveDataCandles(payload: unknown): Candle[] {
  *
  * One extra call per refresh, and the cheapest one the provider sells.
  */
-async function twelveDataPrice(base: string, key: string): Promise<number | null> {
+async function twelveDataPrice(
+  base: string,
+  key: string,
+  live: boolean,
+  now: number
+): Promise<number | null> {
+  // How old the cached tick may be before it is worth another request. While an
+  // order is live that is eight seconds, because the status panel is being
+  // watched against the chart. Otherwise it is the plan's sustained rate, which
+  // costs almost nothing over a day.
+  const maxAge = live ? LIVE_TICK_MS : budgetState(now).sustainedIntervalSeconds * 1000;
+  if (cachedTick && now - cachedTick.at < maxAge) return cachedTick.price;
+  // A tick is worth having and never worth breaking the budget for: an older
+  // price is still a real price, and the snapshot says how old it is.
+  if (!takeRequest(false, now)) return cachedTick?.price ?? null;
+
   try {
     const res = await fetchWithTimeout(
       `${base}/price?symbol=XAU/USD&format=JSON&apikey=${encodeURIComponent(key)}`
@@ -217,11 +278,13 @@ async function twelveDataPrice(base: string, key: string): Promise<number | null
     if (!res.ok) return null;
     const payload = await res.json();
     const price = toFiniteNumber((payload as { price?: unknown })?.price);
-    return price !== null && price > 0 ? price : null;
+    if (price === null || price <= 0) return cachedTick?.price ?? null;
+    cachedTick = { at: Date.now(), price };
+    return price;
   } catch {
     // The candles still carry a usable, if older, price. The snapshot reports
     // how old it is either way.
-    return null;
+    return cachedTick?.price ?? null;
   }
 }
 
@@ -235,6 +298,9 @@ async function twelveDataPrice(base: string, key: string): Promise<number | null
 async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
   const now = Date.now();
   if (cachedDaily && now - cachedDaily.at < DAILY_CACHE_MS) return cachedDaily.candles;
+  // Twenty four of these a day, and the daily trend is the heaviest input the
+  // engine has, so it is counted and it comes before a fresher tick.
+  if (!takeRequest(true, now)) return cachedDaily?.candles ?? [];
 
   try {
     const res = await fetchWithTimeout(
@@ -255,7 +321,7 @@ async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
   }
 }
 
-async function fromTwelveData(): Promise<ProviderResult | null> {
+async function fromTwelveData(live: boolean): Promise<ProviderResult | null> {
   const key = process.env.TWELVE_DATA_API_KEY;
   if (!key || key.trim().length === 0) return null;
 
@@ -265,19 +331,36 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
   // A thousand fifteen minute candles is about ten days: two hundred and fifty
   // hourly bars, which is the first length at which the hourly EMA 200 is an
   // EMA 200 rather than the longest average the feed happened to support.
-  const url =
-    `${base}/time_series?symbol=XAU/USD&interval=15min&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
-    encodeURIComponent(key.trim());
+  const now = Date.now();
+  let candles = cachedCandles?.candles ?? [];
 
-  const res = await fetchWithTimeout(url);
-  if (!res.ok) throw new Error(`Twelve Data HTTP ${res.status}`);
+  // The budget may refuse even this, once a day's allowance is genuinely gone.
+  // Then the analysis runs on the candles already held, which are at most a few
+  // minutes old, rather than on nothing.
+  if (candlesAreStale(now) && takeRequest(true, now)) {
+    const url =
+      `${base}/time_series?symbol=XAU/USD&interval=15min&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
+      encodeURIComponent(key.trim());
 
-  const payload = await res.json();
-  if (payload?.status === 'error') {
-    throw new Error(`Twelve Data: ${payload?.message ?? 'unknown error'}`);
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      if (candles.length === 0) throw new Error(`Twelve Data HTTP ${res.status}`);
+    } else {
+      const payload = await res.json();
+      if (payload?.status === 'error') {
+        if (candles.length === 0) {
+          throw new Error(`Twelve Data: ${payload?.message ?? 'unknown error'}`);
+        }
+      } else {
+        const fresh = mapTwelveDataCandles(payload);
+        if (fresh.length > 0) {
+          candles = fresh;
+          cachedCandles = { at: Date.now(), newest: fresh[fresh.length - 1].time, candles: fresh };
+        }
+      }
+    }
   }
 
-  const candles = mapTwelveDataCandles(payload);
   if (candles.length === 0) throw new Error('Twelve Data returned no candles');
 
   const last = candles[candles.length - 1];
@@ -287,7 +370,7 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
   // openly older, and the snapshot says by how much. The daily series is
   // fetched alongside it and is usually served from its own hourly cache.
   const [livePrice, daily] = await Promise.all([
-    twelveDataPrice(base, key.trim()),
+    twelveDataPrice(base, key.trim(), live, now),
     twelveDataDaily(base, key.trim()),
   ]);
 
@@ -295,7 +378,10 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
     source: 'Twelve Data (XAU/USD spot)',
     instrument: 'spot',
     price: livePrice ?? last.close,
-    priceTakenAt: livePrice === null ? last.time : Date.now(),
+    // Measured from when the tick was taken, not from when it was served out of
+    // the cache: a price held for the budget's sake is older, and saying so is
+    // the difference between a quiet delay and a lie.
+    priceTakenAt: livePrice === null ? last.time : cachedTick?.at ?? Date.now(),
     dayHigh: dayCandles.length ? Math.max(...dayCandles.map((c) => c.high)) : null,
     dayLow: dayCandles.length ? Math.min(...dayCandles.map((c) => c.low)) : null,
     previousClose: previousDayClose(candles, last.time),
@@ -423,8 +509,8 @@ export function previousDayClose(candles: Candle[], referenceTime: number): numb
   return before.length ? before[before.length - 1].close : null;
 }
 
-async function pullFromProviders(): Promise<ProviderResult | null> {
-  const attempts: Array<() => Promise<ProviderResult | null>> = [fromTwelveData, fromYahoo];
+async function pullFromProviders(live: boolean): Promise<ProviderResult | null> {
+  const attempts: Array<() => Promise<ProviderResult | null>> = [() => fromTwelveData(live), fromYahoo];
   const failures: string[] = [];
 
   for (const attempt of attempts) {
@@ -446,15 +532,20 @@ async function pullFromProviders(): Promise<ProviderResult | null> {
  * Returns the freshest snapshot available. Serves a cached snapshot within the
  * TTL, otherwise refetches. Concurrent callers share a single in-flight request.
  */
-export async function getMarketSnapshot(): Promise<MarketSnapshot> {
+export async function getMarketSnapshot(live = false): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  if (cached && now - cached.at < cacheSeconds() * 1000) {
+  // The outer cache only absorbs bursts now. What actually reaches the provider
+  // is decided inside: candles on a candle close, the tick on the budget's
+  // clock, the daily series once an hour. So this can be short without costing
+  // anything, which is what lets the status panel keep up.
+  const burstMs = live ? Math.min(5_000, cacheSeconds() * 1000) : cacheSeconds() * 1000;
+  if (cached && now - cached.at < burstMs) {
     return toSnapshot(cached.result, now, 'live');
   }
 
   if (!inFlight) {
-    inFlight = pullFromProviders().finally(() => {
+    inFlight = pullFromProviders(live).finally(() => {
       inFlight = null;
     });
   }

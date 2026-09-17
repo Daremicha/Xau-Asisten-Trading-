@@ -10,6 +10,7 @@ import {
   previousDayClose,
   YAHOO_SYMBOLS,
 } from '../lib/price-feed';
+import { __resetBudget, takeRequest } from '../lib/request-budget';
 
 describe('Twelve Data parsing', () => {
   test('a zoneless datetime is read as UTC, not as local time', () => {
@@ -145,18 +146,28 @@ describe('quota aware cache window', () => {
     expect(cacheSeconds()).toBe(900);
   });
 
-  test('a full trading day of real use stays inside the free daily quota', () => {
-    // How the app actually spends the allowance: the browser polls fast only
-    // while an order is working, slowly while watching, and not at all in a
-    // background tab. Two hours in a trade and four hours watching is a heavy
-    // day for one person.
+  test('the browser polls for the panel, not for the provider', () => {
+    // What the browser asks for and what reaches the provider are no longer the
+    // same thing. Polling is fast while an order is working because that is
+    // when the status panel is read against the chart; the request budget, not
+    // this interval, decides how often the provider is actually called.
     delete process.env.MARKET_DATA_CACHE_SECONDS;
-    const perHour = (intervalMs: number) => 3_600_000 / intervalMs;
-    const requestsPerDay = 2 * perHour(QUOTE_POLL_MS.withOpenOrder) + 4 * perHour(QUOTE_POLL_MS.idle);
+    expect(QUOTE_POLL_MS.withOpenOrder).toBeLessThanOrEqual(10_000);
+    expect(QUOTE_POLL_MS.idle).toBeGreaterThan(QUOTE_POLL_MS.withOpenOrder);
+    // A poll costs nothing beyond our own route while the snapshot is fresh.
+    expect(cacheSeconds()).toBeGreaterThanOrEqual(QUOTE_POLL_MS.withOpenOrder / 1000);
+  });
 
-    expect(requestsPerDay).toBeLessThan(800);
-    // The cache never lets a second tab double that bill.
-    expect(cacheSeconds()).toBeLessThanOrEqual(QUOTE_POLL_MS.withOpenOrder / 1000);
+  test('a heavy day of watching cannot outspend the plan', () => {
+    // Twelve hours of a browser polling every eight seconds: five thousand
+    // four hundred polls. What the provider sees is bounded by the budget.
+    __resetBudget(Date.UTC(2026, 8, 17, 0, 1, 0));
+    let providerCalls = 0;
+    for (let poll = 0; poll < (12 * 3_600_000) / QUOTE_POLL_MS.withOpenOrder; poll++) {
+      const at = Date.UTC(2026, 8, 17, 0, 1, 0) + poll * QUOTE_POLL_MS.withOpenOrder;
+      if (takeRequest(false, at)) providerCalls += 1;
+    }
+    expect(providerCalls).toBeLessThan(800);
   });
 });
 
