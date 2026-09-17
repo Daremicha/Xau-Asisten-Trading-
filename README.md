@@ -152,6 +152,14 @@ domain does not match exactly.
 
 ## The chart, the quote, and why they differ
 
+The quote is the current tick, not the close of the last finished candle. That
+distinction is the difference between a market order you can fill and one you
+cannot: between fifteen minute bars, a candle close can be minutes and several
+dollars behind the market. If the tick endpoint cannot be reached the snapshot
+falls back to the candle close, reports the real age of that price, and marks
+itself stale once it is too old to place a market order against.
+
+
 The candles are **TradingView's own live feed** (OANDA:XAUUSD), embedded
 directly, so they tick in real time. The bid, ask and every number the engine
 computes come from **your market data provider**, a few seconds behind. The two

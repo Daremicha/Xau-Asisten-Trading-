@@ -29,9 +29,14 @@ export interface MarketSnapshot {
   message: string;
 }
 
-interface ProviderResult {
+export interface ProviderResult {
   source: string;
   price: number;
+  /**
+   * When the price itself was taken. A live tick is now; a candle close is as
+   * old as that candle, which is what the screen has to be told.
+   */
+  priceTakenAt: number;
   dayHigh: number | null;
   dayLow: number | null;
   previousClose: number | null;
@@ -77,6 +82,16 @@ export function cacheSeconds(): number {
 }
 /** Beyond this age a cached snapshot is no longer offered at all. */
 const MAX_STALE_MS = 30 * 60_000;
+
+/**
+ * Beyond this, a price is not current enough to place a market order against.
+ *
+ * Reached when the tick endpoint fails and the snapshot falls back to the close
+ * of the last finished candle. The feed still works, but quoting an instant
+ * order at that price is how one came to be six dollars away from the market,
+ * so the snapshot is marked stale and the engine sizes down accordingly.
+ */
+const PRICE_TOO_OLD_MS = 120_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 
 let cached: { at: number; result: ProviderResult } | null = null;
@@ -145,6 +160,33 @@ export function mapTwelveDataCandles(payload: unknown): Candle[] {
   return candles.sort((a, b) => a.time - b.time);
 }
 
+/**
+ * The current price, rather than the close of the last finished candle.
+ *
+ * This is the bug that made a market order unfillable. The snapshot's price was
+ * taken from the newest fifteen minute candle, so between bars it was whatever
+ * gold last traded at when that bar closed: on a fast move, minutes and several
+ * dollars behind the market. The engine then quoted BUY INSTANT at a price that
+ * no longer existed.
+ *
+ * One extra call per refresh, and the cheapest one the provider sells.
+ */
+async function twelveDataPrice(base: string, key: string): Promise<number | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/price?symbol=XAU/USD&format=JSON&apikey=${encodeURIComponent(key)}`
+    );
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const price = toFiniteNumber((payload as { price?: unknown })?.price);
+    return price !== null && price > 0 ? price : null;
+  } catch {
+    // The candles still carry a usable, if older, price. The snapshot reports
+    // how old it is either way.
+    return null;
+  }
+}
+
 async function fromTwelveData(): Promise<ProviderResult | null> {
   const key = process.env.TWELVE_DATA_API_KEY;
   if (!key || key.trim().length === 0) return null;
@@ -170,9 +212,14 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
   const last = candles[candles.length - 1];
   const dayCandles = candlesSinceUtcMidnight(candles, last.time);
 
+  // Ask for the tick as well. Falling back to the candle close is correct but
+  // openly older, and the snapshot says by how much.
+  const livePrice = await twelveDataPrice(base, key.trim());
+
   return {
     source: 'Twelve Data (XAU/USD spot)',
-    price: last.close,
+    price: livePrice ?? last.close,
+    priceTakenAt: livePrice === null ? last.time : Date.now(),
     dayHigh: dayCandles.length ? Math.max(...dayCandles.map((c) => c.high)) : null,
     dayLow: dayCandles.length ? Math.min(...dayCandles.map((c) => c.low)) : null,
     previousClose: previousDayClose(candles, last.time),
@@ -233,6 +280,8 @@ async function fromYahoo(): Promise<ProviderResult | null> {
     // Gold futures track spot closely but are not identical, so the label says so.
     source: 'Yahoo Finance (COMEX GC=F front month)',
     price,
+    // Yahoo's meta carries the live quote; only the fallback is candle-aged.
+    priceTakenAt: toFiniteNumber(meta?.regularMarketPrice) === null ? last.time : Date.now(),
     dayHigh: toFiniteNumber(meta?.regularMarketDayHigh) ??
       (dayCandles.length ? Math.max(...dayCandles.map((c) => c.high)) : null),
     dayLow: toFiniteNumber(meta?.regularMarketDayLow) ??
@@ -284,7 +333,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   const now = Date.now();
 
   if (cached && now - cached.at < cacheSeconds() * 1000) {
-    return toSnapshot(cached.result, cached.at, now, 'live');
+    return toSnapshot(cached.result, now, 'live');
   }
 
   if (!inFlight) {
@@ -296,11 +345,11 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 
   if (fresh) {
     cached = { at: Date.now(), result: fresh };
-    return toSnapshot(fresh, cached.at, Date.now(), 'live');
+    return toSnapshot(fresh, Date.now(), 'live');
   }
 
   if (cached && now - cached.at <= MAX_STALE_MS) {
-    return toSnapshot(cached.result, cached.at, now, 'stale');
+    return toSnapshot(cached.result, now, 'stale');
   }
 
   return {
@@ -318,17 +367,28 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   };
 }
 
-function toSnapshot(
+/** Exposed for tests: the mapping that decides what age and status are reported. */
+export function __toSnapshotForTest(
   result: ProviderResult,
-  fetchedAt: number,
   now: number,
   status: 'live' | 'stale'
 ): MarketSnapshot {
-  const ageMs = Math.max(0, now - fetchedAt);
+  return toSnapshot(result, now, status);
+}
+
+function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale'): MarketSnapshot {
+  // Measured from the moment the price was taken, not from the moment we asked
+  // for it. A candle close fetched a second ago can still be minutes old, and
+  // reporting that as "0s old" is how a market order came to be quoted six
+  // dollars away from the market.
+  const ageMs = Math.max(0, now - Math.min(result.priceTakenAt, now));
+  // A live provider serving a price too old to trade on is still stale.
+  const effective: 'live' | 'stale' = status === 'live' && ageMs > PRICE_TOO_OLD_MS ? 'stale' : status;
+
   return {
-    status,
+    status: effective,
     source: result.source,
-    fetchedAt: new Date(fetchedAt).toISOString(),
+    fetchedAt: new Date(result.priceTakenAt).toISOString(),
     ageMs,
     price: round2(result.price),
     dayHigh: result.dayHigh === null ? null : round2(result.dayHigh),
@@ -336,8 +396,12 @@ function toSnapshot(
     previousClose: result.previousClose === null ? null : round2(result.previousClose),
     candlesM15: result.candlesM15,
     message:
-      status === 'live'
+      effective === 'live'
         ? `Live data from ${result.source}.`
+        : status === 'live'
+        ? `${result.source} is answering, but the freshest price it gave is ${Math.round(
+            ageMs / 1000
+          )} seconds old, which is not current enough for a market order.`
         : `Provider unreachable. Showing the last known quote from ${result.source}, ${Math.round(
             ageMs / 1000
           )} seconds old. Do not trade on it.`,
