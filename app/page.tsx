@@ -38,8 +38,14 @@ import {
   alreadyMigrated,
   hasLocalDataWorthMigrating,
   markMigrated,
+  markMirrorOwner,
+  mirrorBelongsTo,
   readLocalProfile,
+  settingsMissingFromCloud,
+  toCloudPatch,
+  writeLocalSettings,
   type LocalProfile,
+  type ProfileSettings,
 } from '@/lib/local-store';
 import Header from '@/components/Header';
 import EquityManager from '@/components/EquityManager';
@@ -141,7 +147,7 @@ export default function Home() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     try {
-      localStorage.setItem('xauusd_theme', next);
+      void persistSettings({ theme: next });
     } catch {
       // ignore
     }
@@ -426,6 +432,25 @@ export default function Home() {
 
           if (snap.exists()) {
             const data = snap.data();
+
+            // Anything this browser holds that the account does not: a balance
+            // set before signing in, or set while a cloud write was failing.
+            // Carrying it up is the difference between an account that
+            // remembers and one that appears to reset itself on every login.
+            // Never from a browser where somebody else signed in: that would
+            // hand one person's balance to the next account to use it.
+            const local = readLocalProfile();
+            const gaps = mirrorBelongsTo(user.uid) ? settingsMissingFromCloud(data, local) : {};
+            if (Object.keys(gaps).length > 0) {
+              await saveToCloud(() =>
+                setDoc(
+                  doc(db, 'users', user.uid),
+                  { ...toCloudPatch(gaps), updatedAt: new Date().toISOString() },
+                  { merge: true }
+                )
+              );
+              Object.assign(data, toCloudPatch(gaps));
+            }
             if (typeof data.lockedEquity === 'number') {
               setEquity(data.lockedEquity);
             }
@@ -486,6 +511,25 @@ export default function Home() {
             }
           }
 
+          // Mirror the account's settings into this browser. Without this the
+          // local copy stays at whatever it was before signing in, and signing
+          // out later looks exactly like the balance resetting.
+          if (snap.exists()) {
+            const data = snap.data();
+            writeLocalSettings({
+              ...(typeof data.lockedEquity === 'number' ? { equity: data.lockedEquity } : {}),
+              ...(typeof data.initialEquity === 'number' ? { initialEquity: data.initialEquity } : {}),
+              ...(typeof data.isEquityLocked === 'boolean' ? { isEquityLocked: data.isEquityLocked } : {}),
+              ...(typeof data.riskPercentage === 'number' ? { riskPercentage: data.riskPercentage } : {}),
+              ...(data.tradingStyle ? { tradingStyle: data.tradingStyle as TradingStyle } : {}),
+              ...(data.accountType ? { accountType: data.accountType as AccountType } : {}),
+              ...(data.selectedBroker ? { selectedBroker: data.selectedBroker as BrokerId } : {}),
+              ...(typeof data.minConviction === 'number' ? { minConviction: data.minConviction } : {}),
+              ...(data.theme === 'dark' || data.theme === 'light' ? { theme: data.theme } : {}),
+            });
+            markMirrorOwner(user.uid);
+          }
+
           // Fetch user's historical self-learning records from Firestore
           const recRef = collection(db, 'users', user.uid, 'learning_records');
           const recSnap = await getDocs(
@@ -517,9 +561,35 @@ export default function Home() {
     });
 
     return () => unsubscribe();
-    // applyLocalProfile is stable, so listing it does not resubscribe the
-    // auth listener on every render.
+    // applyLocalProfile and saveToCloud are stable, so listing them would only
+    // resubscribe the auth listener on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyLocalProfile]);
+
+  /**
+   * Saves a settings change everywhere it belongs.
+   *
+   * Always to this browser, and to the account as well when one is signed in.
+   * The old code did one or the other: signed in, nothing was written locally,
+   * so signing out fell back to a stale browser copy and the balance appeared
+   * to reset itself. A mirror costs nothing and removes the whole class of it.
+   */
+  const persistSettings = useCallback(
+    async (patch: Partial<ProfileSettings>) => {
+      writeLocalSettings(patch);
+      if (!currentUser) return;
+      await saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { ...toCloudPatch(patch), updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
+    },
+    // saveToCloud is stable, so listing it would only churn this callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentUser]
+  );
 
   /**
    * Pulls the real XAUUSD quote and the structural read derived from live
@@ -746,29 +816,15 @@ export default function Home() {
     setInitialEquity(amount);
     setIsEquityLocked(true);
 
-    if (currentUser) {
-      await saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          {
-            lockedEquity: amount,
-            initialEquity: amount,
-            isEquityLocked: true,
-            riskPercentage,
-            tradingStyle,
-            accountType,
-            selectedBroker,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        )
-      );
-    } else {
-      localStorage.setItem(LOCAL_KEYS.equity, amount.toString());
-      localStorage.setItem(LOCAL_KEYS.initialEquity, amount.toString());
-      localStorage.setItem(LOCAL_KEYS.isLocked, 'true');
-      localStorage.setItem(LOCAL_KEYS.broker, selectedBroker);
-    }
+    await persistSettings({
+      equity: amount,
+      initialEquity: amount,
+      isEquityLocked: true,
+      riskPercentage,
+      tradingStyle,
+      accountType,
+      selectedBroker,
+    });
   };
 
   /**
@@ -779,22 +835,7 @@ export default function Home() {
   const handleChangeMinConviction = (score: number) => {
     setMinConviction(score);
     setSkippedSetup(null);
-
-    try {
-      localStorage.setItem(LOCAL_KEYS.minConviction, score.toString());
-    } catch {
-      // A browser refusing storage simply forgets the floor on reload.
-    }
-
-    if (currentUser) {
-      void saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          { minConviction: score, updatedAt: new Date().toISOString() },
-          { merge: true }
-        )
-      );
-    }
+    void persistSettings({ minConviction: score });
   };
 
   /**
@@ -804,26 +845,7 @@ export default function Home() {
    */
   const handleProtectStop = (atR: number | null) => {
     setProtectStopAtR(atR);
-
-    try {
-      if (atR === null) {
-        localStorage.removeItem(LOCAL_KEYS.protectStopAtR);
-      } else {
-        localStorage.setItem(LOCAL_KEYS.protectStopAtR, atR.toString());
-      }
-    } catch {
-      // A browser refusing storage simply forgets the choice on reload.
-    }
-
-    if (currentUser) {
-      void saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          { protectStopAtR: atR, updatedAt: new Date().toISOString() },
-          { merge: true }
-        )
-      );
-    }
+    void persistSettings({ protectStopAtR: atR });
   };
 
   /**
@@ -833,26 +855,7 @@ export default function Home() {
   const handleSkipBand = (band: { min: number; max: number } | null) => {
     setSkipConvictionBand(band);
     setSkippedSetup(null);
-
-    try {
-      if (band === null) {
-        localStorage.removeItem(LOCAL_KEYS.skipConvictionBand);
-      } else {
-        localStorage.setItem(LOCAL_KEYS.skipConvictionBand, JSON.stringify(band));
-      }
-    } catch {
-      // A browser refusing storage simply forgets the choice on reload.
-    }
-
-    if (currentUser) {
-      void saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          { skipConvictionBand: band, updatedAt: new Date().toISOString() },
-          { merge: true }
-        )
-      );
-    }
+    void persistSettings({ skipConvictionBand: band });
   };
 
   /**
@@ -862,106 +865,45 @@ export default function Home() {
    */
   const handleAdoptBacktestPrior = (weights: PriorWeights | null) => {
     setBacktestPrior(weights);
-
-    try {
-      if (weights) {
-        localStorage.setItem(LOCAL_KEYS.backtestPrior, JSON.stringify(weights));
-      } else {
-        localStorage.removeItem(LOCAL_KEYS.backtestPrior);
-      }
-    } catch {
-      // A browser refusing storage simply forgets the choice on reload.
-    }
-
-    if (currentUser) {
-      void saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          { backtestPrior: weights, updatedAt: new Date().toISOString() },
-          { merge: true }
-        )
-      );
-    }
+    void persistSettings({ backtestPrior: weights });
   };
 
   const handleResetBaseline = () => {
     setInitialEquity(equity);
-    localStorage.setItem(LOCAL_KEYS.initialEquity, equity.toString());
-    if (currentUser) {
-      void saveToCloud(() =>
-        setDoc(
-          doc(db, 'users', currentUser.uid),
-          { initialEquity: equity, updatedAt: new Date().toISOString() },
-          { merge: true }
-        )
-      );
-    }
+    void persistSettings({ initialEquity: equity });
   };
 
   // Update Broker Preference
   const handleChangeBroker = async (broker: BrokerId) => {
     setSelectedBroker(broker);
-    if (currentUser) {
-      await saveToCloud(() =>
-        setDoc(doc(db, 'users', currentUser.uid), { selectedBroker: broker, updatedAt: new Date().toISOString() }, { merge: true })
-      );
-    } else {
-      localStorage.setItem(LOCAL_KEYS.broker, broker);
-    }
+    await persistSettings({ selectedBroker: broker });
   };
 
   // Update Risk Percentage
   const handleChangeRiskPercentage = async (pct: number) => {
     setRiskPercentage(pct);
-    if (currentUser) {
-      await saveToCloud(() =>
-        setDoc(doc(db, 'users', currentUser.uid), { riskPercentage: pct, updatedAt: new Date().toISOString() }, { merge: true })
-      );
-    } else {
-      localStorage.setItem(LOCAL_KEYS.riskPct, pct.toString());
-    }
+    await persistSettings({ riskPercentage: pct });
   };
 
   // Update Trading Style (Scalping / Intraday / Swing)
   const handleChangeTradingStyle = async (style: TradingStyle) => {
     setTradingStyle(style);
-    if (currentUser) {
-      await saveToCloud(() =>
-        setDoc(doc(db, 'users', currentUser.uid), { tradingStyle: style, updatedAt: new Date().toISOString() }, { merge: true })
-      );
-    } else {
-      localStorage.setItem(LOCAL_KEYS.style, style);
-    }
+    await persistSettings({ tradingStyle: style });
   };
 
   // Update Account Type (Standard / Cent / Pro)
   const handleChangeAccountType = async (acc: AccountType) => {
     setAccountType(acc);
-    if (currentUser) {
-      await saveToCloud(() =>
-        setDoc(doc(db, 'users', currentUser.uid), { accountType: acc, updatedAt: new Date().toISOString() }, { merge: true })
-      );
-    } else {
-      localStorage.setItem(LOCAL_KEYS.account, acc);
-    }
+    await persistSettings({ accountType: acc });
   };
 
   const handleResetEquity = async () => {
+    // Only reachable once the account is actually empty, which is why it is not
+    // guarded by a confirmation: there is nothing left to lose at that point.
     if (equity <= 0) {
       setIsEquityLocked(false);
       setEquity(5000);
-      if (currentUser) {
-        await saveToCloud(() =>
-          setDoc(
-            doc(db, 'users', currentUser.uid),
-            { isEquityLocked: false, lockedEquity: 5000, updatedAt: new Date().toISOString() },
-            { merge: true }
-          )
-        );
-      } else {
-        localStorage.setItem(LOCAL_KEYS.isLocked, 'false');
-        localStorage.setItem(LOCAL_KEYS.equity, '5000');
-      }
+      await persistSettings({ isEquityLocked: false, equity: 5000 });
     }
   };
 

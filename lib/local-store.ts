@@ -27,6 +27,16 @@ export const LOCAL_KEYS = {
   protectStopAtR: 'xauusd_protect_stop_at_r',
   /** A conviction band live analysis refuses outright. */
   skipConvictionBand: 'xauusd_skip_conviction_band',
+  /** Dark or light, so the app opens looking the way it was left. */
+  theme: 'xauusd_theme',
+  /**
+   * Which account the mirrored settings belong to.
+   *
+   * The mirror exists so signing out cannot fall back to something older. It
+   * must never be carried *up* into a different account: on a shared browser
+   * that would hand one person's balance to the next one who signs in.
+   */
+  mirrorOwner: 'xauusd_settings_owner',
 } as const;
 
 export interface LocalProfile {
@@ -51,6 +61,8 @@ export interface LocalProfile {
    * A conviction band refused outright, or null when every band is taken.
    */
   skipConvictionBand: { min: number; max: number } | null;
+  /** Dark or light, or null when the user has never chosen. */
+  theme: 'dark' | 'light' | null;
 }
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
@@ -133,6 +145,10 @@ export function readLocalProfile(): LocalProfile {
       const value = readNumber(LOCAL_KEYS.protectStopAtR);
       return value !== null && value >= 0.5 && value <= 3 ? value : null;
     })(),
+    theme: (() => {
+      const raw = readRaw(LOCAL_KEYS.theme);
+      return raw === 'dark' || raw === 'light' ? raw : null;
+    })(),
     // A stored band is checked rather than trusted: a corrupt value refuses
     // nothing, which is the behaviour the app had before the setting existed.
     skipConvictionBand: (() => {
@@ -174,4 +190,155 @@ export function markMigrated(uid: string) {
 /** True when the guest data has already been copied into this account. */
 export function alreadyMigrated(uid: string): boolean {
   return readRaw(LOCAL_KEYS.migratedFor) === uid;
+}
+
+/**
+ * Everything the app remembers about how a user has set it up.
+ *
+ * Written on every change, whether or not anyone is signed in. The old code
+ * wrote to the browser *or* to the cloud, never both, so a signed-in user left
+ * no local copy at all: sign out, and the screen fell back to whatever stale
+ * numbers the browser still held, which looked exactly like the balance
+ * resetting itself.
+ */
+export interface ProfileSettings {
+  equity: number;
+  initialEquity: number;
+  isEquityLocked: boolean;
+  riskPercentage: number;
+  tradingStyle: TradingStyle;
+  accountType: AccountType;
+  selectedBroker: BrokerId;
+  minConviction: number;
+  protectStopAtR: number | null;
+  skipConvictionBand: { min: number; max: number } | null;
+  backtestPrior: PriorWeights | null;
+  theme: 'dark' | 'light';
+}
+
+/** Field names this app uses in the user's cloud document. */
+export const CLOUD_FIELDS: Record<keyof ProfileSettings, string> = {
+  equity: 'lockedEquity',
+  initialEquity: 'initialEquity',
+  isEquityLocked: 'isEquityLocked',
+  riskPercentage: 'riskPercentage',
+  tradingStyle: 'tradingStyle',
+  accountType: 'accountType',
+  selectedBroker: 'selectedBroker',
+  minConviction: 'minConviction',
+  protectStopAtR: 'protectStopAtR',
+  skipConvictionBand: 'skipConvictionBand',
+  backtestPrior: 'backtestPrior',
+  theme: 'theme',
+};
+
+function writeRaw(key: string, value: string | null): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // A browser refusing storage loses the mirror, not the setting: the cloud
+    // copy is written separately and is the one that survives a new device.
+  }
+}
+
+/** Mirrors a settings change into this browser. Always safe to call. */
+export function writeLocalSettings(patch: Partial<ProfileSettings>): void {
+  if (patch.equity !== undefined) writeRaw(LOCAL_KEYS.equity, String(patch.equity));
+  if (patch.initialEquity !== undefined) writeRaw(LOCAL_KEYS.initialEquity, String(patch.initialEquity));
+  if (patch.isEquityLocked !== undefined) writeRaw(LOCAL_KEYS.isLocked, String(patch.isEquityLocked));
+  if (patch.riskPercentage !== undefined) writeRaw(LOCAL_KEYS.riskPct, String(patch.riskPercentage));
+  if (patch.tradingStyle !== undefined) writeRaw(LOCAL_KEYS.style, patch.tradingStyle);
+  if (patch.accountType !== undefined) writeRaw(LOCAL_KEYS.account, patch.accountType);
+  if (patch.selectedBroker !== undefined) writeRaw(LOCAL_KEYS.broker, patch.selectedBroker);
+  if (patch.minConviction !== undefined) writeRaw(LOCAL_KEYS.minConviction, String(patch.minConviction));
+  if (patch.protectStopAtR !== undefined) {
+    writeRaw(LOCAL_KEYS.protectStopAtR, patch.protectStopAtR === null ? null : String(patch.protectStopAtR));
+  }
+  if (patch.skipConvictionBand !== undefined) {
+    writeRaw(
+      LOCAL_KEYS.skipConvictionBand,
+      patch.skipConvictionBand === null ? null : JSON.stringify(patch.skipConvictionBand)
+    );
+  }
+  if (patch.backtestPrior !== undefined) {
+    writeRaw(LOCAL_KEYS.backtestPrior, patch.backtestPrior === null ? null : JSON.stringify(patch.backtestPrior));
+  }
+  if (patch.theme !== undefined) writeRaw(LOCAL_KEYS.theme, patch.theme);
+}
+
+/** The same change, shaped for the cloud document. */
+export function toCloudPatch(patch: Partial<ProfileSettings>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    out[CLOUD_FIELDS[key as keyof ProfileSettings]] = value;
+  }
+  return out;
+}
+
+/**
+ * Settings this browser holds that the cloud document does not.
+ *
+ * A balance set before signing in, or set while a cloud write was failing,
+ * exists only here. Carrying it up on sign-in is the difference between an
+ * account that remembers and one that appears to reset itself.
+ */
+export function settingsMissingFromCloud(
+  cloud: Record<string, unknown>,
+  local: LocalProfile
+): Partial<ProfileSettings> {
+  const missing: Partial<ProfileSettings> = {};
+  const absent = (field: string) => cloud[field] === undefined || cloud[field] === null;
+
+  if (absent(CLOUD_FIELDS.equity) && local.equity !== null) missing.equity = local.equity;
+  if (absent(CLOUD_FIELDS.initialEquity) && local.initialEquity !== null) {
+    missing.initialEquity = local.initialEquity;
+  }
+  if (absent(CLOUD_FIELDS.isEquityLocked) && local.isEquityLocked !== null) {
+    missing.isEquityLocked = local.isEquityLocked;
+  }
+  if (absent(CLOUD_FIELDS.riskPercentage) && local.riskPercentage !== null) {
+    missing.riskPercentage = local.riskPercentage;
+  }
+  if (absent(CLOUD_FIELDS.tradingStyle) && local.tradingStyle !== null) {
+    missing.tradingStyle = local.tradingStyle;
+  }
+  if (absent(CLOUD_FIELDS.accountType) && local.accountType !== null) {
+    missing.accountType = local.accountType;
+  }
+  if (absent(CLOUD_FIELDS.selectedBroker) && local.selectedBroker !== null) {
+    missing.selectedBroker = local.selectedBroker;
+  }
+  if (absent(CLOUD_FIELDS.minConviction) && local.minConviction !== null) {
+    missing.minConviction = local.minConviction;
+  }
+  if (absent(CLOUD_FIELDS.protectStopAtR) && local.protectStopAtR !== null) {
+    missing.protectStopAtR = local.protectStopAtR;
+  }
+  if (absent(CLOUD_FIELDS.skipConvictionBand) && local.skipConvictionBand !== null) {
+    missing.skipConvictionBand = local.skipConvictionBand;
+  }
+  if (absent(CLOUD_FIELDS.backtestPrior) && local.backtestPrior !== null) {
+    missing.backtestPrior = local.backtestPrior;
+  }
+  if (absent(CLOUD_FIELDS.theme) && local.theme !== null) missing.theme = local.theme;
+
+  return missing;
+}
+
+/** Records which account the mirrored settings came from. */
+export function markMirrorOwner(uid: string): void {
+  writeRaw(LOCAL_KEYS.mirrorOwner, uid);
+}
+
+/**
+ * Whether this browser's settings may be carried up into `uid`.
+ *
+ * True when the mirror is unowned, which is guest work, or when it already
+ * belongs to this account. False on a browser where somebody else signed in.
+ */
+export function mirrorBelongsTo(uid: string): boolean {
+  const owner = readRaw(LOCAL_KEYS.mirrorOwner);
+  return owner === null || owner === uid;
 }
