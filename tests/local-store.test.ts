@@ -4,7 +4,12 @@ import {
   alreadyMigrated,
   hasLocalDataWorthMigrating,
   markMigrated,
+  markMirrorOwner,
+  mirrorBelongsTo,
   readLocalProfile,
+  settingsMissingFromCloud,
+  toCloudPatch,
+  writeLocalSettings,
 } from '../lib/local-store';
 import { buildUserDocument } from '../lib/cloud-sync';
 import type { SelfLearningMemoryRecord } from '../lib/types';
@@ -252,5 +257,135 @@ describe('a refused conviction band', () => {
     expect(readLocalProfile().skipConvictionBand).toBeNull();
     installStorage({ [LOCAL_KEYS.skipConvictionBand]: '{"min":-5,"max":200}' });
     expect(readLocalProfile().skipConvictionBand).toBeNull();
+  });
+});
+
+describe('a setting is written to the browser as well as the account', () => {
+  test('every setting the app holds can be mirrored locally', () => {
+    const map = installStorage();
+    writeLocalSettings({
+      equity: 9.01,
+      initialEquity: 10,
+      isEquityLocked: true,
+      riskPercentage: 1,
+      tradingStyle: 'Intraday',
+      accountType: 'Cent',
+      selectedBroker: 'EXNESS',
+      minConviction: 55,
+      protectStopAtR: 1,
+      skipConvictionBand: { min: 40, max: 55 },
+      backtestPrior: null,
+      theme: 'light',
+    });
+
+    const back = readLocalProfile();
+    expect(back.equity).toBe(9.01);
+    expect(back.initialEquity).toBe(10);
+    expect(back.isEquityLocked).toBe(true);
+    expect(back.riskPercentage).toBe(1);
+    expect(back.tradingStyle).toBe('Intraday');
+    expect(back.accountType).toBe('Cent');
+    expect(back.selectedBroker).toBe('EXNESS');
+    expect(back.minConviction).toBe(55);
+    expect(back.protectStopAtR).toBe(1);
+    expect(back.skipConvictionBand).toEqual({ min: 40, max: 55 });
+    expect(back.theme).toBe('light');
+    expect(map.size).toBeGreaterThan(8);
+  });
+
+  test('a partial change touches only what it names', () => {
+    installStorage({ [LOCAL_KEYS.equity]: '9.01', [LOCAL_KEYS.riskPct]: '1' });
+    writeLocalSettings({ riskPercentage: 2 });
+    expect(readLocalProfile().equity).toBe(9.01);
+    expect(readLocalProfile().riskPercentage).toBe(2);
+  });
+
+  test('clearing a setting removes it rather than storing the word null', () => {
+    installStorage({ [LOCAL_KEYS.protectStopAtR]: '1' });
+    writeLocalSettings({ protectStopAtR: null });
+    expect(readLocalProfile().protectStopAtR).toBeNull();
+  });
+
+  test('the cloud shape uses the field names the account already stores', () => {
+    expect(toCloudPatch({ equity: 9.01, riskPercentage: 1 })).toEqual({
+      lockedEquity: 9.01,
+      riskPercentage: 1,
+    });
+    // An untouched setting is not written as undefined over a good value.
+    expect(toCloudPatch({ equity: undefined, theme: 'dark' })).toEqual({ theme: 'dark' });
+  });
+});
+
+describe('what signing in must not throw away', () => {
+  test('a balance this browser holds and the account does not is carried up', () => {
+    // The reported bug: a balance entered, then a login, then the balance back
+    // at its starting value because the account had never been told.
+    installStorage({
+      [LOCAL_KEYS.equity]: '9.01',
+      [LOCAL_KEYS.initialEquity]: '10',
+      [LOCAL_KEYS.isLocked]: 'true',
+      [LOCAL_KEYS.minConviction]: '55',
+    });
+    const gaps = settingsMissingFromCloud({ riskPercentage: 1 }, readLocalProfile());
+    expect(gaps.equity).toBe(9.01);
+    expect(gaps.initialEquity).toBe(10);
+    expect(gaps.isEquityLocked).toBe(true);
+    expect(gaps.minConviction).toBe(55);
+    // Already in the account, so it is left alone.
+    expect(gaps.riskPercentage).toBeUndefined();
+  });
+
+  test('the account always wins where it has an answer', () => {
+    installStorage({ [LOCAL_KEYS.equity]: '5000' });
+    const gaps = settingsMissingFromCloud({ lockedEquity: 9.01 }, readLocalProfile());
+    expect(gaps.equity).toBeUndefined();
+  });
+
+  test('an account with everything needs nothing carried up', () => {
+    installStorage({ [LOCAL_KEYS.equity]: '9.01' });
+    const gaps = settingsMissingFromCloud(
+      {
+        lockedEquity: 9.01,
+        initialEquity: 10,
+        isEquityLocked: true,
+        riskPercentage: 1,
+        tradingStyle: 'Intraday',
+        accountType: 'Cent',
+        selectedBroker: 'EXNESS',
+        minConviction: 0,
+        protectStopAtR: 1,
+        skipConvictionBand: { min: 40, max: 55 },
+        backtestPrior: {},
+        theme: 'dark',
+      },
+      readLocalProfile()
+    );
+    expect(Object.keys(gaps)).toHaveLength(0);
+  });
+
+  test('an empty browser has nothing to offer an empty account', () => {
+    installStorage({});
+    expect(Object.keys(settingsMissingFromCloud({}, readLocalProfile()))).toHaveLength(0);
+  });
+});
+
+describe('whose settings these are', () => {
+  test('an unowned mirror is guest work, and may be carried into any account', () => {
+    installStorage({ [LOCAL_KEYS.equity]: '9.01' });
+    expect(mirrorBelongsTo('uid-a')).toBe(true);
+  });
+
+  test('a mirror keeps belonging to the account that wrote it', () => {
+    installStorage({ [LOCAL_KEYS.equity]: '9.01' });
+    markMirrorOwner('uid-a');
+    expect(mirrorBelongsTo('uid-a')).toBe(true);
+  });
+
+  test('another account on the same browser inherits nothing', () => {
+    // A shared phone. Without this, the second person to sign in would be
+    // handed the first one's balance.
+    installStorage({ [LOCAL_KEYS.equity]: '9.01' });
+    markMirrorOwner('uid-a');
+    expect(mirrorBelongsTo('uid-b')).toBe(false);
   });
 });
