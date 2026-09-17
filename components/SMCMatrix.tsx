@@ -133,6 +133,18 @@ export default function SMCMatrix({
                     >
                       {tf} Structure
                     </span>
+                    {structure.derivedFrom && (
+                      <span
+                        title={`No ${tf} series was available, so this read was built from ${structure.derivedFrom} candles.`}
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                          isDark
+                            ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
+                            : 'text-amber-700 bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        from {structure.derivedFrom}
+                      </span>
+                    )}
                     <span
                       className={`text-xs font-bold flex items-center gap-1 ${
                         isBullish ? 'text-emerald-500' : 'text-rose-500'
@@ -241,15 +253,21 @@ export default function SMCMatrix({
           >
             <div className={`text-xs font-medium mb-1 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Activity className="w-3.5 h-3.5 text-amber-500" />
-              <span>EMA 50 & 200 Macro Trend</span>
+              <span>
+                EMA {indicators.emaFastPeriod ?? 50} &amp; {indicators.emaSlowPeriod ?? 200} Macro Trend
+              </span>
             </div>
             <div className="mt-2 space-y-1.5 font-mono text-xs">
               <div className="flex justify-between">
-                <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>EMA 50:</span>
+                <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>
+                  EMA {indicators.emaFastPeriod ?? 50}:
+                </span>
                 <strong className="text-amber-500">${indicators.ema50.toFixed(2)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>EMA 200:</span>
+                <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>
+                  EMA {indicators.emaSlowPeriod ?? 200}:
+                </span>
                 <strong className="text-sky-500">${indicators.ema200.toFixed(2)}</strong>
               </div>
             </div>

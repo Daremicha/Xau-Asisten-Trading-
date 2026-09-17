@@ -175,12 +175,22 @@ export function scoreConfluence(inputs: SignalInputs): {
   const factors: ConfluenceFactor[] = [];
 
   // Higher timeframe bias carries the most authority in a top down model.
-  const htfVote = trendVote(structures.d1.trend) * 0.5 + trendVote(structures.h4.trend) * 0.3;
+  //
+  // When the daily read had to be resampled from the execution feed it is the
+  // same candles the H4 read used, so counting both at full strength would be
+  // one opinion voting twice with the heaviest weight on the table. In that
+  // case the daily half of the vote stands down and the read says so.
+  const dailyIsBorrowed = Boolean(structures.d1.derivedFrom);
+  const htfVote = dailyIsBorrowed
+    ? trendVote(structures.h4.trend) * 0.8
+    : trendVote(structures.d1.trend) * 0.5 + trendVote(structures.h4.trend) * 0.3;
   factors.push({
     name: 'Higher timeframe order flow',
     direction: htfVote,
     weight: 1,
-    detail: `D1 ${structures.d1.trend}, H4 ${structures.h4.trend}.`,
+    detail: dailyIsBorrowed
+      ? `H4 ${structures.h4.trend}. No daily series was available, so the daily read is the same ${structures.d1.derivedFrom} candles and is not counted twice.`
+      : `D1 ${structures.d1.trend}, H4 ${structures.h4.trend}.`,
   });
 
   const obBullish = exec.orderBlock.type === 'Bullish OB';
@@ -232,17 +242,17 @@ export function scoreConfluence(inputs: SignalInputs): {
   let emaDescription: string;
   if (aboveFast && aboveSlow && fastAboveSlow) {
     emaVote = 1;
-    emaDescription = 'Price above both averages with EMA 50 over EMA 200, a fully stacked uptrend.';
+    emaDescription = `Price above both averages with EMA ${indicators.emaFastPeriod} over EMA ${indicators.emaSlowPeriod}, a fully stacked uptrend.`;
   } else if (!aboveFast && !aboveSlow && !fastAboveSlow) {
     emaVote = -1;
-    emaDescription = 'Price below both averages with EMA 50 under EMA 200, a fully stacked downtrend.';
+    emaDescription = `Price below both averages with EMA ${indicators.emaFastPeriod} under EMA ${indicators.emaSlowPeriod}, a fully stacked downtrend.`;
   } else if (aboveSlow && !aboveFast) {
     // Pulling back inside the stack: the trend holds but momentum has paused.
     emaVote = 0.4;
-    emaDescription = 'Price has pulled back below EMA 50 while holding above EMA 200, a retracement inside an uptrend.';
+    emaDescription = `Price has pulled back below EMA ${indicators.emaFastPeriod} while holding above EMA ${indicators.emaSlowPeriod}, a retracement inside an uptrend.`;
   } else if (!aboveSlow && aboveFast) {
     emaVote = -0.4;
-    emaDescription = 'Price has bounced above EMA 50 while capped below EMA 200, a retracement inside a downtrend.';
+    emaDescription = `Price has bounced above EMA ${indicators.emaFastPeriod} while capped below EMA ${indicators.emaSlowPeriod}, a retracement inside a downtrend.`;
   } else {
     emaVote = fastAboveSlow ? 0.2 : -0.2;
     emaDescription = 'The moving averages disagree with price, so trend structure is unresolved.';
@@ -251,7 +261,9 @@ export function scoreConfluence(inputs: SignalInputs): {
     name: 'EMA structure',
     direction: emaVote,
     weight: weights.indicatorConfluenceWeight,
-    detail: `${emaDescription} EMA 50 ${indicators.ema50.toFixed(2)}, EMA 200 ${indicators.ema200.toFixed(2)}.`,
+    detail: `${emaDescription} EMA ${indicators.emaFastPeriod} ${indicators.ema50.toFixed(
+      2
+    )}, EMA ${indicators.emaSlowPeriod} ${indicators.ema200.toFixed(2)}.`,
   });
 
   // RSI, graded rather than a single threshold, and read against the trend.

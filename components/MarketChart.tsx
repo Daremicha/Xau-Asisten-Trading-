@@ -284,10 +284,12 @@ export default function MarketChart({
             >
               <div className="flex items-center gap-4">
                 <span>
-                  EMA 50: <strong className="text-amber-500">{indicators ? `$${indicators.ema50.toFixed(2)}` : '—'}</strong>
+                  EMA {indicators?.emaFastPeriod ?? 50}:{' '}
+                  <strong className="text-amber-500">{indicators ? `$${indicators.ema50.toFixed(2)}` : '—'}</strong>
                 </span>
                 <span>
-                  EMA 200: <strong className="text-sky-500">{indicators ? `$${indicators.ema200.toFixed(2)}` : '—'}</strong>
+                  EMA {indicators?.emaSlowPeriod ?? 200}:{' '}
+                  <strong className="text-sky-500">{indicators ? `$${indicators.ema200.toFixed(2)}` : '—'}</strong>
                 </span>
                 <span>
                   RSI(14): <strong className="text-emerald-500">56.4</strong>

@@ -4,6 +4,7 @@ import {
   buildSignal,
   maxEntryDistance,
   resolveOrderType,
+  scoreConfluence,
   STYLE_PROFILES,
   type SignalInputs,
 } from '../lib/signal-engine';
@@ -64,6 +65,8 @@ function structure(timeframe: TimeframeType, trend: SmcStructure['trend'], bulli
 const INDICATORS: TechnicalIndicators = {
   ema50: PRICE - 4,
   ema200: PRICE - 14,
+  emaFastPeriod: 50,
+  emaSlowPeriod: 200,
   trendFromEma: 'Bullish',
   rsi14: 58,
   rsiCondition: 'Neutral',
@@ -641,5 +644,48 @@ describe('the risk budget keeps cent precision', () => {
     // The minimum lot of 0.01 over a 9.55 dollar stop risks 9.55 cent.
     expect(calc.actualRiskDollars).toBeCloseTo(0.0955, 6);
     expect(calc.exceedsRiskBudget).toBe(true);
+  });
+});
+
+describe('the main trend, and how honestly it is counted', () => {
+  test('a real daily read carries the heaviest weight in the score', () => {
+    const { factors } = scoreConfluence(inputs());
+    const htf = factors.find((f) => f.name === 'Higher timeframe order flow');
+    expect(htf).toBeDefined();
+    // Every other factor is a learned weight, none above 0.3.
+    const others = factors.filter((f) => f.name !== 'Higher timeframe order flow');
+    expect(htf!.weight).toBe(1);
+    for (const factor of others) expect(factor.weight).toBeLessThan(htf!.weight);
+    expect(htf!.detail).toContain('D1 Bullish');
+  });
+
+  test('a borrowed daily read is not counted as a second opinion', () => {
+    // When no daily series is available the D1 slot holds the same H4 candles.
+    // Counting both at full strength would let one read vote twice with the
+    // heaviest weight on the table.
+    const borrowed = inputs({
+      structures: {
+        d1: { ...structure('D1', 'Bullish', true), derivedFrom: 'H4' as const },
+        h4: structure('H4', 'Bullish', true),
+        h1: structure('H1', 'Bullish', true),
+        m15: structure('M15', 'Bullish', true),
+      },
+    });
+    const htf = scoreConfluence(borrowed).factors.find((f) => f.name === 'Higher timeframe order flow')!;
+    const honest = scoreConfluence(inputs()).factors.find(
+      (f) => f.name === 'Higher timeframe order flow'
+    )!;
+    // Same direction, and no larger than the genuine two-timeframe agreement.
+    expect(htf.direction).toBeLessThanOrEqual(honest.direction);
+    expect(htf.detail).toContain('not counted twice');
+  });
+
+  test('the averages are named by the period they were actually computed over', () => {
+    const short = inputs({
+      indicators: { ...INDICATORS, emaFastPeriod: 50, emaSlowPeriod: 125 },
+    });
+    const ema = scoreConfluence(short).factors.find((f) => f.name.includes('EMA'))!;
+    expect(ema.detail).toContain('EMA 125');
+    expect(ema.detail).not.toContain('EMA 200');
   });
 });

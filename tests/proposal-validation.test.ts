@@ -25,7 +25,8 @@ function structure(timeframe: TimeframeType): SmcStructure {
 }
 
 const INDICATORS: TechnicalIndicators = {
-  ema50: PRICE - 4, ema200: PRICE - 14, trendFromEma: 'Bullish', rsi14: 58, rsiCondition: 'Neutral',
+  ema50: PRICE - 4, ema200: PRICE - 14, emaFastPeriod: 50, emaSlowPeriod: 200,
+  trendFromEma: 'Bullish', rsi14: 58, rsiCondition: 'Neutral',
   stochasticK: 20, stochasticD: 25, stochasticSignal: 'Oversold Cross', atr14: 8,
 };
 

@@ -25,6 +25,15 @@ export interface MarketSnapshot {
   previousClose: number | null;
   /** Chronological M15 candles, oldest first. */
   candlesM15: Candle[];
+  /**
+   * Real daily candles, oldest first, empty when none could be fetched.
+   *
+   * The daily trend is the heaviest single input the engine has, and it cannot
+   * be built by resampling the execution feed: ten days of M15 candles make
+   * ten daily bars, which is not a daily picture. This is its own request, on
+   * its own slow clock, because a daily candle changes once a day.
+   */
+  candlesD1: Candle[];
   /** Explains the status, especially when data is stale or missing. */
   message: string;
 }
@@ -41,6 +50,7 @@ export interface ProviderResult {
   dayLow: number | null;
   previousClose: number | null;
   candlesM15: Candle[];
+  candlesD1: Candle[];
 }
 
 /**
@@ -94,13 +104,27 @@ const MAX_STALE_MS = 30 * 60_000;
 const PRICE_TOO_OLD_MS = 120_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 
+/** Fifteen minute candles requested per refresh: about ten days of market. */
+const EXECUTION_CANDLES = 1000;
+/** Daily candles requested, which is most of a trading year. */
+const DAILY_CANDLES = 250;
+/**
+ * How long a daily series is reused.
+ *
+ * A daily candle changes once a day. Refetching it beside every quote would
+ * spend the provider quota on a number that cannot have moved.
+ */
+const DAILY_CACHE_MS = 60 * 60_000;
+
 let cached: { at: number; result: ProviderResult } | null = null;
 let inFlight: Promise<ProviderResult | null> | null = null;
+let cachedDaily: { at: number; candles: Candle[] } | null = null;
 
 /** Resets the module cache. Exposed for tests. */
 export function __resetFeedCache() {
   cached = null;
   inFlight = null;
+  cachedDaily = null;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
@@ -187,6 +211,36 @@ async function twelveDataPrice(base: string, key: string): Promise<number | null
   }
 }
 
+/**
+ * The daily series, cached for an hour and never allowed to fail a refresh.
+ *
+ * When it cannot be fetched the analysis falls back to what it did before:
+ * resampling the execution feed and saying so. A missing daily read is a
+ * weaker analysis, not a broken one.
+ */
+async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
+  const now = Date.now();
+  if (cachedDaily && now - cachedDaily.at < DAILY_CACHE_MS) return cachedDaily.candles;
+
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/time_series?symbol=XAU/USD&interval=1day&outputsize=${DAILY_CANDLES}&format=JSON&apikey=` +
+        encodeURIComponent(key)
+    );
+    if (!res.ok) return cachedDaily?.candles ?? [];
+    const payload = await res.json();
+    if ((payload as { status?: string })?.status === 'error') return cachedDaily?.candles ?? [];
+    const candles = mapTwelveDataCandles(payload);
+    if (candles.length === 0) return cachedDaily?.candles ?? [];
+    cachedDaily = { at: now, candles };
+    return candles;
+  } catch {
+    // Keep whatever was last known rather than dropping the daily read on one
+    // failed request.
+    return cachedDaily?.candles ?? [];
+  }
+}
+
 async function fromTwelveData(): Promise<ProviderResult | null> {
   const key = process.env.TWELVE_DATA_API_KEY;
   if (!key || key.trim().length === 0) return null;
@@ -194,8 +248,11 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
   // Overridable so a self hosted proxy, or a fixture server in tests, can stand
   // in for the public endpoint.
   const base = (process.env.TWELVE_DATA_BASE_URL || 'https://api.twelvedata.com').replace(/\/$/, '');
+  // A thousand fifteen minute candles is about ten days: two hundred and fifty
+  // hourly bars, which is the first length at which the hourly EMA 200 is an
+  // EMA 200 rather than the longest average the feed happened to support.
   const url =
-    `${base}/time_series?symbol=XAU/USD&interval=15min&outputsize=500&format=JSON&apikey=` +
+    `${base}/time_series?symbol=XAU/USD&interval=15min&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
     encodeURIComponent(key.trim());
 
   const res = await fetchWithTimeout(url);
@@ -213,8 +270,12 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
   const dayCandles = candlesSinceUtcMidnight(candles, last.time);
 
   // Ask for the tick as well. Falling back to the candle close is correct but
-  // openly older, and the snapshot says by how much.
-  const livePrice = await twelveDataPrice(base, key.trim());
+  // openly older, and the snapshot says by how much. The daily series is
+  // fetched alongside it and is usually served from its own hourly cache.
+  const [livePrice, daily] = await Promise.all([
+    twelveDataPrice(base, key.trim()),
+    twelveDataDaily(base, key.trim()),
+  ]);
 
   return {
     source: 'Twelve Data (XAU/USD spot)',
@@ -224,6 +285,7 @@ async function fromTwelveData(): Promise<ProviderResult | null> {
     dayLow: dayCandles.length ? Math.min(...dayCandles.map((c) => c.low)) : null,
     previousClose: previousDayClose(candles, last.time),
     candlesM15: candles,
+    candlesD1: daily,
   };
 }
 
@@ -288,6 +350,9 @@ async function fromYahoo(): Promise<ProviderResult | null> {
       (dayCandles.length ? Math.min(...dayCandles.map((c) => c.low)) : null),
     previousClose: toFiniteNumber(meta?.chartPreviousClose) ?? previousDayClose(candles, last.time),
     candlesM15: candles,
+    // The fallback provider serves no separate daily series, so the analysis
+    // resamples as it always did and says which candles it used.
+    candlesD1: [],
   };
 }
 
@@ -362,6 +427,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     dayLow: null,
     previousClose: null,
     candlesM15: [],
+    candlesD1: [],
     message:
       'No market data provider could be reached. Set TWELVE_DATA_API_KEY for a spot XAU/USD feed, or check outbound network access.',
   };
@@ -395,6 +461,7 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
     dayLow: result.dayLow === null ? null : round2(result.dayLow),
     previousClose: result.previousClose === null ? null : round2(result.previousClose),
     candlesM15: result.candlesM15,
+    candlesD1: result.candlesD1,
     message:
       effective === 'live'
         ? `Live data from ${result.source}.`
