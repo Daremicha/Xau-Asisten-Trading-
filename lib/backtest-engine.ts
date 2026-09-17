@@ -222,6 +222,10 @@ function snapshotFor(window: Candle[]): MarketSnapshot {
     dayLow: null,
     previousClose: null,
     candlesM15: window,
+    // A replay reads the daily picture by resampling the window it is given,
+    // exactly as the live app does when no daily series is available. Handing
+    // it real daily candles would be lookahead.
+    candlesD1: [],
     message: 'Historical replay.',
   };
 }

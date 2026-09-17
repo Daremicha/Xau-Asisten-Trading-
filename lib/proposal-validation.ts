@@ -117,8 +117,8 @@ export function structuralLevels(
     out.push({ name: `${tf} Asian high`, price: s.liquidityPools.asiaHigh });
     out.push({ name: `${tf} Asian low`, price: s.liquidityPools.asiaLow });
   }
-  out.push({ name: 'EMA 50', price: ctx.indicators.ema50 });
-  out.push({ name: 'EMA 200', price: ctx.indicators.ema200 });
+  out.push({ name: `EMA ${ctx.indicators.emaFastPeriod}`, price: ctx.indicators.ema50 });
+  out.push({ name: `EMA ${ctx.indicators.emaSlowPeriod}`, price: ctx.indicators.ema200 });
   return out;
 }
 

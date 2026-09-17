@@ -16,6 +16,7 @@ import {
   QuasimodoPattern,
   SmcStructure,
   TechnicalIndicators,
+  TimeframeType,
   TradingCentralInsight,
   WyckoffVolumeAnalysis,
 } from './types';
@@ -124,18 +125,29 @@ export function buildInstitutionalRead(snapshot: MarketSnapshot): InstitutionalR
 
   const h1 = resample(m15, HOUR_MS);
   const h4 = resample(m15, 4 * HOUR_MS);
-  const d1 = resample(m15, DAY_MS);
 
-  // A short feed cannot describe the daily picture, so it falls back to the
-  // next timeframe down rather than fabricating one.
+  // The daily read prefers real daily candles. Resampling the execution feed
+  // cannot produce them: ten days of fifteen minute candles make ten daily
+  // bars, which is not a daily picture, and the fallback below then quietly
+  // handed back a four hour read wearing a D1 label — the heaviest single
+  // input in the whole score, counted twice as D1 and again as H4.
+  const provided = snapshot.candlesD1 ?? [];
+  const d1 = provided.length >= 10 ? provided : resample(m15, DAY_MS);
   const d1Source = d1.length >= 10 ? d1 : h4.length >= 10 ? h4 : h1;
   const h4Source = h4.length >= 10 ? h4 : h1;
+
+  // What the read was really built from, so nothing on screen claims to have
+  // seen a daily chart that was never fetched.
+  const d1DerivedFrom: TimeframeType | undefined =
+    d1Source === provided ? undefined : d1Source === d1 ? 'D1' : d1Source === h4 ? 'H4' : 'H1';
 
   const structureD1 = analyzeTimeframe(d1Source, 'D1', m15);
   const structureH4 = analyzeTimeframe(h4Source, 'H4', m15);
   const structureH1 = analyzeTimeframe(h1.length >= 10 ? h1 : m15, 'H1', m15);
   const structureM15 = analyzeTimeframe(m15, 'M15', m15);
   if (!structureD1 || !structureH4 || !structureH1 || !structureM15) return null;
+  if (d1DerivedFrom) structureD1.derivedFrom = d1DerivedFrom;
+  if (h4Source !== h4) structureH4.derivedFrom = 'H1';
 
   const executionCandles = h1.length >= 30 ? h1 : m15;
   const indicators = computeIndicators(executionCandles) ?? computeIndicators(m15);

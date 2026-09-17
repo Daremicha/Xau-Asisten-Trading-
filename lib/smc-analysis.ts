@@ -383,9 +383,13 @@ export function computeIndicators(candles: Candle[]): TechnicalIndicators | null
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
 
-  // Fall back to the longest average the data supports so short feeds still work.
-  const ema50 = ema(closes, Math.min(50, closes.length));
-  const ema200 = ema(closes, Math.min(200, closes.length));
+  // Fall back to the longest average the data supports so short feeds still
+  // work, and report which lengths those were rather than letting a 125 period
+  // average go on calling itself EMA 200.
+  const emaFastPeriod = Math.min(50, closes.length);
+  const emaSlowPeriod = Math.min(200, closes.length);
+  const ema50 = ema(closes, emaFastPeriod);
+  const ema200 = ema(closes, emaSlowPeriod);
   const rsi14 = rsi(closes, 14);
   const atr14 = atr(candles, 14);
   const stoch = stochastic(candles, 14, 3);
@@ -422,6 +426,8 @@ export function computeIndicators(candles: Candle[]): TechnicalIndicators | null
   return {
     ema50: round2(ema50),
     ema200: round2(ema200),
+    emaFastPeriod,
+    emaSlowPeriod,
     trendFromEma,
     rsi14: round2(rsi14),
     rsiCondition,

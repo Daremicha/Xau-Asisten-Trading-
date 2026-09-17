@@ -200,6 +200,13 @@ export interface TradingCentralInsight {
 
 export interface SmcStructure {
   timeframe: TimeframeType;
+  /**
+   * The candles this read was actually built from, when they are not the
+   * timeframe named above. A short feed cannot describe the daily picture, and
+   * saying "D1" over a four hour read is how a trader comes to believe the
+   * engine checked something it never saw.
+   */
+  derivedFrom?: TimeframeType;
   trend: 'Bullish' | 'Bearish' | 'Ranging';
   bosLevel?: number;
   bosType?: 'Bullish BOS' | 'Bearish BOS';
@@ -250,6 +257,16 @@ export interface QuasimodoPattern {
 export interface TechnicalIndicators {
   ema50: number;
   ema200: number;
+  /**
+   * Periods the two averages were actually computed over.
+   *
+   * A feed that carries 125 hourly candles cannot produce a 200 period average,
+   * so the engine falls back to the longest the data supports. It used to do
+   * that silently, and call a 125 period average "EMA 200" on screen and in
+   * every rationale. Now the real lengths travel with the numbers.
+   */
+  emaFastPeriod: number;
+  emaSlowPeriod: number;
   trendFromEma: 'Bullish' | 'Bearish' | 'Neutral';
   rsi14: number;
   rsiCondition: 'Oversold' | 'Overbought' | 'Neutral' | 'Bullish Divergence' | 'Bearish Divergence';

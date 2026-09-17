@@ -176,6 +176,7 @@ describe('a market order needs a price that still exists', () => {
         dayLow: null,
         previousClose: null,
         candlesM15: [],
+        candlesD1: [],
       },
       Date.now(),
       'live'
@@ -194,6 +195,7 @@ describe('a market order needs a price that still exists', () => {
         dayLow: null,
         previousClose: null,
         candlesM15: [],
+        candlesD1: [],
       },
       Date.now(),
       'live'
@@ -212,6 +214,7 @@ describe('a market order needs a price that still exists', () => {
         dayLow: null,
         previousClose: null,
         candlesM15: [],
+        candlesD1: [],
       },
       Date.now(),
       'live'
