@@ -1015,8 +1015,24 @@ Ready for direct execution in MetaTrader 5.`;
               <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                 {skipped.convictionScore}/100
               </strong>{' '}
-              ({skipped.band}), under your floor of{' '}
-              <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>{skipped.threshold}</strong>.
+              ({skipped.band}),{' '}
+              {skipped.reason === 'dead-band' && skipped.deadBand ? (
+                <>
+                  inside the{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {skipped.deadBand.label}
+                  </strong>{' '}
+                  band, which your backtest showed losing money in both halves of the period.
+                </>
+              ) : (
+                <>
+                  under your floor of{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {skipped.threshold}
+                  </strong>
+                  .
+                </>
+              )}
             </div>
 
             {skipped.notes.length > 0 && (
@@ -1031,8 +1047,9 @@ Ready for direct execution in MetaTrader 5.`;
             )}
 
             <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-              Skipping costs nothing. Run the analysis again later, or lower the floor in Capital &amp;
-              Account Configuration.
+              {skipped.reason === 'dead-band'
+                ? 'Skipping costs nothing. Run the analysis again later, or turn the refused band off in the Strategy Backtest Lab.'
+                : 'Skipping costs nothing. Run the analysis again later, or lower the floor in Capital & Account Configuration.'}
             </p>
           </div>
         ) : lastOutcome ? (

@@ -253,11 +253,22 @@ export const CONVICTION_BANDS: Array<{ label: string; min: number; max: number }
 export interface ConvictionBucket {
   label: string;
   min: number;
+  /** Top of the band, exclusive. */
+  max: number;
   signals: number;
   filled: number;
   winRate: number | null;
   netDollars: number;
   expectancyDollars: number | null;
+  /**
+   * Result per filled trade in the first and second half of the period.
+   *
+   * A band that loses money overall may have lost it all in one stretch, which
+   * is a thing that happened rather than a property of the band. Splitting it
+   * is the cheapest guard against reading one bad month as a rule.
+   */
+  firstHalfPerTrade: number | null;
+  secondHalfPerTrade: number | null;
 }
 
 /**
@@ -269,6 +280,11 @@ export interface ConvictionBucket {
  * losses, without replaying anything.
  */
 export function convictionBreakdown(trades: BacktestTrade[]): ConvictionBucket[] {
+  // The halves are cut on the run's own timeline, not on each band's, so every
+  // band is judged over the same two stretches of market.
+  const opened = trades.map((t) => t.openedAt).sort((a, b) => a - b);
+  const midpoint = opened.length ? opened[Math.floor(opened.length / 2)] : 0;
+
   return CONVICTION_BANDS.map((band) => {
     const inBand = trades.filter(
       (t) => t.convictionScore >= band.min && t.convictionScore < band.max
@@ -277,14 +293,20 @@ export function convictionBreakdown(trades: BacktestTrade[]): ConvictionBucket[]
     const wins = filled.filter((t) => t.netDollars > 0).length;
     const net = filled.reduce((acc, t) => acc + t.netDollars, 0);
 
+    const perTrade = (subset: BacktestTrade[]) =>
+      subset.length ? money(subset.reduce((acc, t) => acc + t.netDollars, 0) / subset.length) : null;
+
     return {
       label: band.label,
       min: band.min,
+      max: band.max,
       signals: inBand.length,
       filled: filled.length,
       winRate: filled.length ? round((wins / filled.length) * 100, 1) : null,
       netDollars: money(net),
       expectancyDollars: filled.length ? money(net / filled.length) : null,
+      firstHalfPerTrade: perTrade(filled.filter((t) => t.openedAt < midpoint)),
+      secondHalfPerTrade: perTrade(filled.filter((t) => t.openedAt >= midpoint)),
     };
   });
 }
@@ -563,5 +585,94 @@ export function assessRiskFloor(result: BacktestResult): RiskFloorReport {
       balanceNeeded,
       accountType
     )}, changing the risk percentage changes nothing, because every trade is the same minimum lot either way.`,
+  };
+}
+
+/**
+ * Filled trades a band needs before it may be refused outright.
+ *
+ * Under forty a bad stretch and a bad band look identical, and a rule built on
+ * a handful of trades is a rule built on an accident.
+ */
+const MIN_DEAD_BAND_TRADES = 40;
+/** And this many in each half, so neither half carries the verdict alone. */
+const MIN_DEAD_BAND_HALF = 12;
+
+export interface DeadBandVerdict {
+  /** True only when one band lost money in both halves of the period. */
+  worthSkipping: boolean;
+  /** The band to refuse, when there is one. */
+  band: { label: string; min: number; max: number } | null;
+  /** What refusing it would have added over the period. */
+  estimatedGain: number;
+  /** One sentence, always set. */
+  reason: string;
+}
+
+/**
+ * Whether one conviction band is bad enough to refuse outright.
+ *
+ * A floor assumes conviction is a ladder: the higher the score the better the
+ * trade. This run says otherwise — the lowest band paid the most — so a floor
+ * throws away the good with the bad. Refusing a single band in the middle is
+ * the narrower instrument, and it is also the easier one to fool yourself with,
+ * because any period contains some slice that lost money.
+ *
+ * So the bar is not "this band lost money". It is: enough trades to mean
+ * something, and losing in both halves of the period rather than in one bad
+ * stretch that the other half quietly paid for.
+ */
+export function assessDeadBand(control: BacktestResult): DeadBandVerdict {
+  const accountType = control.summary.accountType;
+  const buckets = convictionBreakdown(control.trades);
+  const amount = (value: number) => formatAccountMoney(Math.abs(value), accountType);
+
+  const none = (reason: string): DeadBandVerdict => ({
+    worthSkipping: false,
+    band: null,
+    estimatedGain: 0,
+    reason,
+  });
+
+  const candidates = buckets.filter(
+    (b) =>
+      b.netDollars < 0 &&
+      b.filled >= MIN_DEAD_BAND_TRADES &&
+      b.firstHalfPerTrade !== null &&
+      b.secondHalfPerTrade !== null &&
+      b.firstHalfPerTrade < 0 &&
+      b.secondHalfPerTrade < 0
+  );
+
+  if (candidates.length === 0) {
+    const losing = buckets.filter((b) => b.netDollars < 0 && b.filled > 0);
+    if (losing.length === 0) {
+      return none('Every conviction band paid for itself over this period, so there is nothing to refuse.');
+    }
+    return none(
+      `${losing[0].label} lost ${amount(
+        losing[0].netDollars
+      )} over the period, but not consistently across both halves of it, or on too few trades to tell a bad band from a bad stretch. Refusing it would be reading one period's accidents as a rule.`
+    );
+  }
+
+  // Count the halves properly before trusting the split: a band can lose in
+  // both halves on two trades in one of them.
+  const solid = candidates.filter((b) => b.filled >= MIN_DEAD_BAND_TRADES + MIN_DEAD_BAND_HALF);
+  const worst = (solid.length ? solid : candidates).sort((a, b) => a.netDollars - b.netDollars)[0];
+
+  return {
+    worthSkipping: true,
+    band: { label: worst.label, min: worst.min, max: worst.max },
+    estimatedGain: money(-worst.netDollars),
+    reason: `Setups scoring ${worst.label.toLowerCase()} lost ${amount(
+      worst.netDollars
+    )} over ${worst.filled} filled trades, losing ${amount(
+      worst.firstHalfPerTrade ?? 0
+    )} per trade in the first half of the period and ${amount(
+      worst.secondHalfPerTrade ?? 0
+    )} per trade in the second. Refusing that band alone, and keeping everything else, would have added about ${amount(
+      worst.netDollars
+    )}.`,
   };
 }

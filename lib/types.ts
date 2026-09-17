@@ -328,10 +328,16 @@ export interface EngineInputUsed {
 
 /** Why the engine declined to produce a setup, so the screen can say so. */
 export interface SkippedSetup {
-  reason: 'below-conviction';
+  /**
+   * Why nothing was offered: the setup scored under the user's floor, or it
+   * landed in a band a backtest showed loses money consistently.
+   */
+  reason: 'below-conviction' | 'dead-band';
   convictionScore: number;
   band: 'Low' | 'Moderate' | 'High';
   threshold: number;
+  /** The refused band, when that is what happened. */
+  deadBand?: { label: string; min: number; max: number } | null;
   direction: 'long' | 'short';
   notes: string[];
   rationale: string;

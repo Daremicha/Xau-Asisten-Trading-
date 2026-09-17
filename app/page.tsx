@@ -211,6 +211,13 @@ export default function Home() {
    * lab, and only when a run supports it.
    */
   const [protectStopAtR, setProtectStopAtR] = useState<number | null>(null);
+  /**
+   * A conviction band live analysis refuses outright, when a backtest showed it
+   * losing money in both halves of the period. Null when every band is taken.
+   */
+  const [skipConvictionBand, setSkipConvictionBand] = useState<{ min: number; max: number } | null>(
+    null
+  );
   /** Set when the engine declined a setup for scoring below that floor. */
   const [skippedSetup, setSkippedSetup] = useState<SkippedSetup | null>(null);
 
@@ -290,6 +297,7 @@ export default function Home() {
     if (profile.backtestPrior) setBacktestPrior(profile.backtestPrior);
     if (profile.minConviction !== null) setMinConviction(profile.minConviction);
     if (profile.protectStopAtR !== null) setProtectStopAtR(profile.protectStopAtR);
+    if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
       setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
@@ -438,6 +446,17 @@ export default function Home() {
               setProtectStopAtR(data.protectStopAtR);
             } else if (data.protectStopAtR === null) {
               setProtectStopAtR(null);
+            }
+            const band = data.skipConvictionBand as { min?: unknown; max?: unknown } | null;
+            if (
+              band &&
+              typeof band.min === 'number' &&
+              typeof band.max === 'number' &&
+              band.max > band.min
+            ) {
+              setSkipConvictionBand({ min: band.min, max: band.max });
+            } else if (band === null) {
+              setSkipConvictionBand(null);
             }
             // Restore an order the user never resolved, preferring whichever
             // copy is newer between this browser and the cloud.
@@ -766,6 +785,35 @@ export default function Home() {
         setDoc(
           doc(db, 'users', currentUser.uid),
           { protectStopAtR: atR, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      );
+    }
+  };
+
+  /**
+   * Refuses, or stops refusing, a conviction band on live analysis. Offered by
+   * the lab only when a band lost money in both halves of a backtested period.
+   */
+  const handleSkipBand = (band: { min: number; max: number } | null) => {
+    setSkipConvictionBand(band);
+    setSkippedSetup(null);
+
+    try {
+      if (band === null) {
+        localStorage.removeItem(LOCAL_KEYS.skipConvictionBand);
+      } else {
+        localStorage.setItem(LOCAL_KEYS.skipConvictionBand, JSON.stringify(band));
+      }
+    } catch {
+      // A browser refusing storage simply forgets the choice on reload.
+    }
+
+    if (currentUser) {
+      void saveToCloud(() =>
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          { skipConvictionBand: band, updatedAt: new Date().toISOString() },
           { merge: true }
         )
       );
@@ -1494,6 +1542,8 @@ export default function Home() {
           onAdoptPrior={handleAdoptBacktestPrior}
           protectStopAtR={protectStopAtR}
           onProtectStop={handleProtectStop}
+          skipConvictionBand={skipConvictionBand}
+          onSkipBand={handleSkipBand}
           theme={theme}
         />
       </main>

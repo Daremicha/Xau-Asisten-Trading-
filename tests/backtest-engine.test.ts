@@ -356,6 +356,30 @@ describe('a conviction floor', () => {
   });
 });
 
+describe('refusing one conviction band', () => {
+  const candles = walk(4000);
+
+  test('setups inside the band are never traded', () => {
+    const all = runBacktest(config(candles, { warmupBars: 1400 }));
+    const skipped = runBacktest(
+      config(candles, { warmupBars: 1400, skipConvictionBand: { min: 40, max: 55 } })
+    );
+    expect(all.trades.some((t) => t.convictionScore >= 40 && t.convictionScore < 55)).toBe(true);
+    expect(skipped.trades.some((t) => t.convictionScore >= 40 && t.convictionScore < 55)).toBe(false);
+    // And the ones outside it are still taken, which is the point of a band
+    // rather than a floor.
+    expect(skipped.trades.some((t) => t.convictionScore < 40)).toBe(true);
+  });
+
+  test('a refused setup is counted, not silently dropped', () => {
+    const skipped = runBacktest(
+      config(candles, { warmupBars: 1400, skipConvictionBand: { min: 0, max: 101 } })
+    );
+    expect(skipped.trades.length).toBe(0);
+    expect(skipped.summary.belowConviction).toBeGreaterThan(0);
+  });
+});
+
 describe('moving the stop to entry once a trade has paid', () => {
   test('a trade that ran a full R and came back costs the spread, not the stop', () => {
     const candles = [

@@ -233,3 +233,24 @@ describe('the break-even rule', () => {
     expect(readLocalProfile().protectStopAtR).toBeNull();
   });
 });
+
+describe('a refused conviction band', () => {
+  test('is read back when set', () => {
+    installStorage({ [LOCAL_KEYS.skipConvictionBand]: JSON.stringify({ min: 40, max: 55 }) });
+    expect(readLocalProfile().skipConvictionBand).toEqual({ min: 40, max: 55 });
+  });
+
+  test('nothing stored means every band is taken', () => {
+    installStorage({});
+    expect(readLocalProfile().skipConvictionBand).toBeNull();
+  });
+
+  test('a corrupt or impossible band refuses nothing rather than everything', () => {
+    installStorage({ [LOCAL_KEYS.skipConvictionBand]: '{"min":55,"max":40}' });
+    expect(readLocalProfile().skipConvictionBand).toBeNull();
+    installStorage({ [LOCAL_KEYS.skipConvictionBand]: 'not json' });
+    expect(readLocalProfile().skipConvictionBand).toBeNull();
+    installStorage({ [LOCAL_KEYS.skipConvictionBand]: '{"min":-5,"max":200}' });
+    expect(readLocalProfile().skipConvictionBand).toBeNull();
+  });
+});

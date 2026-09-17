@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   assessAdoption,
+  assessDeadBand,
   assessProtection,
   assessRiskFloor,
   comparePhases,
@@ -426,5 +427,67 @@ describe('whether the risk setting was real', () => {
     const run = result([miss(), miss()]);
     expect(assessRiskFloor(run).forced).toBe(false);
     expect(assessRiskFloor(run).filledTrades).toBe(0);
+  });
+});
+
+describe('whether one conviction band is worth refusing', () => {
+  const HOUR = 3_600_000;
+  /** A trade in a band, placed at a known point on the run's timeline. */
+  const at = (hour: number, conviction: number, net: number) =>
+    trade({
+      sequence: hour,
+      openedAt: hour * HOUR,
+      closedAt: hour * HOUR + HOUR,
+      convictionScore: conviction,
+      outcome: net > 0 ? 'TP' : 'SL',
+      netDollars: net,
+      rMultiple: net / 100,
+    });
+
+  /** Winners spread across the whole period, so the run itself makes money. */
+  const backbone = Array.from({ length: 120 }, (_, i) => at(i * 4, 20, 100));
+
+  test('a band that loses in both halves, on enough trades, is refused', () => {
+    const bad = Array.from({ length: 60 }, (_, i) => at(i * 8, 45, -60));
+    const verdict = assessDeadBand(result([...backbone, ...bad]));
+    expect(verdict.worthSkipping).toBe(true);
+    expect(verdict.band?.min).toBe(40);
+    expect(verdict.band?.max).toBe(55);
+    expect(verdict.estimatedGain).toBe(3600);
+    expect(verdict.reason).toContain('in the first half');
+    expect(verdict.reason).toContain('in the second');
+  });
+
+  test('a band that only lost in one stretch is left alone', () => {
+    // All the damage is in the first half; the second half paid it back.
+    const early = Array.from({ length: 30 }, (_, i) => at(i * 2, 45, -200));
+    const late = Array.from({ length: 30 }, (_, i) => at(300 + i * 2, 45, 100));
+    const verdict = assessDeadBand(result([...backbone, ...early, ...late]));
+    expect(verdict.worthSkipping).toBe(false);
+    expect(verdict.reason).toContain('not consistently across both halves');
+  });
+
+  test('a losing band with too few trades is a bad stretch, not a rule', () => {
+    const few = Array.from({ length: 12 }, (_, i) => at(i * 20, 45, -80));
+    const verdict = assessDeadBand(result([...backbone, ...few]));
+    expect(verdict.worthSkipping).toBe(false);
+    expect(verdict.band).toBeNull();
+  });
+
+  test('a run where every band paid says there is nothing to refuse', () => {
+    const verdict = assessDeadBand(result(backbone));
+    expect(verdict.worthSkipping).toBe(false);
+    expect(verdict.reason).toContain('nothing to refuse');
+  });
+
+  test('the halves are cut on the run, so each band is judged over the same market', () => {
+    const buckets = convictionBreakdown([
+      ...backbone,
+      ...Array.from({ length: 40 }, (_, i) => at(i * 12, 45, -50)),
+    ]);
+    const band = buckets.find((b) => b.min === 40);
+    expect(band?.firstHalfPerTrade).toBeLessThan(0);
+    expect(band?.secondHalfPerTrade).toBeLessThan(0);
+    expect(buckets[0].firstHalfPerTrade).toBeGreaterThan(0);
   });
 });

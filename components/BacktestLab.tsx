@@ -24,12 +24,14 @@ import {
   TrendingUp,
   Sparkles,
   ShieldCheck,
+  Ban,
 } from 'lucide-react';
 import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } from '@/lib/backtest-client';
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
 import {
   assessAdoption,
+  assessDeadBand,
   assessProtection,
   assessRiskFloor,
   convictionBreakdown,
@@ -57,6 +59,9 @@ interface BacktestLabProps {
    */
   protectStopAtR: number | null;
   onProtectStop: (atR: number | null) => void;
+  /** A conviction band live analysis refuses outright, or null when none is. */
+  skipConvictionBand: { min: number; max: number } | null;
+  onSkipBand: (band: { min: number; max: number } | null) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -81,6 +86,8 @@ export default function BacktestLab({
   onAdoptPrior,
   protectStopAtR,
   onProtectStop,
+  skipConvictionBand,
+  onSkipBand,
   theme = 'dark',
 }: BacktestLabProps) {
   const isDark = theme === 'dark';
@@ -109,6 +116,7 @@ export default function BacktestLab({
         equity,
         riskPercentage,
         minConviction,
+        skipConvictionBand,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -222,6 +230,14 @@ export default function BacktestLab({
    * risk settings produce the same trades, which is worth saying out loud.
    */
   const riskFloor = useMemo(() => (result ? assessRiskFloor(result.control) : null), [result]);
+
+  /**
+   * Whether one conviction band is bad enough to refuse outright. A floor
+   * assumes the score is a ladder; on this engine it is not, so the narrower
+   * instrument is the honest one — guarded by the band having lost in both
+   * halves of the period rather than in one bad stretch.
+   */
+  const deadBand = useMemo(() => (result ? assessDeadBand(result.control) : null), [result]);
 
   const panel = isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200';
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
@@ -715,6 +731,8 @@ export default function BacktestLab({
                       <th className="text-right font-medium py-1">Filled</th>
                       <th className="text-right font-medium py-1">Won</th>
                       <th className="text-right font-medium py-1">Per trade</th>
+                      <th className="text-right font-medium py-1">1st half</th>
+                      <th className="text-right font-medium py-1">2nd half</th>
                       <th className="text-right font-medium py-1">Net</th>
                     </tr>
                   </thead>
@@ -741,6 +759,16 @@ export default function BacktestLab({
                         >
                           {bucket.expectancyDollars === null ? '—' : money(bucket.expectancyDollars, true)}
                         </td>
+                        {[bucket.firstHalfPerTrade, bucket.secondHalfPerTrade].map((half, i) => (
+                          <td
+                            key={i}
+                            className={`py-1 text-right ${
+                              half === null ? muted : half > 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {half === null ? '—' : money(half, true)}
+                          </td>
+                        ))}
                         <td
                           className={`py-1 text-right font-bold ${
                             bucket.netDollars > 0 ? 'text-emerald-400' : bucket.netDollars < 0 ? 'text-rose-400' : muted
@@ -913,6 +941,58 @@ export default function BacktestLab({
                 <p className="text-[11px] mt-2 text-emerald-400">
                   Live setups now carry the instruction to move the stop to entry once the trade is
                   {' '}{protectStopAtR}R in profit.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* One band refused outright, when the period supports it */}
+          {deadBand && (
+            <div className={`border rounded-xl p-3 ${panel}`}>
+              <div className={`text-xs mb-2 flex items-center gap-1.5 ${strong}`}>
+                <Ban className="w-3.5 h-3.5 text-rose-400" />
+                Refusing one conviction band outright
+              </div>
+              <p className={`text-[11px] leading-relaxed ${deadBand.worthSkipping ? strong : muted}`}>
+                {deadBand.reason}
+              </p>
+
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                <button
+                  type="button"
+                  id="adopt-dead-band-btn"
+                  onClick={() => deadBand.band && onSkipBand({ min: deadBand.band.min, max: deadBand.band.max })}
+                  disabled={!deadBand.worthSkipping || skipConvictionBand !== null}
+                  className="flex items-center justify-center gap-1.5 bg-rose-500 hover:bg-rose-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>
+                    {deadBand.band ? `Refuse ${deadBand.band.label.toLowerCase()} on live setups` : 'Refuse this band on live setups'}
+                  </span>
+                </button>
+                {skipConvictionBand !== null && (
+                  <button
+                    type="button"
+                    id="clear-dead-band-btn"
+                    onClick={() => onSkipBand(null)}
+                    className={`text-xs px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                      isDark
+                        ? 'border-slate-800 text-slate-400 hover:text-slate-200'
+                        : 'border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Take every band again
+                  </button>
+                )}
+              </div>
+              <p className={`text-[11px] mt-2 ${muted}`}>
+                The gain above is what this run&rsquo;s own trades would have summed to without that band.
+                Turn it on and re-run to trade the period properly, with sizing and compounding applied.
+              </p>
+              {skipConvictionBand !== null && (
+                <p className="text-[11px] mt-2 text-emerald-400">
+                  Live analysis is refusing setups scoring {skipConvictionBand.min} to{' '}
+                  {skipConvictionBand.max - 1} and saying so rather than offering them.
                 </p>
               )}
             </div>
