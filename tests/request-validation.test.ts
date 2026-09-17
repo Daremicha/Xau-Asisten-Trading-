@@ -58,6 +58,7 @@ describe('analysis request validation', () => {
       userId: 'abc',
       pastLearningRecords: [],
       minConviction: 0,
+      skipConvictionBand: null,
       priorWeights: null,
     });
   });

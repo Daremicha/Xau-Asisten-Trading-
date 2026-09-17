@@ -77,6 +77,12 @@ export interface BacktestConfig {
    */
   minConviction?: number;
   /**
+   * A conviction band refused outright, whatever the floor says. Measured in
+   * the lab and turned on only when a band lost money in both halves of a
+   * period; see `assessDeadBand`.
+   */
+  skipConvictionBand?: { min: number; max: number } | null;
+  /**
    * Move the stop to entry once a trade is this many multiples of its risk in
    * profit. Null leaves every stop where the engine put it, which is the
    * control. See `OrderPlan.breakEvenAtR`.
@@ -480,6 +486,7 @@ export function createBacktest(config: BacktestConfig): Runner {
   let skipped = 0;
   let belowConviction = 0;
   const minConviction = Math.max(0, Math.min(100, config.minConviction ?? 0));
+  const deadBand = config.skipConvictionBand ?? null;
 
   const trades: BacktestTrade[] = [];
   const records: SelfLearningMemoryRecord[] = [];
@@ -548,7 +555,12 @@ export function createBacktest(config: BacktestConfig): Runner {
     });
     // Nothing on this chart is good enough, so nothing is traded. Skipping is
     // free; a bad fill is not.
-    if (conviction.convictionScore < minConviction) {
+    if (
+      conviction.convictionScore < minConviction ||
+      (deadBand &&
+        conviction.convictionScore >= deadBand.min &&
+        conviction.convictionScore < deadBand.max)
+    ) {
       belowConviction += 1;
       cursor = i + cooldownBars;
       return;

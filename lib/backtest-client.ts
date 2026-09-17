@@ -80,6 +80,8 @@ export interface BacktestJobOptions {
   riskPercentage: number;
   /** Lowest conviction worth trading, zero to one hundred. Zero takes everything. */
   minConviction?: number;
+  /** A conviction band refused outright, when the user has turned one on. */
+  skipConvictionBand?: { min: number; max: number } | null;
   onProgress?: (update: BacktestProgressUpdate) => void;
   signal?: AbortSignal;
 }
@@ -257,6 +259,7 @@ async function replay(
     startingEquity: options.equity,
     riskPercentage: options.riskPercentage,
     minConviction: options.minConviction,
+    skipConvictionBand: options.skipConvictionBand ?? null,
     adaptive,
     startingPrior,
     breakEvenAtR,

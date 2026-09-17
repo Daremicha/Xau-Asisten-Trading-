@@ -293,6 +293,33 @@ Reply with JSON only:
     });
     // A quality floor the user set. Nothing on the chart being good enough is a
     // real answer, and a cheaper one than a bad trade: skipping costs nothing.
+    // A band a backtest showed losing money in both halves of a period. This is
+    // narrower than a floor on purpose: on this engine the lowest band has paid
+    // the most, so refusing everything under a score throws away the good with
+    // the bad.
+    const dead = input.skipConvictionBand;
+    if (
+      dead &&
+      conviction.convictionScore >= dead.min &&
+      conviction.convictionScore < dead.max
+    ) {
+      return NextResponse.json({
+        success: true,
+        setup: null,
+        skipped: {
+          reason: 'dead-band',
+          convictionScore: conviction.convictionScore,
+          band: conviction.band,
+          threshold: input.minConviction,
+          deadBand: { label: `${dead.min} to ${dead.max - 1}`, min: dead.min, max: dead.max },
+          direction: decision.direction,
+          notes: conviction.notes,
+          rationale: decision.rationale,
+        },
+        dataStatus: snapshot.status,
+      });
+    }
+
     if (conviction.convictionScore < input.minConviction) {
       return NextResponse.json({
         success: true,

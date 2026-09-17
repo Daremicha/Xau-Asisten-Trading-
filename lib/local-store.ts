@@ -25,6 +25,8 @@ export const LOCAL_KEYS = {
   minConviction: 'xauusd_min_conviction',
   /** Multiple of risk at which a live setup says to move the stop to entry. */
   protectStopAtR: 'xauusd_protect_stop_at_r',
+  /** A conviction band live analysis refuses outright. */
+  skipConvictionBand: 'xauusd_skip_conviction_band',
 } as const;
 
 export interface LocalProfile {
@@ -45,6 +47,10 @@ export interface LocalProfile {
    * when trades are held to the target or the stop as quoted.
    */
   protectStopAtR: number | null;
+  /**
+   * A conviction band refused outright, or null when every band is taken.
+   */
+  skipConvictionBand: { min: number; max: number } | null;
 }
 
 const TRADING_STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
@@ -126,6 +132,23 @@ export function readLocalProfile(): LocalProfile {
     protectStopAtR: (() => {
       const value = readNumber(LOCAL_KEYS.protectStopAtR);
       return value !== null && value >= 0.5 && value <= 3 ? value : null;
+    })(),
+    // A stored band is checked rather than trusted: a corrupt value refuses
+    // nothing, which is the behaviour the app had before the setting existed.
+    skipConvictionBand: (() => {
+      const raw = readRaw(LOCAL_KEYS.skipConvictionBand);
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw) as { min?: unknown; max?: unknown };
+        const min = parsed?.min;
+        const max = parsed?.max;
+        if (typeof min !== 'number' || typeof max !== 'number') return null;
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+        if (min < 0 || max > 101 || max <= min) return null;
+        return { min, max };
+      } catch {
+        return null;
+      }
     })(),
   };
 }

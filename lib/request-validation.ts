@@ -40,6 +40,11 @@ export interface ValidatedAnalyzeRequest {
    */
   minConviction: number;
   /**
+   * A conviction band the user refuses outright, because a backtest showed it
+   * losing money in both halves of the period. Null when no band is refused.
+   */
+  skipConvictionBand: { min: number; max: number } | null;
+  /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
    */
@@ -69,6 +74,16 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
   const minConviction = isFiniteNumber(b.minConviction) ? b.minConviction : 0;
   if (minConviction < 0 || minConviction > 100) {
     errors.push('minConviction must be between 0 and 100.');
+  }
+
+  // A band is taken only when both ends are sane and it is a band rather than
+  // a floor in disguise, so a malformed value simply refuses nothing.
+  let skipConvictionBand: { min: number; max: number } | null = null;
+  const rawBand = b.skipConvictionBand as { min?: unknown; max?: unknown } | null | undefined;
+  if (rawBand && isFiniteNumber(rawBand.min) && isFiniteNumber(rawBand.max)) {
+    const min = rawBand.min;
+    const max = rawBand.max;
+    if (min >= 0 && max <= 101 && max > min) skipConvictionBand = { min, max };
   }
 
   const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 1.0;
@@ -113,6 +128,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       userId: typeof b.userId === 'string' && b.userId.length > 0 ? b.userId : 'guest',
       pastLearningRecords: (b.pastLearningRecords as SelfLearningMemoryRecord[]) ?? [],
       minConviction,
+      skipConvictionBand,
       priorWeights,
     },
     errors: [],
