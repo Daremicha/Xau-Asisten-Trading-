@@ -964,9 +964,19 @@ export default function Home() {
         if (res.status === 503) setFeedStatus('unavailable');
         return;
       }
-      // The engine looked and found nothing worth trading at the user's floor.
+      // The engine looked and found nothing worth offering. The card shows the
+      // reason, but only when it has room: a live order keeps the card, so the
+      // answer would otherwise vanish and the button would look broken.
       if (!data.setup && data.skipped) {
-        setSkippedSetup(data.skipped as SkippedSetup);
+        const skip = data.skipped as SkippedSetup;
+        setSkippedSetup(skip);
+        if (activeSetup) {
+          setFeedMessage(
+            skip.reason === 'unfillable'
+              ? 'No new setup: price has run too far from its level for an order to rest there. Your current order is unchanged.'
+              : 'No new setup met the engine quality rules. Your current order is unchanged.'
+          );
+        }
         return;
       }
 

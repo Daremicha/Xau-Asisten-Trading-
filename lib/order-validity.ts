@@ -64,6 +64,30 @@ export function computeValidity(
 }
 
 /**
+ * Whether a resting order would be dead the moment it was placed.
+ *
+ * `evaluatePendingOrder` kills a resting order once price has run a full stop
+ * distance past its entry. An order issued when price is already that far away
+ * satisfies the rule immediately: the app records it as a missed entry within
+ * seconds of offering it, and the user is handed a trade that never existed.
+ *
+ * This is the same rule read one moment earlier, so the two can never disagree.
+ * A market order is exempt: it fills at price, so there is nothing to run away
+ * from.
+ */
+export function isDeadOnArrival(
+  order: { orderType: string; entryPrice: number; stopLoss: number },
+  currentPrice: number
+): boolean {
+  if (order.orderType.includes('INSTANT')) return false;
+  const risk = Math.abs(order.entryPrice - order.stopLoss);
+  if (risk <= 0) return false;
+  const isBuy = order.orderType.includes('BUY');
+  const runFromEntry = isBuy ? currentPrice - order.entryPrice : order.entryPrice - currentPrice;
+  return runFromEntry >= risk;
+}
+
+/**
  * Decides what has become of a pending order.
  *
  * Three things end it besides a fill: the clock runs out, price trades through

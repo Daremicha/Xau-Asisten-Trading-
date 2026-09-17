@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { computeValidity, evaluatePendingOrder, formatTimeLeft, missCause } from '../lib/order-validity';
+import {
+  computeValidity,
+  evaluatePendingOrder,
+  formatTimeLeft,
+  isDeadOnArrival,
+  missCause,
+} from '../lib/order-validity';
 
 const NOW = new Date('2026-09-16T10:00:00Z');
 
@@ -121,5 +127,39 @@ describe('the cause of a miss is specific, since each teaches a different lesson
 
   test('a waiting order has no miss cause to report', () => {
     expect(missCause('waiting')).toBe('The order did not fill.');
+  });
+});
+
+describe('an order that would be dead the moment it is placed', () => {
+  // The setup from the screen recording: a BUY LIMIT eight-and-twenty dollars
+  // under a market that had already left it behind, carrying an eighteen dollar
+  // stop. It was recorded as a missed entry seconds after being offered.
+  const stranded = { orderType: 'BUY LIMIT' as const, entryPrice: 4318.54, stopLoss: 4300.54 };
+
+  test('the engine and the pending evaluator agree that it is dead', () => {
+    expect(isDeadOnArrival(stranded, 4346.31)).toBe(true);
+    expect(
+      evaluatePendingOrder({ ...stranded, takeProfit1: 4338.79, timestamp: new Date().toISOString() }, 4346.31).state
+    ).toBe('ran-away');
+  });
+
+  test('an order price can still come back to is alive', () => {
+    expect(isDeadOnArrival(stranded, 4330)).toBe(false);
+    expect(isDeadOnArrival(stranded, 4336.53)).toBe(false);
+  });
+
+  test('the threshold is the stop the order carries, not a fixed distance', () => {
+    const wide = { orderType: 'BUY LIMIT' as const, entryPrice: 4318.54, stopLoss: 4278.54 };
+    expect(isDeadOnArrival(wide, 4346.31)).toBe(false);
+  });
+
+  test('a sell limit is judged the other way round', () => {
+    const sell = { orderType: 'SELL LIMIT' as const, entryPrice: 4350, stopLoss: 4368 };
+    expect(isDeadOnArrival(sell, 4330)).toBe(true);
+    expect(isDeadOnArrival(sell, 4345)).toBe(false);
+  });
+
+  test('a market order has nothing to run away from', () => {
+    expect(isDeadOnArrival({ ...stranded, orderType: 'BUY INSTANT' }, 4346.31)).toBe(false);
   });
 });

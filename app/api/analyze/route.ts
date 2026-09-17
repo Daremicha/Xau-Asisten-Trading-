@@ -12,7 +12,7 @@ import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from '@/lib/signal-engine';
 import { assessConviction, drawdownFromHistory, effectiveRiskPercentage } from '@/lib/position-sizing';
 import { MIN_BUCKET_SAMPLES, conditionalPerformance } from '@/lib/learning-engine';
-import { computeValidity } from '@/lib/order-validity';
+import { computeValidity, isDeadOnArrival } from '@/lib/order-validity';
 import {
   normaliseProposal,
   parseProposal,
@@ -262,6 +262,36 @@ Reply with JSON only:
           err instanceof Error ? `Provider error: ${err.message}` : 'Provider error.',
         ];
       }
+    }
+
+    // An order price has already left behind. Checked on the order that would
+    // actually be offered, so an accepted model proposal is held to it too.
+    // Offering one of these is worse than offering nothing: the app records it
+    // as a missed entry within seconds, and the ledger fills with trades that
+    // never existed.
+    if (isDeadOnArrival(finalOrder, marketPrice)) {
+      const risk = Math.abs(finalOrder.entryPrice - finalOrder.stopLoss);
+      const away = Math.abs(marketPrice - finalOrder.entryPrice);
+      return NextResponse.json({
+        success: true,
+        setup: null,
+        skipped: {
+          reason: 'unfillable',
+          convictionScore: decision.confidenceScore,
+          band: 'Low',
+          threshold: input.minConviction,
+          direction: decision.direction,
+          notes: [
+            `Market is at ${marketPrice.toFixed(2)} and the level this read is built on sits at ${finalOrder.entryPrice.toFixed(
+              2
+            )}, ${priceToPips(away)} pips away.`,
+            `The trade would carry a ${priceToPips(risk)} pip stop, so an order resting there counts as a missed entry the moment it is placed.`,
+            'The level is worth watching. There is no order to leave working at it right now.',
+          ],
+          rationale: decision.rationale,
+        },
+        dataStatus: snapshot.status,
+      });
     }
 
     // How much of the risk budget this particular setup deserves. The user's

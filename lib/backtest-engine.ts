@@ -555,6 +555,15 @@ export function createBacktest(config: BacktestConfig): Runner {
     });
     // Nothing on this chart is good enough, so nothing is traded. Skipping is
     // free; a bad fill is not.
+    // An order price has already left behind is not a signal, and the replay
+    // must refuse it for the same reason the live engine does, or the two stop
+    // describing the same system.
+    if (decision.entryUnfillable) {
+      skipped += 1;
+      cursor = i + cooldownBars;
+      return;
+    }
+
     if (
       conviction.convictionScore < minConviction ||
       (deadBand &&

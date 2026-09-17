@@ -1006,10 +1006,18 @@ Ready for direct execution in MetaTrader 5.`;
             <div className="flex items-center justify-center gap-2">
               <Filter className="w-5 h-5 text-sky-400" />
               <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                Nothing worth trading right now
+                {skipped.reason === 'unfillable'
+                  ? 'Price has run away from its level'
+                  : 'Nothing worth trading right now'}
               </h3>
             </div>
 
+            {skipped.reason === 'unfillable' ? (
+              <div className={`text-center text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                An order left at that level would be recorded as a missed entry the moment it was
+                placed, so none was offered. Waiting costs nothing.
+              </div>
+            ) : (
             <div className={`text-center font-mono text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               Best available setup scored{' '}
               <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
@@ -1034,6 +1042,7 @@ Ready for direct execution in MetaTrader 5.`;
                 </>
               )}
             </div>
+            )}
 
             {skipped.notes.length > 0 && (
               <ul className={`text-xs space-y-1 max-w-md mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -1047,7 +1056,9 @@ Ready for direct execution in MetaTrader 5.`;
             )}
 
             <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-              {skipped.reason === 'dead-band'
+              {skipped.reason === 'unfillable'
+                ? 'Run the analysis again once price has pulled back toward the level, or switch to a style whose stop is wide enough to reach it.'
+                : skipped.reason === 'dead-band'
                 ? 'Skipping costs nothing. Run the analysis again later, or turn the refused band off in the Strategy Backtest Lab.'
                 : 'Skipping costs nothing. Run the analysis again later, or lower the floor in Capital & Account Configuration.'}
             </p>

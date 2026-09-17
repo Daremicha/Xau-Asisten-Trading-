@@ -9,6 +9,7 @@
 
 import { Candle, priceToPips, round2 } from './candles';
 import { selectTargets } from './target-engine';
+import { isDeadOnArrival } from './order-validity';
 import {
   AdaptiveStrategyEngineWeights,
   ForexFactoryEvent,
@@ -110,6 +111,17 @@ export interface SignalDecision {
    * may not fill inside the intended holding period.
    */
   entryOutOfReach: boolean;
+  /**
+   * True when the entry sits so far from price that the order would already
+   * satisfy its own ran-away rule the moment it was placed.
+   *
+   * Such an order is not a weak signal, it is a dead one: the app would record
+   * it as a missed entry within seconds of issuing it. The caller offers
+   * nothing rather than offering this.
+   */
+  entryUnfillable: boolean;
+  /** Plain sentence saying why, when the entry is unfillable. */
+  unfillableReason: string;
   anchor: 'Order Block' | 'Fair Value Gap' | 'Market';
   /** Why each target sits where it does, in target order. */
   targetBasis: string[];
@@ -364,7 +376,12 @@ interface EntryCandidate {
 
 /** Furthest a pending entry may sit from price for this style and volatility. */
 export function maxEntryDistance(profile: StyleProfile, atr: number): number {
-  return Math.max(profile.minEntryReachDollars, atr * profile.maxEntryAtrMultiple);
+  const volatilityReach = Math.max(profile.minEntryReachDollars, atr * profile.maxEntryAtrMultiple);
+  // A pending order dies the moment price is a full stop distance past its
+  // entry, and no stop in this style may be wider than maxStopDollars. So an
+  // entry further from price than that ceiling cannot survive being placed,
+  // however volatile the market is. Reach stops there.
+  return Math.min(volatilityReach, profile.maxStopDollars);
 }
 
 /**
@@ -552,6 +569,24 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
 
   const orderType = resolveOrderType(direction, entryPrice, price, profile.instantToleranceDollars);
 
+  // A pending order is dead on arrival when price already sits a full stop
+  // distance past its entry, because that is exactly the rule the app uses to
+  // declare a resting order missed. The engine used to issue these anyway: the
+  // entry reach is derived from volatility and the stop is clamped to the
+  // style's ceiling, so on a fast day the reach could be wider than the stop
+  // and the order was recorded as a missed entry seconds after being offered.
+  // Refusing is the honest answer — the level is worth watching, but there is
+  // no order to leave working at it.
+  const entryDistance = Math.abs(price - entryPrice);
+  const entryUnfillable = isDeadOnArrival({ orderType, entryPrice, stopLoss }, price);
+  const unfillableReason = entryUnfillable
+    ? `Price is ${priceToPips(entryDistance)} pips above the ${entry.anchor.toLowerCase()} this read is built on at ${entryPrice.toFixed(
+        2
+      )}, which is further than the ${priceToPips(
+        riskDistance
+      )} pip stop the trade would carry. An order left there would count as a missed entry the moment it was placed, so none is offered.`
+    : '';
+
   // Confidence: weighted agreement normalised against the total weight on the table.
   const totalWeight = factors.reduce((acc, f) => acc + f.weight * Math.max(1, Math.abs(f.direction)), 0);
   const rawConfidence = (Math.abs(score) / Math.max(totalWeight, 0.0001)) * 100;
@@ -584,6 +619,7 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
     entry.outOfReach
       ? 'Price has extended beyond every point of interest this style can reach, so treat this as a level to watch rather than an order to leave working.'
       : '',
+    entryUnfillable ? unfillableReason : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -607,6 +643,8 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
     stopWasCapped,
     entryDistancePips: priceToPips(price - entryPrice),
     entryOutOfReach: entry.outOfReach,
+    entryUnfillable,
+    unfillableReason,
     anchor: entry.anchor,
     factors,
     rationale,
