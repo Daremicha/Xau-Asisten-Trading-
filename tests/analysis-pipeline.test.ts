@@ -26,6 +26,7 @@ function snapshot(candlesM15: Candle[], candlesD1: Candle[] = []): MarketSnapsho
   const last = candlesM15[candlesM15.length - 1];
   return {
     status: 'live',
+    instrument: 'spot',
     source: 'test',
     fetchedAt: new Date(last.time).toISOString(),
     ageMs: 0,

@@ -60,6 +60,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       status: snapshot.status,
+      instrument: snapshot.instrument,
       source: snapshot.source,
       fetchedAt: snapshot.fetchedAt,
       ageSeconds: Math.round(snapshot.ageMs / 1000),

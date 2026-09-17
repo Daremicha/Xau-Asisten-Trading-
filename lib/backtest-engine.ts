@@ -214,6 +214,8 @@ function snapshotFor(window: Candle[]): MarketSnapshot {
   const last = window[window.length - 1];
   return {
     status: 'live',
+    // A replay is spot XAUUSD candles by construction.
+    instrument: 'spot',
     source: 'Backtest replay',
     fetchedAt: new Date(last.time).toISOString(),
     ageMs: 0,

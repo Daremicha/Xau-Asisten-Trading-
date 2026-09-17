@@ -352,11 +352,12 @@ export interface EngineInputUsed {
 export interface SkippedSetup {
   /**
    * Why nothing was offered: the setup scored under the user's floor, it
-   * landed in a band a backtest showed loses money consistently, or price had
+   * landed in a band a backtest showed loses money consistently, price had
    * already run so far from the level that a resting order there would be
-   * recorded as a missed entry the moment it was placed.
+   * recorded as a missed entry the moment it was placed, or the only feed
+   * available quotes a different instrument from the one being traded.
    */
-  reason: 'below-conviction' | 'dead-band' | 'unfillable';
+  reason: 'below-conviction' | 'dead-band' | 'unfillable' | 'feed-mismatch';
   convictionScore: number;
   band: 'Low' | 'Moderate' | 'High';
   threshold: number;

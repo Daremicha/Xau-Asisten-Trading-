@@ -18,6 +18,12 @@ interface HeaderProps {
   change24h: number | null;
   /** Live feed state, so the header never claims a connection it does not have. */
   feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
+  /**
+   * False when the quote is the COMEX futures contract rather than spot. The
+   * header is where a price is read at a glance, so it is the one place that
+   * must never call one instrument by the other's name.
+   */
+  quoteIsSpot?: boolean;
   selectedBroker?: BrokerId;
   notificationPermission?: NotificationPermission | 'unsupported';
   onRequestNotification?: () => void;
@@ -32,6 +38,7 @@ export default function Header({
   marketPrice,
   change24h,
   feedStatus = 'loading',
+  quoteIsSpot = true,
   selectedBroker = 'EXNESS',
   notificationPermission = 'default',
   onRequestNotification,
@@ -99,7 +106,14 @@ export default function Header({
     stale: { text: 'Stale quote, not live', dot: 'bg-amber-400', tone: 'text-amber-500' },
     unavailable: { text: 'Feed unavailable', dot: 'bg-rose-500', tone: 'text-rose-500' },
   };
-  const feed = feedLabel[feedStatus] ?? feedLabel.loading;
+  const feed =
+    !quoteIsSpot && feedStatus !== 'unavailable'
+      ? {
+          text: 'COMEX futures, not spot',
+          dot: 'bg-amber-400',
+          tone: 'text-amber-500',
+        }
+      : feedLabel[feedStatus] ?? feedLabel.loading;
 
   return (
     <header
