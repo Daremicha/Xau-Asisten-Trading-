@@ -440,8 +440,10 @@ Reply with JSON only:
       {
         label: 'Portfolio and equity growth',
         value:
-          drawdownPercent > 0
+          drawdownPercent >= 10
             ? `${drawdownPercent}% below the account high water mark, so position size is reduced.`
+            : drawdownPercent > 0
+            ? `${drawdownPercent}% below the account high water mark, which is inside the band where size is left alone.`
             : 'Account at its high water mark, so no drawdown reduction applied.',
         used: true,
       },

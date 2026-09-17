@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   QUOTE_POLL_MS,
+  __toSnapshotForTest,
   cacheSeconds,
   candlesSinceUtcMidnight,
   mapTwelveDataCandles,
@@ -155,5 +156,68 @@ describe('quota aware cache window', () => {
     expect(requestsPerDay).toBeLessThan(800);
     // The cache never lets a second tab double that bill.
     expect(cacheSeconds()).toBeLessThanOrEqual(QUOTE_POLL_MS.withOpenOrder / 1000);
+  });
+});
+
+describe('a market order needs a price that still exists', () => {
+  // The reported bug: the snapshot carried the close of the last finished
+  // fifteen minute candle, so the engine quoted BUY INSTANT at 4287.49 while
+  // gold was trading at 4293.76, and called the quote zero seconds old.
+  const CANDLE_MS = 15 * 60_000;
+
+  test('a price taken from a finished candle is reported at that candle age', () => {
+    const takenAt = Date.now() - 8 * 60_000;
+    const snapshot = __toSnapshotForTest(
+      {
+        source: 'Twelve Data (XAU/USD spot)',
+        price: 4287.49,
+        priceTakenAt: takenAt,
+        dayHigh: null,
+        dayLow: null,
+        previousClose: null,
+        candlesM15: [],
+      },
+      Date.now(),
+      'live'
+    );
+    expect(snapshot.ageMs).toBeGreaterThan(7 * 60_000);
+    expect(snapshot.fetchedAt).toBe(new Date(takenAt).toISOString());
+  });
+
+  test('a price too old to trade on is marked stale even when the provider answered', () => {
+    const snapshot = __toSnapshotForTest(
+      {
+        source: 'Twelve Data (XAU/USD spot)',
+        price: 4287.49,
+        priceTakenAt: Date.now() - CANDLE_MS,
+        dayHigh: null,
+        dayLow: null,
+        previousClose: null,
+        candlesM15: [],
+      },
+      Date.now(),
+      'live'
+    );
+    expect(snapshot.status).toBe('stale');
+    expect(snapshot.message).toContain('not current enough for a market order');
+  });
+
+  test('a live tick is live, and says nothing alarming', () => {
+    const snapshot = __toSnapshotForTest(
+      {
+        source: 'Twelve Data (XAU/USD spot)',
+        price: 4293.76,
+        priceTakenAt: Date.now(),
+        dayHigh: null,
+        dayLow: null,
+        previousClose: null,
+        candlesM15: [],
+      },
+      Date.now(),
+      'live'
+    );
+    expect(snapshot.status).toBe('live');
+    expect(snapshot.ageMs).toBeLessThan(1000);
+    expect(snapshot.message).toContain('Live data from');
   });
 });
