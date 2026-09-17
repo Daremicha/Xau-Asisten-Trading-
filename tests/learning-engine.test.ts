@@ -5,6 +5,7 @@ import {
   deriveAdaptiveWeights,
   breakEvenWinRate,
   entryBufferCeiling,
+  matchesDefaultPrior,
   normaliseConfluence,
   normalisePrior,
   recencyWeight,
@@ -477,5 +478,51 @@ describe('a strike rate is judged against what the target needs', () => {
     const weights = deriveAdaptiveWeights(history, 'Intraday');
     expect(weights.atrBufferFactor).toBeLessThan(PRIOR_WEIGHTS.atrBufferFactor);
     expect(weights.adjustments.join(' ')).toContain('comfortably above');
+  });
+});
+
+describe('parameters that are simply the defaults', () => {
+  test('the engine defaults are recognised as nothing to adopt', () => {
+    expect(matchesDefaultPrior(PRIOR_WEIGHTS)).toBe(true);
+    expect(matchesDefaultPrior(null)).toBe(true);
+  });
+
+  test('the shape a learning run reports them in is still recognised', () => {
+    // A run that changed nothing ends on exactly these, carrying the extra
+    // reporting fields a weights object has.
+    const reported = {
+      orderBlockWeight: 0.28,
+      fairValueGapWeight: 0.24,
+      liquiditySweepWeight: 0.22,
+      newsImpactWeight: 0.14,
+      indicatorConfluenceWeight: 0.12,
+      atrBufferFactor: 1.25,
+      entryBufferPips: 0,
+      totalAnalysesLearned: 2567,
+      historicalWinRate: 43.9,
+    };
+    expect(matchesDefaultPrior(reported)).toBe(true);
+  });
+
+  test('a widened stop is a real change', () => {
+    expect(matchesDefaultPrior({ ...PRIOR_WEIGHTS, atrBufferFactor: 1.96 })).toBe(false);
+  });
+
+  test('an entry buffer is a real change', () => {
+    expect(matchesDefaultPrior({ ...PRIOR_WEIGHTS, entryBufferPips: 72 })).toBe(false);
+  });
+
+  test('shifted confluence weights are a real change', () => {
+    expect(
+      matchesDefaultPrior({
+        ...PRIOR_WEIGHTS,
+        orderBlockWeight: 0.156,
+        fairValueGapWeight: 0.3822,
+      })
+    ).toBe(false);
+  });
+
+  test('a rounding difference too small to act on is not a change', () => {
+    expect(matchesDefaultPrior({ ...PRIOR_WEIGHTS, atrBufferFactor: 1.2501 })).toBe(true);
   });
 });

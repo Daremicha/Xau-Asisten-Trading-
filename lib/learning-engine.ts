@@ -278,6 +278,34 @@ export interface AdaptiveWeightsWithEvidence extends AdaptiveStrategyEngineWeigh
 }
 
 /**
+ * True when a set of parameters is the engine's own defaults.
+ *
+ * A learning run that finds nothing worth changing ends exactly where it
+ * started, and offering those back as something to adopt is a button that does
+ * nothing. Saying so is more useful than letting the user press it.
+ */
+export function matchesDefaultPrior(candidate: Partial<PriorWeights> | null | undefined): boolean {
+  const prior = normalisePrior(candidate);
+  const defaults = normalisePrior(null);
+
+  const weightKeys = [
+    'orderBlockWeight',
+    'fairValueGapWeight',
+    'liquiditySweepWeight',
+    'newsImpactWeight',
+    'indicatorConfluenceWeight',
+  ] as const;
+
+  // Half a percentage point of weight, a hundredth of an ATR multiple and half
+  // a pip: below these nothing the engine does with them would differ.
+  const sameWeights = weightKeys.every((key) => Math.abs(prior[key] - defaults[key]) < 0.005);
+  const sameBuffer = Math.abs(prior.atrBufferFactor - defaults.atrBufferFactor) < 0.01;
+  const sameEntry = Math.abs(prior.entryBufferPips - defaults.entryBufferPips) < 0.5;
+
+  return sameWeights && sameBuffer && sameEntry;
+}
+
+/**
  * Derives the engine's current parameters from its trade history.
  *
  * `style` narrows the evidence to trades of that style when enough of them
