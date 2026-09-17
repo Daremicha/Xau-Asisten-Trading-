@@ -35,14 +35,15 @@ describe('a strong setup earns a bigger lot than a weak one', () => {
   });
 });
 
-describe('the risk percentage the user chose is a ceiling, never exceeded', () => {
-  test('even the best possible setup commits at most the full budget', () => {
+describe('the budget is a normal size, and the lean above it is bounded', () => {
+  test('the very best setup may ask for more than the budget, and never much more', () => {
     const best = assessConviction({
       confidenceScore: 100, timeframesAligned: true, killZoneActive: true,
       entryOutOfReach: false, dataStale: false, proposalRejected: false,
     });
-    expect(best.multiplier).toBeLessThanOrEqual(1);
-    expect(effectiveRiskPercentage(1, best.multiplier)).toBeLessThanOrEqual(1);
+    expect(best.multiplier).toBeGreaterThan(1);
+    expect(best.multiplier).toBeLessThanOrEqual(1.25);
+    expect(best.notes.join(' ')).toContain('a lean on a setup the engine is sure of');
   });
 
   test('the worst possible setup still sizes something, not zero', () => {
@@ -60,10 +61,44 @@ describe('the risk percentage the user chose is a ceiling, never exceeded', () =
         for (const stale of [true, false]) {
           const r = assessConviction({ ...NEUTRAL, confidenceScore, timeframesAligned: aligned, dataStale: stale });
           expect(r.multiplier).toBeGreaterThanOrEqual(0.25);
-          expect(r.multiplier).toBeLessThanOrEqual(1);
+          expect(r.multiplier).toBeLessThanOrEqual(1.25);
         }
       }
     }
+  });
+
+  test('the whole budget, and no more, at the point conviction is called high', () => {
+    // Seventy is where the band above earned 1.87 cent a trade against 1.13 for
+    // the lowest one. At the line itself the size is exactly the budget.
+    const atLine = assessConviction({ ...NEUTRAL, confidenceScore: 58, timeframesAligned: true });
+    expect(atLine.convictionScore).toBe(70);
+    expect(atLine.multiplier).toBe(1);
+  });
+});
+
+describe('what withdraws the lean, whatever the chart says', () => {
+  const sure = { ...NEUTRAL, confidenceScore: 100, timeframesAligned: true, killZoneActive: true };
+
+  test('an account below its high water mark sizes at the budget, not above', () => {
+    const drawn = assessConviction({ ...sure, drawdownPercent: 12 });
+    expect(drawn.multiplier).toBeLessThanOrEqual(1);
+    expect(drawn.notes.join(' ')).toContain('below its high water mark');
+  });
+
+  test('a kind of setup that has been losing sizes at the budget, not above', () => {
+    const losing = assessConviction({ ...sure, measuredEdgeR: -0.4 });
+    expect(losing.multiplier).toBeLessThanOrEqual(1);
+    expect(losing.notes.join(' ')).toContain('have been losing');
+  });
+
+  test('a stale quote sizes at the budget, not above', () => {
+    const stale = assessConviction({ ...sure, dataStale: true });
+    expect(stale.multiplier).toBeLessThanOrEqual(1);
+  });
+
+  test('a healthy account with a measured edge keeps the lean', () => {
+    const healthy = assessConviction({ ...sure, drawdownPercent: 2, measuredEdgeR: 0.4 });
+    expect(healthy.multiplier).toBeGreaterThan(1);
   });
 });
 

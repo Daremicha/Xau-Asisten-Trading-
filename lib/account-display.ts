@@ -84,3 +84,20 @@ export function formatAccountMoney(
 export function formatAccountTick(usd: number, accountType?: AccountType | null): string {
   return formatAccountMoney(usd, accountType, { decimals: 0 });
 }
+
+/**
+ * A tick with the unit left off, for an axis that names the unit once.
+ *
+ * "1 024 Cent" wraps onto two lines in the width an axis can spare, and a
+ * column of wrapped labels is harder to read than a column of numbers under a
+ * heading that says what they are.
+ */
+export function formatAxisNumber(usd: number, accountType?: AccountType | null): string {
+  const amount = toAccountUnits(usd, accountType);
+  const negative = amount < 0;
+  const magnitude = Math.abs(amount);
+  const body = isCentAccount(accountType)
+    ? groupCents(magnitude, 0)
+    : magnitude.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return `${negative ? '-' : ''}${body}`;
+}

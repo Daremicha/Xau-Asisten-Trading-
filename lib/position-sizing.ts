@@ -49,7 +49,13 @@ export interface ConvictionInputs {
 }
 
 export interface ConvictionResult {
-  /** Fraction of the user's risk budget to actually commit, 0.25 to 1. */
+  /**
+   * Share of the user's risk budget to actually commit.
+   *
+   * A quarter at the bottom, the whole budget at seventy, and up to a quarter
+   * more than the budget above that — but only when nothing else about the
+   * moment argues against it. See `CONVICTION_FULL` below.
+   */
   multiplier: number;
   /** Zero to one hundred, for display. */
   convictionScore: number;
@@ -61,6 +67,33 @@ export interface ConvictionResult {
 
 /** Never size below this fraction of budget; a trade worth taking is worth sizing. */
 const MIN_MULTIPLIER = 0.25;
+
+/**
+ * The score at which the whole risk budget is committed.
+ *
+ * Above it the engine is allowed to ask for more than the budget, because the
+ * user's percentage is a normal size rather than a ceiling that must never be
+ * crossed. Seventy is where the backtest's own conviction breakdown separates:
+ * the band above it returned 1.87 cent a trade against 1.13 for the lowest one.
+ */
+const CONVICTION_FULL = 70;
+
+/**
+ * The most the budget may be exceeded on the strongest setups.
+ *
+ * A quarter more, and no further. Conviction is a reading of the chart, not a
+ * promise, and the same breakdown that supports sizing up also shows a middle
+ * band that lost money — so this is a lean, not a leap.
+ */
+const MAX_MULTIPLIER = 1.25;
+
+/**
+ * Drawdown past which the engine never sizes above the budget.
+ *
+ * Adding size while the account is already down is how a bad week becomes a
+ * bad month. Conviction has to be high *and* the account has to be healthy.
+ */
+const NO_UPLIFT_DRAWDOWN = 10;
 
 /**
  * Turns the engine's reading of a setup into a fraction of the risk budget.
@@ -149,20 +182,47 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
 
   const convictionScore = Math.max(0, Math.min(100, Math.round(score)));
 
-  // Map conviction onto the usable band. 100 earns the full budget, 0 earns the
-  // floor, and everything between scales linearly.
-  const multiplier = parseFloat(
-    (MIN_MULTIPLIER + (1 - MIN_MULTIPLIER) * (convictionScore / 100)).toFixed(3)
-  );
+  // Below the full mark, conviction decides what share of the budget is used:
+  // a quarter at zero, all of it at seventy.
+  //
+  // Above it, a setup the engine is genuinely sure of may ask for more than the
+  // budget — but only while the account is not in drawdown and this kind of
+  // setup has not been losing. Neither condition is about the chart, which is
+  // exactly why they are checked separately from the score.
+  const healthy = drawdown < NO_UPLIFT_DRAWDOWN;
+  const edgeIntact = typeof inputs.measuredEdgeR !== 'number' || inputs.measuredEdgeR > -0.2;
+  const mayLean = convictionScore > CONVICTION_FULL && healthy && edgeIntact && !inputs.dataStale;
+
+  const raw = mayLean
+    ? 1 +
+      ((convictionScore - CONVICTION_FULL) / (100 - CONVICTION_FULL)) * (MAX_MULTIPLIER - 1)
+    : MIN_MULTIPLIER + (1 - MIN_MULTIPLIER) * (Math.min(convictionScore, CONVICTION_FULL) / CONVICTION_FULL);
+  const multiplier = parseFloat(raw.toFixed(3));
 
   const band: ConvictionResult['band'] =
     convictionScore >= 70 ? 'High' : convictionScore >= 45 ? 'Moderate' : 'Low';
 
   notes.unshift(
-    `Conviction ${convictionScore} of 100 (${band}), so ${Math.round(
-      multiplier * 100
-    )}% of the risk budget is committed.`
+    multiplier > 1
+      ? `Conviction ${convictionScore} of 100 (${band}) with the account at its high water mark, so ${Math.round(
+          multiplier * 100
+        )}% of the risk budget is committed: a lean on a setup the engine is sure of.`
+      : `Conviction ${convictionScore} of 100 (${band}), so ${Math.round(
+          multiplier * 100
+        )}% of the risk budget is committed.`
   );
+
+  if (convictionScore > CONVICTION_FULL && !mayLean) {
+    notes.push(
+      !healthy
+        ? `Conviction is high, but the account is ${drawdown.toFixed(
+            1
+          )}% below its high water mark, so the size stays at the budget rather than above it.`
+        : !edgeIntact
+        ? 'Conviction is high, but setups like this one have been losing in your own history, so the size stays at the budget.'
+        : 'Conviction is high, but the quote is stale, so the size stays at the budget.'
+    );
+  }
 
   return { multiplier, convictionScore, band, notes };
 }
