@@ -5,6 +5,7 @@ import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { getContractSpecification } from '@/lib/market-engine';
 import { round2 } from '@/lib/candles';
 import { AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
+import { publicErrorMessage } from '@/lib/safe-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,14 +90,14 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Failed to fetch market data';
+    console.error('Market data error:', err);
     return NextResponse.json(
       {
         success: false,
         status: 'unavailable',
         symbol: 'XAUUSD',
         marketPrice: null,
-        message: errorMsg,
+        message: publicErrorMessage(err, 'Market data could not be fetched right now.'),
         timestamp: new Date().toISOString(),
       },
       { status: 503 }

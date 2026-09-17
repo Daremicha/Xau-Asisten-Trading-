@@ -3,6 +3,7 @@ import { executeGenerativeSynthesis } from '@/lib/gen-engine';
 import { SelfLearningMemoryRecord, TradeContext } from '@/lib/types';
 import { validateLearnBody } from '@/lib/request-validation';
 import { computeTradeResult } from '@/lib/trade-result';
+import { publicErrorMessage } from '@/lib/safe-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,14 +119,24 @@ Respond strictly in valid JSON format:
 
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed.primaryFactor) primaryFactor = parsed.primaryFactor;
-          if (parsed.institutionalFlowExplanation) institutionalFlowExplanation = parsed.institutionalFlowExplanation;
-          if (parsed.liquidityBehavior) liquidityBehavior = parsed.liquidityBehavior;
-          if (parsed.strategyEvolutionLesson) strategyEvolutionLesson = parsed.strategyEvolutionLesson;
-          if (typeof parsed.fvgWeightDelta === 'number') fvgWeightDelta = parsed.fvgWeightDelta;
-          if (typeof parsed.orderBlockWeightDelta === 'number') orderBlockWeightDelta = parsed.orderBlockWeightDelta;
-          if (typeof parsed.newsFilterWeightDelta === 'number') newsFilterWeightDelta = parsed.newsFilterWeightDelta;
-          if (typeof parsed.atrBufferMultiplier === 'number') atrBufferMultiplier = parsed.atrBufferMultiplier;
+          // Prose is taken as written; numbers are not. The prompt states the
+          // ranges, but a model is free to ignore a prompt, and a value stored
+          // here is a value some future reader may act on.
+          const clamp = (value: unknown, low: number, high: number, fallback: number) =>
+            typeof value === 'number' && Number.isFinite(value)
+              ? Math.max(low, Math.min(high, value))
+              : fallback;
+
+          if (parsed.primaryFactor) primaryFactor = String(parsed.primaryFactor);
+          if (parsed.institutionalFlowExplanation) {
+            institutionalFlowExplanation = String(parsed.institutionalFlowExplanation);
+          }
+          if (parsed.liquidityBehavior) liquidityBehavior = String(parsed.liquidityBehavior);
+          if (parsed.strategyEvolutionLesson) strategyEvolutionLesson = String(parsed.strategyEvolutionLesson);
+          fvgWeightDelta = clamp(parsed.fvgWeightDelta, -0.03, 0.03, fvgWeightDelta);
+          orderBlockWeightDelta = clamp(parsed.orderBlockWeightDelta, -0.03, 0.03, orderBlockWeightDelta);
+          newsFilterWeightDelta = clamp(parsed.newsFilterWeightDelta, 0, 0.05, newsFilterWeightDelta);
+          atrBufferMultiplier = clamp(parsed.atrBufferMultiplier, 1, 1.25, atrBufferMultiplier);
         }
       } catch {
         // Fallback already defaults to algorithmic institutional evaluation
@@ -141,12 +152,20 @@ Respond strictly in valid JSON format:
       convictionScore: setup.convictionScore ?? 0,
       session: setup.killZoneStatus?.currentZone ?? 'Off-Hours',
       killZoneActive: Boolean(setup.killZoneStatus?.isHighVolatilityTiming),
-      timeframesAligned:
-        new Set([
+      // Alignment means three timeframes that are present and agree. A setup
+      // recorded without its structure read as "aligned", because a set of
+      // three undefined values has one member and undefined is not 'Ranging',
+      // which quietly filled the conditional learning table with agreement
+      // that was never measured.
+      timeframesAligned: (() => {
+        const trends = [
           setup.multiTimeframeAlignment?.d1?.trend,
           setup.multiTimeframeAlignment?.h4?.trend,
           setup.multiTimeframeAlignment?.h1?.trend,
-        ]).size === 1 && setup.multiTimeframeAlignment?.d1?.trend !== 'Ranging',
+        ];
+        if (trends.some((trend) => trend === undefined || trend === null)) return false;
+        return new Set(trends).size === 1 && trends[0] !== 'Ranging';
+      })(),
       newsNearby: (setup.economicEvents ?? []).some((event) => {
         if (event.impact !== 'High') return false;
         const at = Date.parse(event.scheduledTimestamp ?? '');
@@ -197,7 +216,13 @@ Respond strictly in valid JSON format:
       learningRecord,
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Learning evaluation error';
-    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
+    console.error('Learning evaluation error:', err);
+    return NextResponse.json(
+      {
+        success: false,
+        error: publicErrorMessage(err, 'The trade could not be evaluated right now.'),
+      },
+      { status: 500 }
+    );
   }
 }

@@ -13,6 +13,8 @@ import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from 
 import { assessConviction, drawdownFromHistory, effectiveRiskPercentage } from '@/lib/position-sizing';
 import { MIN_BUCKET_SAMPLES, conditionalPerformance } from '@/lib/learning-engine';
 import { computeValidity, isDeadOnArrival } from '@/lib/order-validity';
+import { nextCheck } from '@/lib/next-check';
+import { publicErrorMessage, safeProviderNote } from '@/lib/safe-error';
 import {
   normaliseProposal,
   parseProposal,
@@ -258,9 +260,8 @@ Reply with JSON only:
           }
         }
       } catch (err) {
-        proposalOutcome.reasons = [
-          err instanceof Error ? `Provider error: ${err.message}` : 'Provider error.',
-        ];
+        // Never the provider's own words: they can quote the key back.
+        proposalOutcome.reasons = [safeProviderNote(err, 'Provider error')];
       }
     }
 
@@ -289,6 +290,14 @@ Reply with JSON only:
             'The level is worth watching. There is no order to leave working at it right now.',
           ],
           rationale: decision.rationale,
+          nextCheck: nextCheck(input.tradingStyle),
+          // Below this price the order would no longer count as a missed entry
+          // the moment it was placed, so this is the number to watch for.
+          watchPrice: round2(
+            decision.direction === 'long'
+              ? finalOrder.entryPrice + risk
+              : finalOrder.entryPrice - risk
+          ),
         },
         dataStatus: snapshot.status,
       });
@@ -345,6 +354,7 @@ Reply with JSON only:
           direction: decision.direction,
           notes: conviction.notes,
           rationale: decision.rationale,
+          nextCheck: nextCheck(input.tradingStyle),
         },
         dataStatus: snapshot.status,
       });
@@ -362,6 +372,7 @@ Reply with JSON only:
           direction: decision.direction,
           notes: conviction.notes,
           rationale: decision.rationale,
+          nextCheck: nextCheck(input.tradingStyle),
         },
         dataStatus: snapshot.status,
       });
@@ -588,7 +599,15 @@ Reply with JSON only:
       dataAgeSeconds: Math.round(snapshot.ageMs / 1000),
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Institutional analysis engine error';
-    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
+    // Logged in full on the server, reported in a form that cannot carry a
+    // credential to the browser.
+    console.error('Analysis engine error:', err);
+    return NextResponse.json(
+      {
+        success: false,
+        error: publicErrorMessage(err, 'The analysis engine could not complete this request.'),
+      },
+      { status: 500 }
+    );
   }
 }

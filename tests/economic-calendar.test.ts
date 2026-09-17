@@ -96,8 +96,40 @@ describe('reading a provider payload', () => {
     expect(mapCalendarPayload([{ title: 'X', timestamp: future, impact: 'whatever' }])[0].impact).toBe('Low');
   });
 
-  test('an unknown currency falls back rather than being passed through', () => {
-    expect(mapCalendarPayload([{ title: 'X', timestamp: future, currency: 'XYZ' }])[0].currency).toBe('USD');
+  test('an unreadable currency is unknown, never assumed to be the dollar', () => {
+    // Assuming USD would put a foreign release inside the dollar-only calendar
+    // that feeds the news shield, and widen the stop on a gold trade for an
+    // event that has nothing to do with it.
+    expect(mapCalendarPayload([{ title: 'X', timestamp: future, currency: 'XYZ' }])[0].currency).toBe(
+      'Unknown'
+    );
+    expect(mapCalendarPayload([{ title: 'X', timestamp: future }])[0].currency).toBe('Unknown');
+  });
+
+  test('a feed that writes country names instead of codes is still read', () => {
+    const rows = [
+      { title: 'Payrolls', timestamp: future, country: 'United States' },
+      { title: 'BOJ', timestamp: future, country: 'Japan' },
+      { title: 'CPI', timestamp: future, country: 'Euro Area' },
+      { title: 'Mystery', timestamp: future, country: 'Atlantis' },
+    ];
+    expect(mapCalendarPayload(rows).map((e) => e.currency).sort()).toEqual([
+      'EUR',
+      'JPY',
+      'USD',
+      'Unknown',
+    ]);
+  });
+
+  test('the dollar-only view keeps dollars and drops everything else', () => {
+    const rows = [
+      { title: 'Payrolls', timestamp: future, country: 'USD' },
+      { title: 'BOJ', timestamp: future, country: 'Japan' },
+      { title: 'Mystery', timestamp: future, country: 'Atlantis' },
+    ];
+    const kept = usdOnly(mapCalendarPayload(rows));
+    expect(kept).toHaveLength(1);
+    expect(kept[0].title).toBe('Payrolls');
   });
 });
 

@@ -58,6 +58,31 @@ interface SignalCardProps {
   theme?: 'dark' | 'light';
 }
 
+/**
+ * A time written the way the rest of this app writes times.
+ *
+ * The engine works in UTC. Every clock on screen — the header, the session
+ * panel, the calendar — is stated in WIB, so a time that appeared here in the
+ * device's own zone would be the one number on the page that meant something
+ * different from all the others.
+ */
+function formatLocalTime(iso: string): string {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return '—';
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  };
+  const time = `${at.toLocaleTimeString('en-US', options)} WIB`;
+  const dayOf = (value: Date) =>
+    value.toLocaleDateString('en-US', { timeZone: 'Asia/Jakarta', day: 'numeric' });
+  return dayOf(at) === dayOf(new Date())
+    ? time
+    : `${at.toLocaleDateString('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' })} ${time}`;
+}
+
 export default function SignalCard({
   setup,
   lastOutcome = null,
@@ -1053,6 +1078,39 @@ Ready for direct execution in MetaTrader 5.`;
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* When to come back. "Nothing right now" is only half an answer;
+                the other half is the moment new information exists, which is a
+                candle close or a session opening, not a guess. */}
+            {skipped.nextCheck && (
+              <div
+                id="next-check-notice"
+                className={`border rounded-xl p-3 text-center ${
+                  isDark ? 'bg-sky-500/5 border-sky-500/25' : 'bg-sky-50 border-sky-200'
+                }`}
+              >
+                <div className={`text-xs font-bold mb-1 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                  <Clock className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" />
+                  {skipped.nextCheck.marketClosed ? 'Market reopens' : 'Check again at'}{' '}
+                  {formatLocalTime(skipped.nextCheck.at)}
+                </div>
+                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {skipped.nextCheck.reason}
+                </p>
+                {typeof skipped.watchPrice === 'number' && (
+                  <p className={`text-[11px] mt-1 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Sooner if price falls back below ${skipped.watchPrice.toFixed(2)}, which is where an
+                    order at that level becomes placeable again.
+                  </p>
+                )}
+                {skipped.nextCheck.session && !skipped.nextCheck.marketClosed && (
+                  <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Next session: {skipped.nextCheck.session.name} at{' '}
+                    {formatLocalTime(skipped.nextCheck.session.at)}.
+                  </p>
+                )}
+              </div>
             )}
 
             <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>

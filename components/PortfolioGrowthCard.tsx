@@ -28,7 +28,7 @@ import {
 } from 'recharts';
 import { AccountType, SelfLearningMemoryRecord, InstitutionalTradingSetup } from '@/lib/types';
 import { formatAccountMoney, formatAccountTick } from '@/lib/account-display';
-import { computeTradeResult } from '@/lib/trade-result';
+import { computeTradeResult, roundMoney } from '@/lib/trade-result';
 import { chronological } from '@/lib/learning-engine';
 
 interface PortfolioGrowthCardProps {
@@ -202,7 +202,7 @@ export default function PortfolioGrowthCard({
           label: 'Start',
           time: 'Baseline',
           fullTime: 'Initial Capital',
-          equity: parseFloat(base.toFixed(2)),
+          equity: roundMoney(base),
           pnl: 0,
           pnlFormatted: formatAccountMoney(0, accountType),
           pnlPercent: 0,
@@ -215,7 +215,10 @@ export default function PortfolioGrowthCard({
 
       orderedRecords.forEach((record, idx) => {
         const pnl = record.profitOrLossDollars || 0;
-        runningEquity = Math.max(0, parseFloat((runningEquity + pnl).toFixed(2)));
+        // Four decimals, as everywhere else money is added up: rounding the
+        // balance to two at every step throws away most of a cent account's
+        // precision and the error compounds down the curve.
+        runningEquity = Math.max(0, roundMoney(runningEquity + pnl));
 
         if (pnl > 0) {
           grossProfit += pnl;
@@ -263,14 +266,14 @@ export default function PortfolioGrowthCard({
 
       return {
         chartData: points,
-        totalPnLDollars: parseFloat(netPnL.toFixed(2)),
+        totalPnLDollars: roundMoney(netPnL),
         totalPnLPercent: parseFloat(netPct.toFixed(2)),
         winRate: parseFloat(rate.toFixed(1)),
         totalWins: wins,
         totalLosses: losses,
         profitFactor: parseFloat(pf.toFixed(2)),
         maxDrawdownPercent: parseFloat(maxDd.toFixed(1)),
-        peakEquity: parseFloat(peak.toFixed(2)),
+        peakEquity: roundMoney(peak),
       };
     }, [orderedRecords, initialEquity, currentEquity, accountType]);
 
