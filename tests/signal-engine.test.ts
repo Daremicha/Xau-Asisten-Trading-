@@ -578,3 +578,49 @@ describe('EMA structure and RSI genuinely steer the signal', () => {
     }
   });
 });
+
+describe('an entry price has already left behind', () => {
+  /**
+   * The failure from the screen recording. The order block sits far under a
+   * market that has run, so the entry is further away than the stop the trade
+   * would carry — and the app's own rule records such an order as a missed
+   * entry the moment it is placed.
+   */
+  function stranded(): SignalInputs {
+    const far = (timeframe: TimeframeType): SmcStructure => {
+      const base = structure(timeframe, 'Bullish', true);
+      return {
+        ...base,
+        orderBlock: { ...base.orderBlock, high: PRICE - 28, low: PRICE - 36 },
+        fairValueGap: { ...base.fairValueGap, top: PRICE - 30, bottom: PRICE - 34 },
+        liquidityPools: { ...base.liquidityPools, asiaLow: PRICE - 40 },
+      };
+    };
+    return inputs({
+      structures: { d1: far('D1'), h4: far('H4'), h1: far('H1'), m15: far('M15') },
+      // A fast market, so the volatility reach alone would have allowed it.
+      indicators: { ...INDICATORS, atr14: 20 },
+    });
+  }
+
+  test('the engine refuses it rather than issuing an order that dies at once', () => {
+    const decision = buildSignal(stranded());
+    expect(decision.entryUnfillable).toBe(true);
+    expect(decision.unfillableReason).toContain('missed entry the moment it was placed');
+  });
+
+  test('a reachable level is still offered normally', () => {
+    const decision = buildSignal(inputs());
+    expect(decision.entryUnfillable).toBe(false);
+    expect(decision.unfillableReason).toBe('');
+  });
+
+  test('reach can never exceed the widest stop the style permits', () => {
+    for (const style of ['Scalping', 'Intraday', 'Swing'] as const) {
+      const profile = STYLE_PROFILES[style];
+      // A very volatile market, where the volatility reach alone would run past
+      // the stop ceiling and produce orders that cannot survive being placed.
+      expect(maxEntryDistance(profile, 200)).toBeLessThanOrEqual(profile.maxStopDollars);
+    }
+  });
+});
