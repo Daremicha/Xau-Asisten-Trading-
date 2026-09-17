@@ -212,6 +212,18 @@ trades at 1,200 or 7,500.
 narrative around the setup. It never sets a price. The app is fully functional
 with none of them.
 
+**Targets sit on levels, not on multiples of the stop.** A take profit at 2.6
+times the risk describes the trade; it says nothing about whether price goes
+there. Each target is instead the nearest level the market has a reason to stop
+at — a previous day high or low, an Asia session extreme, the far edge of an
+opposing order block, an unfilled imbalance, a pivot, a recent swing — inside
+the distance a move of that style routinely covers, and placed a little in front
+of it so the order fills before the queue that gathers at the level itself. The
+signal card names the level behind every target. Where the nearest level pays
+less than one to one, the trade is sized down rather than stretched, and when
+nothing structural is within reach the targets fall back to the typical range
+and say so.
+
 **Every panel on the screen reaches the decision.** The signal card lists what
 the engine read to produce that setup, built where the decision was made rather
 than re-derived afterwards, so the claim is checkable:

@@ -38,6 +38,14 @@ export interface ConvictionInputs {
    * thin to say.
    */
   measuredEdgeR?: number | null;
+  /**
+   * Reward to risk on the first target, measured from where it actually landed.
+   *
+   * Targets sit on structure now, so this varies trade by trade. One inside a
+   * one to one needs better than even odds just to break even, which is a
+   * smaller position, not a refusal: the level is real, the payout is thin.
+   */
+  rewardToRisk?: number;
 }
 
 export interface ConvictionResult {
@@ -103,6 +111,23 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
       score += 8;
       notes.push(
         `Setups like this one have returned ${inputs.measuredEdgeR.toFixed(2)}R in your own history.`
+      );
+    }
+  }
+
+  // What the first target actually pays for the stop it carries.
+  if (typeof inputs.rewardToRisk === 'number' && inputs.rewardToRisk > 0) {
+    if (inputs.rewardToRisk < 0.75) {
+      score -= 15;
+      notes.push(
+        `The first target pays ${inputs.rewardToRisk.toFixed(
+          2
+        )} times the risk, so it needs a high strike rate to be worth taking and is sized accordingly.`
+      );
+    } else if (inputs.rewardToRisk < 1) {
+      score -= 8;
+      notes.push(
+        `The first target pays ${inputs.rewardToRisk.toFixed(2)} times the risk, a little under one to one.`
       );
     }
   }

@@ -37,6 +37,7 @@ import {
   BrokerId,
   OrderExecutionType,
   SelfLearningMemoryRecord,
+  TradeContext,
   TradingStyle,
 } from './types';
 
@@ -223,7 +224,8 @@ function rootCauseFor(
 export function recordFor(
   trade: BacktestTrade,
   style: TradingStyle,
-  anchor: string
+  anchor: string,
+  context?: TradeContext
 ): SelfLearningMemoryRecord {
   return {
     id: `bt_${trade.sequence}_${trade.closedAt}`,
@@ -240,6 +242,9 @@ export function recordFor(
     strategyEvolutionLesson: trade.reason,
     tradingStyle: style,
     autoResolved: true,
+    // The same conditions the live app records, so a replay exercises the
+    // conditional learning rather than a reduced version of the engine.
+    context,
     adaptiveWeightAdjustments: {
       fvgWeightDelta: 0,
       orderBlockWeightDelta: 0,
@@ -310,11 +315,15 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
           reason: 'Price traded through the invalidation without ever reaching the entry.',
         };
       }
-      if (isLong ? c.high >= plan.takeProfit1 : c.low <= plan.takeProfit1) {
+      // The same rule the live app uses: a full stop distance beyond the entry
+      // without a fill means the move happened without the trade.
+      const risk = Math.abs(plan.entryPrice - plan.stopLoss);
+      const ranPast = isLong ? c.high - plan.entryPrice : plan.entryPrice - c.low;
+      if (risk > 0 && ranPast >= risk) {
         return {
           kind: 'missed',
           index: j,
-          reason: 'Price reached the first target without the order ever filling.',
+          reason: 'Price ran a full stop distance past the entry without ever filling it.',
         };
       }
       if (c.time > plan.expiresAt) {
@@ -556,7 +565,21 @@ export function createBacktest(config: BacktestConfig): Runner {
         holdingHours: parseFloat(((missBar.time - bar.time) / 3_600_000).toFixed(2)),
       };
       trades.push(trade);
-      records.push(recordFor(trade, tradingStyle, decision.anchor));
+      records.push(
+        recordFor(trade, tradingStyle, decision.anchor, {
+          anchor: decision.anchor,
+          convictionScore: conviction.convictionScore,
+          session: killZone.currentZone,
+          killZoneActive: killZone.isHighVolatilityTiming,
+          timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
+          // A historical calendar is not available to a replay, so this is
+          // recorded as false rather than guessed at.
+          newsNearby: false,
+          entryDistancePips: Math.abs(decision.entryDistancePips),
+          stopLossPips: decision.stopLossPips,
+          rMultiple: 0,
+        })
+      );
       equityCurve.push({ sequence, time: missBar.time, equity });
       if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle, startingPrior);
       cursor = outcome.index + cooldownBars;
@@ -610,7 +633,19 @@ export function createBacktest(config: BacktestConfig): Runner {
     };
 
     trades.push(trade);
-    records.push(recordFor(trade, tradingStyle, decision.anchor));
+    records.push(
+      recordFor(trade, tradingStyle, decision.anchor, {
+        anchor: decision.anchor,
+        convictionScore: conviction.convictionScore,
+        session: killZone.currentZone,
+        killZoneActive: killZone.isHighVolatilityTiming,
+        timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
+        newsNearby: false,
+        entryDistancePips: Math.abs(decision.entryDistancePips),
+        stopLossPips: decision.stopLossPips,
+        rMultiple: trade.rMultiple,
+      })
+    );
     equityCurve.push({ sequence, time: exitBar.time, equity });
     if (adaptive) weights = deriveAdaptiveWeights(records, tradingStyle, startingPrior);
 

@@ -393,6 +393,10 @@ export interface InstitutionalTradingSetup {
   stopLossPips: number;
   /** The level the entry was derived from, kept so the result can be learned from. */
   entryAnchor?: 'Order Block' | 'Fair Value Gap' | 'Market';
+  /** Why each target sits where it does, in target order. */
+  targetBasis?: string[];
+  /** True when no level was reachable and the targets used the typical range. */
+  targetsFellBack?: boolean;
   /** How far the order sat from price when it was produced, in pips. */
   entryDistancePips?: number;
   recommendedLotSize: number;

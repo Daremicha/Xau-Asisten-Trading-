@@ -8,6 +8,7 @@
  */
 
 import { Candle, priceToPips, round2 } from './candles';
+import { selectTargets } from './target-engine';
 import {
   AdaptiveStrategyEngineWeights,
   ForexFactoryEvent,
@@ -110,6 +111,12 @@ export interface SignalDecision {
    */
   entryOutOfReach: boolean;
   anchor: 'Order Block' | 'Fair Value Gap' | 'Market';
+  /** Why each target sits where it does, in target order. */
+  targetBasis: string[];
+  /** Reward to risk on the first target, measured from where it landed. */
+  targetRiskReward: number;
+  /** True when no level was reachable, so the targets used the typical range. */
+  targetsFellBack: boolean;
   factors: ConfluenceFactor[];
   rationale: string;
 }
@@ -525,11 +532,22 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
 
   const riskDistance = Math.abs(entryPrice - stopLoss);
 
-  const [m1, m2, m3] = profile.tpMultiples;
-  const sign = direction === 'long' ? 1 : -1;
-  const takeProfit1 = round2(entryPrice + sign * riskDistance * m1);
-  const takeProfit2 = round2(entryPrice + sign * riskDistance * m2);
-  const takeProfit3 = round2(entryPrice + sign * riskDistance * m3);
+  // Targets sit on levels price has a reason to stop at, inside the distance a
+  // move of this style routinely covers, rather than at multiples of the stop.
+  // A target at 2.6 times the risk is a description of the trade; it says
+  // nothing about whether price goes there.
+  const targets = selectTargets({
+    entry: entryPrice,
+    stop: stopLoss,
+    direction,
+    tradingStyle,
+    atr: indicators.atr14,
+    structures,
+    candles: inputs.candles,
+    pivotBias: inputs.pivotBias,
+    quasimodo: inputs.quasimodo,
+  });
+  const { takeProfit1, takeProfit2, takeProfit3 } = targets;
 
   const orderType = resolveOrderType(direction, entryPrice, price, profile.instantToleranceDollars);
 
@@ -578,7 +596,12 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
     takeProfit2,
     takeProfit3,
     stopLossPips: priceToPips(riskDistance),
-    riskRewardRatio: riskDistance > 0 ? `1:${m1.toFixed(2)}` : '1:0',
+    // Measured from where the target actually landed, not from the multiple it
+    // was supposed to be.
+    riskRewardRatio: targets.riskReward > 0 ? `1:${targets.riskReward.toFixed(2)}` : '1:0',
+    targetBasis: targets.basis,
+    targetRiskReward: targets.riskReward,
+    targetsFellBack: targets.usedFallback,
     confidenceScore,
     stopWasCapped,
     entryDistancePips: priceToPips(price - entryPrice),

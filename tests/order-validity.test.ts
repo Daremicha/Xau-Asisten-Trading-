@@ -52,10 +52,10 @@ describe('what ends a pending order besides a fill', () => {
     expect(v.reason).toContain('void');
   });
 
-  test('price reaching the target without filling means the move ran away', () => {
+  test('price running a full stop distance past the entry means the move ran away', () => {
     const v = evaluatePendingOrder(pending, 4206, NOW);
     expect(v.state).toBe('ran-away');
-    expect(v.reason).toContain('without filling');
+    expect(v.reason).toContain('without ever filling it');
   });
 
   test('the clock running out expires it', () => {
