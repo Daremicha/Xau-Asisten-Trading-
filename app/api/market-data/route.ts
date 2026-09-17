@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMarketSnapshot } from '@/lib/price-feed';
-import { filterUpcoming, getEconomicCalendar } from '@/lib/economic-calendar';
+import { filterUpcoming, getEconomicCalendar, usdOnly } from '@/lib/economic-calendar';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { getContractSpecification } from '@/lib/market-engine';
 import { round2 } from '@/lib/candles';
@@ -65,7 +65,8 @@ export async function GET(request: Request) {
       message: snapshot.message,
       symbol: 'XAUUSD',
       marketPrice: price,
-      economicEvents: filterUpcoming(calendar.events),
+      // Gold is priced in dollars, so only the dollar side is listed.
+      economicEvents: usdOnly(filterUpcoming(calendar.events)),
       calendarConfigured: calendar.configured,
       calendarMessage: calendar.message,
       bid: round2(price - spreadDollars),

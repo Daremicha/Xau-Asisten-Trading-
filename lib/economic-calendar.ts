@@ -221,6 +221,20 @@ export function filterUpcoming(events: ForexFactoryEvent[], now: number = Date.n
     .sort((a, b) => new Date(a.scheduledTimestamp).getTime() - new Date(b.scheduledTimestamp).getTime());
 }
 
+/**
+ * Keeps only the releases that move gold.
+ *
+ * XAUUSD is an ounce of gold priced in dollars, so the dollar half of the pair
+ * is what a scheduled release moves. An ECB decision or a Japanese holiday can
+ * matter at the margin, but they arrive by way of the dollar rather than
+ * directly, and listing them buries the releases that do move the price. Only
+ * the USD side is kept, both on screen and for the news shield, so the two
+ * always agree about what the engine is reacting to.
+ */
+export function usdOnly(events: ForexFactoryEvent[]): ForexFactoryEvent[] {
+  return events.filter((e) => e.currency === 'USD');
+}
+
 /** Minutes until the next high impact release, or null when none is known. */
 export function minutesToNextHighImpact(
   events: ForexFactoryEvent[],

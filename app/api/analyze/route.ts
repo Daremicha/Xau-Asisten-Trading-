@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
-import { getEconomicCalendar, filterUpcoming, minutesToNextHighImpact } from '@/lib/economic-calendar';
+import {
+  getEconomicCalendar,
+  filterUpcoming,
+  minutesToNextHighImpact,
+  usdOnly,
+} from '@/lib/economic-calendar';
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from '@/lib/signal-engine';
@@ -74,9 +79,11 @@ export async function POST(request: Request) {
     // an unconfigured or unreachable provider yields no events and no news
     // adjustment at all.
     const calendar = await getEconomicCalendar();
-    const economicEvents = filterUpcoming(calendar.events);
+    // The same dollar-only view the screen shows, so the stop is never widened
+    // for a release the user was never told about.
+    const economicEvents = usdOnly(filterUpcoming(calendar.events));
     const highImpact = economicEvents.filter((e) => e.impact === 'High');
-    const minutesToNextEvent = minutesToNextHighImpact(calendar.events);
+    const minutesToNextEvent = minutesToNextHighImpact(usdOnly(calendar.events));
 
     // Deterministic, tested engine owns every price level.
     const decision = buildSignal({
