@@ -93,13 +93,21 @@ export function evaluatePendingOrder(
   }
 
   // The move ran without you. Chasing it now is a different, worse trade.
-  const reachedTarget = isBuy ? currentPrice >= setup.takeProfit1 : currentPrice <= setup.takeProfit1;
-  if (reachedTarget) {
+  //
+  // Measured against the risk the order carried rather than against the first
+  // target. Targets sit on structure now, so one can be close, and a rule keyed
+  // to it declared an order dead the moment price twitched in its favour. A
+  // move of a full stop distance beyond the entry is the same statement at any
+  // target distance: you would have been a stop's worth in profit, and you were
+  // never in the trade.
+  const risk = Math.abs(setup.entryPrice - setup.stopLoss);
+  const runFromEntry = isBuy ? currentPrice - setup.entryPrice : setup.entryPrice - currentPrice;
+  if (risk > 0 && runFromEntry >= risk) {
     return {
       state: 'ran-away',
-      reason: `Price reached the first target at ${setup.takeProfit1.toFixed(
+      reason: `Price ran ${runFromEntry.toFixed(2)} past the ${setup.entryPrice.toFixed(
         2
-      )} without filling the order. The move happened without the entry.`,
+      )} entry, a full stop distance, without ever filling it. The move happened without the entry.`,
     };
   }
 

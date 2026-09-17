@@ -755,6 +755,41 @@ Ready for direct execution in MetaTrader 5.`;
               </p>
             </div>
 
+            {/* Why each target sits where it does. A take profit at a multiple of
+                the stop says nothing about whether price goes there; a level
+                does, so the level is named. */}
+            {setup.targetBasis && setup.targetBasis.length > 0 && (
+              <div
+                id="target-basis"
+                className={`border rounded-xl p-3.5 ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div
+                  className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
+                    isDark ? 'text-slate-300' : 'text-slate-800'
+                  }`}
+                >
+                  <Target className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Why the targets sit where they do</span>
+                </div>
+                <div className="space-y-1.5">
+                  {setup.targetBasis.map((reason, index) => (
+                    <div key={index} className="flex items-start gap-2 text-[11px] leading-relaxed">
+                      <span className="font-mono font-bold text-emerald-400 shrink-0">TP{index + 1}</span>
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{reason}</span>
+                    </div>
+                  ))}
+                </div>
+                {setup.targetsFellBack && (
+                  <p className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Nothing structural was close enough to reach, so these sit at the distance this style
+                    usually covers rather than on a level.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* What the engine actually read. Built where the decision was made,
                 so this is the real list rather than the card's assumption. */}
             {setup.inputsConsulted && setup.inputsConsulted.length > 0 && (

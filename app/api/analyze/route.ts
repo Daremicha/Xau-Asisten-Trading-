@@ -289,6 +289,7 @@ Reply with JSON only:
       proposalRejected: proposalOutcome.attempted && !proposalOutcome.accepted,
       drawdownPercent,
       measuredEdgeR,
+      rewardToRisk: decision.targetRiskReward,
     });
     // A quality floor the user set. Nothing on the chart being good enough is a
     // real answer, and a cheaper one than a bad trade: skipping costs nothing.
@@ -471,6 +472,10 @@ Reply with JSON only:
       // Kept on the setup so the result can be learned from by condition, not
       // just by outcome: which level the entry came from, and how far it sat.
       entryAnchor: proposalOutcome.accepted ? 'Market' : decision.anchor,
+      // Only the engine's own targets carry a basis; a model proposal that was
+      // accepted replaced them, and saying otherwise would be a fabrication.
+      targetBasis: proposalOutcome.accepted ? undefined : decision.targetBasis,
+      targetsFellBack: proposalOutcome.accepted ? undefined : decision.targetsFellBack,
       entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
       stopLossPips: lotCalculation.stopLossPips,
       recommendedLotSize: lotCalculation.lotSize,
