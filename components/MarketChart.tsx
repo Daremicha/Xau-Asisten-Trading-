@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { TimeframeType, InstitutionalTradingSetup, TechnicalIndicators } from '@/lib/types';
-import { Layers, Activity, ShieldAlert, Target, Crosshair } from 'lucide-react';
+import { Layers, Activity, ShieldAlert, Target, Crosshair, RefreshCw } from 'lucide-react';
 
 interface MarketChartProps {
   currentPrice: number | null;
@@ -15,6 +15,15 @@ interface MarketChartProps {
   indicators?: TechnicalIndicators | null;
   /** Real state of the market data connection. */
   feedStatus?: 'loading' | 'live' | 'stale' | 'unavailable';
+  /**
+   * Age of the quoted bid and ask, in seconds. The candles come from
+   * TradingView's own live feed; these numbers come from the market data
+   * provider a few seconds behind it, and saying so is the difference between
+   * a lag and an apparent error.
+   */
+  quoteAgeSeconds?: number | null;
+  onRefreshQuote?: () => void;
+  isRefreshingQuote?: boolean;
   /** Live entry status panel, pinned over the top right of the chart. */
   statusPanel?: React.ReactNode;
   theme?: 'dark' | 'light';
@@ -29,6 +38,9 @@ export default function MarketChart({
   activeSetup,
   indicators = null,
   feedStatus = 'loading',
+  quoteAgeSeconds = null,
+  onRefreshQuote,
+  isRefreshingQuote = false,
   statusPanel = null,
   theme = 'dark',
 }: MarketChartProps) {
@@ -89,6 +101,43 @@ export default function MarketChart({
             <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
               Ask: <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{askPrice === null ? '—' : askPrice.toFixed(2)}</span>
             </span>
+
+            {/* How old the quoted bid and ask are. The candles beside them are
+                TradingView's live feed, so without this the two look wrong
+                rather than simply taken a few seconds apart. */}
+            {quoteAgeSeconds !== null && (
+              <span
+                id="quote-age-readout"
+                className={
+                  quoteAgeSeconds <= 30
+                    ? isDark
+                      ? 'text-slate-500'
+                      : 'text-slate-500'
+                    : 'text-amber-500 font-semibold'
+                }
+                title="Age of the bid and ask from the market data provider. The candles are TradingView's own live feed."
+              >
+                quote {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s` : `${Math.floor(quoteAgeSeconds / 60)}m`} old
+              </span>
+            )}
+
+            {onRefreshQuote && (
+              <button
+                type="button"
+                id="refresh-quote-btn"
+                onClick={onRefreshQuote}
+                disabled={isRefreshingQuote}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isDark
+                    ? 'border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-700'
+                    : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
+                }`}
+                title="Fetch a fresh quote now"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRefreshingQuote ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+            )}
             {/* Reflects the real feed state. Claiming a connection that does not
                 exist is the kind of thing a trader acts on by mistake. */}
             <span
@@ -143,20 +192,47 @@ export default function MarketChart({
             ))}
           </div>
 
-          {/* Toggle View Mode */}
-          <button
-            id="toggle-chart-mode-btn"
-            type="button"
-            onClick={() => setUseTradingView(!useTradingView)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-              isDark
-                ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
-                : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'
+          {/* Which chart is on screen. A single toggle labelled with the mode it
+              would switch to left people unsure which one they were looking at,
+              which matters when one is a live feed and the other is not. */}
+          <div
+            className={`flex items-center p-0.5 rounded-xl border text-xs font-semibold ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-amber-500" />
-            <span>{useTradingView ? 'Institutional Canvas' : 'TradingView Feed'}</span>
-          </button>
+            <button
+              id="toggle-chart-mode-btn"
+              type="button"
+              onClick={() => setUseTradingView(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                useTradingView
+                  ? 'bg-amber-500 text-slate-950'
+                  : isDark
+                  ? 'text-slate-400 hover:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="TradingView's own live XAUUSD feed"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>TradingView</span>
+            </button>
+            <button
+              id="toggle-chart-levels-btn"
+              type="button"
+              onClick={() => setUseTradingView(false)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                !useTradingView
+                  ? 'bg-amber-500 text-slate-950'
+                  : isDark
+                  ? 'text-slate-400 hover:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="The engine's own entry, stop and target levels"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Levels</span>
+            </button>
+          </div>
         </div>
       </div>
 

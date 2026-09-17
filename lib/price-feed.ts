@@ -42,12 +42,33 @@ interface ProviderResult {
  * How long a snapshot stays fresh before we refetch.
  *
  * This is a quota decision, not a performance one. The Twelve Data free tier
- * allows 800 requests a day. A refresh only happens when someone actually asks
- * for data, so the daily cost is (hours of use x 3600) / this value. At the 60
- * second default, eight hours of continuous use costs 480 requests, which fits
- * comfortably. Lower it only on a paid plan.
+ * allows 800 requests a day, and a refresh only happens when someone actually
+ * asks for data.
+ *
+ * Fifteen seconds is short enough that the quote on screen tracks the chart
+ * rather than trailing it by a minute and a half, which is what a sixty second
+ * cache behind a thirty second poll produced. The client, not this number,
+ * decides how often to ask: it polls slowly when nothing is open, quickly while
+ * an order is live, and not at all while the tab is in the background. Raise it
+ * with MARKET_DATA_CACHE_SECONDS if the daily quota is tight.
  */
-const DEFAULT_CACHE_SECONDS = 60;
+const DEFAULT_CACHE_SECONDS = 20;
+
+/**
+ * How often the browser asks for a new quote.
+ *
+ * Kept beside the cache window because the two together decide the daily bill:
+ * the cache stops several tabs multiplying it, and these decide how often one
+ * tab asks at all. A working order is read continuously by the status panel and
+ * the automatic close, so it earns the fast rate. Nothing open only needs to
+ * look current. A background tab spends nothing.
+ */
+export const QUOTE_POLL_MS = {
+  /** An order is working: the panel and the auto close both read this price. */
+  withOpenOrder: 20_000,
+  /** Nothing open: the quote only has to look current. */
+  idle: 60_000,
+} as const;
 
 export function cacheSeconds(): number {
   const raw = Number(process.env.MARKET_DATA_CACHE_SECONDS);

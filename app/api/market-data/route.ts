@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMarketSnapshot } from '@/lib/price-feed';
+import { filterUpcoming, getEconomicCalendar } from '@/lib/economic-calendar';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { getContractSpecification } from '@/lib/market-engine';
 import { round2 } from '@/lib/candles';
@@ -49,6 +50,12 @@ export async function GET(request: Request) {
 
     const read = buildInstitutionalRead(snapshot);
 
+    // The calendar used to reach the screen only as part of an analysis, so it
+    // sat empty whenever no setup was open, which is most of the time. It is
+    // cached for fifteen minutes upstream, so serving it beside every quote
+    // costs nothing and keeps the panel populated on its own.
+    const calendar = await getEconomicCalendar();
+
     return NextResponse.json({
       success: true,
       status: snapshot.status,
@@ -58,6 +65,9 @@ export async function GET(request: Request) {
       message: snapshot.message,
       symbol: 'XAUUSD',
       marketPrice: price,
+      economicEvents: filterUpcoming(calendar.events),
+      calendarConfigured: calendar.configured,
+      calendarMessage: calendar.message,
       bid: round2(price - spreadDollars),
       ask: round2(price + spreadDollars),
       spreadPips: specs.typicalSpreadPips,

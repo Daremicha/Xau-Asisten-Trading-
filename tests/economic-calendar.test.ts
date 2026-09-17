@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import {
   __resetCalendarCache,
   filterUpcoming,
+  DEFAULT_CALENDAR_URL,
   getEconomicCalendar,
   mapCalendarPayload,
   minutesToNextHighImpact,
@@ -16,8 +17,9 @@ afterEach(() => {
 });
 
 describe('nothing is invented when no provider is configured', () => {
-  test('an unconfigured calendar returns no events at all', async () => {
-    delete process.env.ECONOMIC_CALENDAR_URL;
+  test('an explicitly empty setting turns the calendar off entirely', async () => {
+    // Deliberately blank means "no calendar", and is obeyed without a request.
+    process.env.ECONOMIC_CALENDAR_URL = '';
     const result = await getEconomicCalendar();
     expect(result.events).toHaveLength(0);
     expect(result.configured).toBe(false);
@@ -25,8 +27,15 @@ describe('nothing is invented when no provider is configured', () => {
   });
 
   test('it says why it is empty rather than implying a quiet market', async () => {
-    delete process.env.ECONOMIC_CALENDAR_URL;
+    process.env.ECONOMIC_CALENDAR_URL = '';
     expect((await getEconomicCalendar()).message).toContain('ECONOMIC_CALENDAR_URL');
+  });
+
+  test('an unset variable falls back to a real published feed, never to an invented one', () => {
+    // Asserted on the constant rather than by fetching it: a unit test that
+    // reaches the internet is a unit test that fails on a train.
+    expect(DEFAULT_CALENDAR_URL.startsWith('https://')).toBe(true);
+    expect(DEFAULT_CALENDAR_URL).toContain('calendar');
   });
 
   test('with no events there is no news adjustment to apply', () => {
@@ -135,5 +144,54 @@ describe('upcoming releases only', () => {
   test('a calendar with only past releases yields no wait', () => {
     const past = mapCalendarPayload([{ title: 'Done', timestamp: now - 600_000, impact: 'high' }]);
     expect(minutesToNextHighImpact(past, now)).toBeNull();
+  });
+});
+
+describe('the shape the default feed publishes', () => {
+  test('a Forex Factory row maps to a usable event', () => {
+    // The published weekly feed: a bare array, the currency code in `country`,
+    // and an ISO timestamp carrying its own offset.
+    const events = mapCalendarPayload([
+      {
+        title: 'ECB Press Conference',
+        country: 'EUR',
+        date: '2026-09-18T08:45:00-04:00',
+        impact: 'High',
+        forecast: '',
+        previous: '',
+      },
+      {
+        title: 'Flash Manufacturing PMI',
+        country: 'USD',
+        date: '2026-09-18T09:45:00-04:00',
+        impact: 'Medium',
+        forecast: '48.5',
+        previous: '48.0',
+      },
+    ]);
+
+    expect(events).toHaveLength(2);
+    expect(events[0].currency).toBe('EUR');
+    expect(events[0].impact).toBe('High');
+    expect(events[1].currency).toBe('USD');
+    expect(events[1].forecast).toBe('48.5');
+    expect(events[0].scheduledTimestamp).toBe('2026-09-18T12:45:00.000Z');
+  });
+
+  test('a bank holiday row is kept at the lowest impact rather than dropped', () => {
+    const events = mapCalendarPayload([
+      { title: 'Bank Holiday', country: 'JPY', date: '2026-09-21T00:00:00-04:00', impact: 'Holiday' },
+    ]);
+    expect(events).toHaveLength(1);
+    expect(events[0].impact).toBe('Low');
+    expect(events[0].currency).toBe('JPY');
+  });
+
+  test('a provider that names the country in words still reads as a currency', () => {
+    const events = mapCalendarPayload([
+      { title: 'CPI', country: 'United States', currency: 'USD', date: '2026-09-18T12:30:00Z', impact: 'High' },
+    ]);
+    expect(events[0].currency).toBe('USD');
+    expect(events[0].country).toBe('United States');
   });
 });

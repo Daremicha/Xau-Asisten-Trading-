@@ -176,6 +176,26 @@ function median(values: number[]): number | null {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
+/**
+ * Oldest first, which is the order everything outside this module assumes.
+ *
+ * Firestore returns the most recent trades first, because that is the cheap
+ * query, and the app was storing that order as-is. The ledger then reversed it
+ * into oldest-first, and the equity curve replayed a signed-in account's
+ * history backwards. Normalising here means no caller has to know which way a
+ * particular source happened to hand its rows over.
+ */
+export function chronological(records: SelfLearningMemoryRecord[]): SelfLearningMemoryRecord[] {
+  return [...records].sort((a, b) => {
+    const ta = Date.parse(a.timestamp ?? '');
+    const tb = Date.parse(b.timestamp ?? '');
+    // A record without a usable timestamp keeps its position rather than being
+    // thrown to one end of the ledger.
+    if (!Number.isFinite(ta) || !Number.isFinite(tb)) return 0;
+    return ta - tb;
+  });
+}
+
 /** Newest first, so recency weighting has a stable order even without timestamps. */
 function newestFirst(records: SelfLearningMemoryRecord[]): SelfLearningMemoryRecord[] {
   return [...records].sort((a, b) => {

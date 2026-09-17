@@ -10,6 +10,12 @@ interface PositionStatusCardProps {
   setup: InstitutionalTradingSetup;
   position: LivePosition;
   currentPrice: number | null;
+  /**
+   * Age of that price, in seconds. The panel sits over a TradingView chart
+   * running on its own live feed, so the two will not agree to the tick. Saying
+   * how old this one is makes the difference readable instead of alarming.
+   */
+  quoteAgeSeconds?: number | null;
   theme?: 'dark' | 'light';
 }
 
@@ -24,6 +30,7 @@ export default function PositionStatusCard({
   setup,
   position,
   currentPrice,
+  quoteAgeSeconds = null,
   theme = 'dark',
 }: PositionStatusCardProps) {
   const isDark = theme === 'dark';
@@ -74,6 +81,12 @@ export default function PositionStatusCard({
           </div>
           <div className={`text-[10px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
             Current {currentPrice === null ? '—' : currentPrice.toFixed(2)}
+            {quoteAgeSeconds !== null && (
+              <span className={quoteAgeSeconds > 30 ? 'text-amber-500' : undefined}>
+                {' '}
+                &bull; {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s` : `${Math.floor(quoteAgeSeconds / 60)}m`} old
+              </span>
+            )}
           </div>
         </>
       ) : (
@@ -101,6 +114,12 @@ export default function PositionStatusCard({
           <div className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             {profitable ? '+' : ''}
             {position.floatingPips} pips from {setup.entryPrice.toFixed(2)}
+            {quoteAgeSeconds !== null && (
+              <span className={quoteAgeSeconds > 30 ? 'text-amber-500' : isDark ? 'text-slate-500' : 'text-slate-500'}>
+                {' '}
+                &bull; {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s` : `${Math.floor(quoteAgeSeconds / 60)}m`} old
+              </span>
+            )}
           </div>
 
           {/* How far price has run toward the first target, or back toward the stop. */}

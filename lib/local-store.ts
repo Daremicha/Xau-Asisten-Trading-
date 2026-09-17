@@ -7,7 +7,7 @@
  */
 
 import { AccountType, BrokerId, SelfLearningMemoryRecord, TradingStyle } from './types';
-import { normalisePrior, type PriorWeights } from './learning-engine';
+import { chronological, normalisePrior, type PriorWeights } from './learning-engine';
 
 export const LOCAL_KEYS = {
   equity: 'xauusd_locked_equity',
@@ -67,8 +67,10 @@ export function readLocalProfile(): LocalProfile {
       const parsed = JSON.parse(rawRecords);
       if (Array.isArray(parsed)) {
         // Only keep entries with the fields the rest of the app relies on.
-        learningRecords = parsed.filter(
-          (r) => r && typeof r === 'object' && typeof r.id === 'string' && typeof r.outcome === 'string'
+        learningRecords = chronological(
+          parsed.filter(
+            (r) => r && typeof r === 'object' && typeof r.id === 'string' && typeof r.outcome === 'string'
+          )
         );
       }
     } catch {

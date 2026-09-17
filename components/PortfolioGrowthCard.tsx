@@ -29,6 +29,7 @@ import {
 import { AccountType, SelfLearningMemoryRecord, InstitutionalTradingSetup } from '@/lib/types';
 import { formatAccountMoney, formatAccountTick } from '@/lib/account-display';
 import { computeTradeResult } from '@/lib/trade-result';
+import { chronological } from '@/lib/learning-engine';
 
 interface PortfolioGrowthCardProps {
   currentEquity: number;
@@ -162,6 +163,13 @@ export default function PortfolioGrowthCard({
   // Whole-unit figures (baselines, peaks, axis ticks) in the account's own unit.
   const formatUnitsSimple = (val: number) => formatAccountTick(val, accountType);
 
+  /**
+   * Oldest first. The curve below replays the balance trade by trade, so the
+   * order is the whole meaning of the chart, and the ledger reads back from the
+   * same list rather than trusting whatever order the caller happened to pass.
+   */
+  const orderedRecords = useMemo(() => chronological(learningRecords), [learningRecords]);
+
   // Reconstruct equity trajectory point-by-point from trade outcomes
   const { chartData, totalPnLDollars, totalPnLPercent, winRate, totalWins, totalLosses, profitFactor, maxDrawdownPercent, peakEquity } =
     useMemo(() => {
@@ -205,7 +213,7 @@ export default function PortfolioGrowthCard({
         },
       ];
 
-      learningRecords.forEach((record, idx) => {
+      orderedRecords.forEach((record, idx) => {
         const pnl = record.profitOrLossDollars || 0;
         runningEquity = Math.max(0, parseFloat((runningEquity + pnl).toFixed(2)));
 
@@ -264,7 +272,7 @@ export default function PortfolioGrowthCard({
         maxDrawdownPercent: parseFloat(maxDd.toFixed(1)),
         peakEquity: parseFloat(peak.toFixed(2)),
       };
-    }, [learningRecords, initialEquity, currentEquity, accountType]);
+    }, [orderedRecords, initialEquity, currentEquity, accountType]);
 
   const isNetPositive = totalPnLDollars >= 0;
 
@@ -602,7 +610,8 @@ export default function PortfolioGrowthCard({
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {[...learningRecords].reverse().map((rec, i) => {
+              {/* Newest first: a ledger is read from the top. */}
+              {[...orderedRecords].reverse().map((rec, i) => {
                 const isTp = rec.outcome === 'TP';
                 const isSl = rec.outcome === 'SL';
                 const pnl = rec.profitOrLossDollars || 0;
