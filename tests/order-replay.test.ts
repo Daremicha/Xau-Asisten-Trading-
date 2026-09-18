@@ -12,7 +12,7 @@ function bar(index: number, high: number, low: number, close = (high + low) / 2)
 /** A resting buy: entry 4300, stop 4290 (risk 10), targets 4315 / 4325 / 4340. */
 function buyLimit(overrides: Record<string, unknown> = {}) {
   return {
-    orderType: 'BUY_LIMIT',
+    orderType: 'BUY LIMIT',
     entryPrice: 4300,
     stopLoss: 4290,
     takeProfit1: 4315,
@@ -26,7 +26,7 @@ function buyLimit(overrides: Record<string, unknown> = {}) {
 
 function sellLimit(overrides: Record<string, unknown> = {}) {
   return {
-    orderType: 'SELL_LIMIT',
+    orderType: 'SELL LIMIT',
     entryPrice: 4300,
     stopLoss: 4310,
     takeProfit1: 4285,
@@ -160,7 +160,7 @@ describe('an order still doing what it was meant to', () => {
   test('a market order is open from the moment it was issued', () => {
     const candles = [bar(0, 4302, 4298), bar(1, 4318, 4305)];
     const verdict = replayOrder(
-      buyLimit({ orderType: 'INSTANT_BUY', entryPrice: 4300 }),
+      buyLimit({ orderType: 'BUY INSTANT', entryPrice: 4300 }),
       candles,
       START + 2 * M15
     );
@@ -172,7 +172,7 @@ describe('an order still doing what it was meant to', () => {
     // That bar's range is already history at the moment the order opens.
     const candles = [bar(0, 4320, 4285), bar(1, 4302, 4299)];
     const verdict = replayOrder(
-      buyLimit({ orderType: 'INSTANT_BUY', entryPrice: 4300 }),
+      buyLimit({ orderType: 'BUY INSTANT', entryPrice: 4300 }),
       candles,
       START + 2 * M15
     );

@@ -325,6 +325,23 @@ export interface SelfLearningMemoryRecord {
   tradingStyle?: TradingStyle;
   /** True when the engine closed the order itself rather than the user. */
   autoResolved?: boolean;
+  /**
+   * What happened when this row was last checked against the price history.
+   *
+   * A miss recorded from a single price could be a trade that filled and won,
+   * seen at a moment it had drifted back past its entry. Re-examining the row
+   * against the candles settles it, and this records that the question was
+   * asked so a confirmed row is not raised again.
+   */
+  audit?: {
+    at: string;
+    /** The verdict kind the replay returned. */
+    verdict: string;
+    /** True when the user agreed the stored outcome was right after all. */
+    confirmed: boolean;
+    /** Set on a row the user corrected, naming what it used to say. */
+    correctedFrom?: 'TP' | 'SL' | 'MISSED';
+  };
   /** Conditions the setup was produced under, for conditional learning. */
   context?: TradeContext;
   adaptiveWeightAdjustments: {
