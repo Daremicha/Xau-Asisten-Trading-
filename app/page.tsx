@@ -22,6 +22,7 @@ import {
 } from '@/lib/active-setup-store';
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
 import { replayOrder, resolveClose, resolveMiss } from '@/lib/order-replay';
+import { tickMayResolve } from '@/lib/close-guard';
 import type { Candle } from '@/lib/candles';
 import { trackPosition } from '@/lib/position-tracker';
 import { QUOTE_POLL_MS } from '@/lib/price-feed';
@@ -811,6 +812,38 @@ export default function Home() {
    * so the ledger and the learning engine reflect what the market actually did
    * rather than whenever the user happened to look.
    */
+  /**
+   * Whether the current price may be used to end the open trade.
+   *
+   * The only guard here used to be the instrument: never close a spot trade on
+   * a futures quote. Nothing asked whether the number was current. A trade
+   * could be opened and closed in the same breath — issued at one price, then
+   * matched against a quote from another moment sitting beyond its stop — and
+   * the loss was recorded, the balance moved and the engine taught that the
+   * setup had failed, for a trade that never happened.
+   *
+   * The candle replay is not subject to this. It carries its own timestamps,
+   * which is the very thing a bare price cannot.
+   */
+  const tickTrust = useMemo(() => {
+    if (!activeSetup || marketPrice === null) {
+      return { ok: false as const, reason: 'No open order, or no price.' };
+    }
+    if (!quoteIsSpot) {
+      return {
+        ok: false as const,
+        reason: 'The only quote available is the COMEX futures contract, which trades away from spot.',
+      };
+    }
+    return tickMayResolve({
+      feedStatus,
+      quoteAgeSeconds,
+      issuedAt: activeSetup.timestamp,
+      price: marketPrice,
+      candles,
+    });
+  }, [activeSetup, marketPrice, quoteIsSpot, feedStatus, quoteAgeSeconds, candles]);
+
   const autoClosedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!activeSetup) return;
@@ -821,7 +854,10 @@ export default function Home() {
     if (!quoteIsSpot) return;
     if (autoClosedRef.current === activeSetup.id) return;
 
-    const close = resolveClose(replay, livePosition?.state === 'closed' ? livePosition.closedBy : null);
+    const close = resolveClose(
+      replay,
+      tickTrust.ok && livePosition?.state === 'closed' ? livePosition.closedBy : null
+    );
     if (!close) return;
 
     autoClosedRef.current = activeSetup.id;
@@ -843,7 +879,7 @@ export default function Home() {
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, livePosition, replay, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const autoResolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
@@ -854,7 +890,10 @@ export default function Home() {
     if (!quoteIsSpot) return;
     if (autoResolvedRef.current === activeSetup.id) return;
 
-    const miss = resolveMiss(replay, pendingVerdict);
+    // A miss recorded from a price that cannot be trusted is the same mistake
+    // as a close recorded from one, and costs more: it teaches the engine to
+    // move its entries.
+    const miss = resolveMiss(replay, tickTrust.ok ? pendingVerdict : null);
     if (!miss) return;
 
     autoResolvedRef.current = activeSetup.id;
@@ -863,7 +902,7 @@ export default function Home() {
     // handleSimulateOutcome is recreated each render but closes over the same
     // setup, so listing it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, pendingVerdict, replay, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, pendingVerdict, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const [autoResolveNotice, setAutoResolveNotice] = useState<string | null>(null);
 
@@ -1632,6 +1671,12 @@ export default function Home() {
                 position={livePosition}
                 currentPrice={marketPrice}
                 quoteAgeSeconds={quoteAgeSeconds}
+                resolutionHeldBack={
+                  // Only worth saying when the price is actually claiming a
+                  // level has been reached; otherwise it is noise on a trade
+                  // that is simply still running.
+                  !tickTrust.ok && livePosition.state === 'closed' ? tickTrust.reason : null
+                }
                 theme={theme}
               />
             ) : null

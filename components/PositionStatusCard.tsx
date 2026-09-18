@@ -16,6 +16,12 @@ interface PositionStatusCardProps {
    * how old this one is makes the difference readable instead of alarming.
    */
   quoteAgeSeconds?: number | null;
+  /**
+   * Why the current price is not being allowed to end this trade, when it is
+   * not. Shown so an order that stays open looks deliberate rather than stuck:
+   * the engine is waiting for a quote it believes, not ignoring the market.
+   */
+  resolutionHeldBack?: string | null;
   theme?: 'dark' | 'light';
 }
 
@@ -31,6 +37,7 @@ export default function PositionStatusCard({
   position,
   currentPrice,
   quoteAgeSeconds = null,
+  resolutionHeldBack = null,
   theme = 'dark',
 }: PositionStatusCardProps) {
   const isDark = theme === 'dark';
@@ -143,6 +150,19 @@ export default function PositionStatusCard({
             </span>
           </div>
         </>
+      )}
+
+      {/* The engine has a price but will not end the trade on it. Saying so
+          keeps an open order from looking like a stuck one. */}
+      {resolutionHeldBack && (
+        <div
+          id="resolution-held-back"
+          className={`mt-2 pt-2 border-t text-[10px] leading-snug ${
+            isDark ? 'border-slate-800 text-amber-500/90' : 'border-slate-200 text-amber-600'
+          }`}
+        >
+          Not closing on this quote: {resolutionHeldBack}
+        </div>
       )}
     </div>
   );
