@@ -21,6 +21,8 @@ import {
   saveActiveSetup,
 } from '@/lib/active-setup-store';
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
+import { replayOrder, resolveClose, resolveMiss } from '@/lib/order-replay';
+import type { Candle } from '@/lib/candles';
 import { trackPosition } from '@/lib/position-tracker';
 import { QUOTE_POLL_MS } from '@/lib/price-feed';
 import { roundMoney } from '@/lib/trade-result';
@@ -338,7 +340,46 @@ export default function Home() {
    * must not report it as pending again.
    */
   const [filledSetupId, setFilledSetupId] = useState<string | null>(null);
-  const isFilled = Boolean(activeSetup && filledSetupId === activeSetup.id);
+
+  /**
+   * Fifteen minute candles behind the current quote: forty eight hours of path.
+   *
+   * They arrive with every quote and cost nothing extra, and they are the only
+   * record of what happened while the tab was closed.
+   */
+  const [candles, setCandles] = useState<Candle[]>([]);
+
+  /**
+   * What the candles say became of the open order.
+   *
+   * The screen used to decide this from the latest price alone, which is a
+   * point where the question is about a path. An order that filled overnight,
+   * reached its target and drifted back reads, on that one number, exactly like
+   * an order that never filled while the move ran away from it — and it was
+   * recorded as a missed entry on that reading.
+   */
+  const replay = useMemo(() => {
+    if (!activeSetup || !isUnresolved(activeSetup) || candles.length === 0) return null;
+    // A futures quote carries a futures path, tens of dollars from the market
+    // the user trades. The same rule the live reads follow.
+    if (!quoteIsSpot) return null;
+    return replayOrder(activeSetup, candles);
+  }, [activeSetup, candles, quoteIsSpot]);
+
+  /**
+   * True once the order has opened.
+   *
+   * A reload used to clear this, so a filled position that had drifted back
+   * past its entry was read as still waiting — the latch existed but was thrown
+   * away by the very refresh it was meant to survive. The candles restore it.
+   */
+  const isFilled = Boolean(
+    activeSetup &&
+      (filledSetupId === activeSetup.id ||
+        activeSetup.status === 'ACTIVE' ||
+        replay?.kind === 'running' ||
+        replay?.kind === 'closed')
+  );
 
   /** Live state of the order: pending, filled and floating, or closed. */
   const livePosition = useMemo(() => {
@@ -632,6 +673,10 @@ export default function Home() {
       setBidPrice(typeof data.bid === 'number' ? data.bid : null);
       setAskPrice(typeof data.ask === 'number' ? data.ask : null);
       setChange24h(typeof data.change24h === 'number' ? data.change24h : null);
+      // The path, not just the point. These decide what became of an order that
+      // ran while the tab was closed; the quote alone cannot tell a trade that
+      // filled and won from one that was never in the market.
+      if (Array.isArray(data.candlesM15)) setCandles(data.candlesM15 as Candle[]);
 
       if (Array.isArray(data.economicEvents)) {
         setEconomicEvents(data.economicEvents as ForexFactoryEvent[]);
@@ -763,7 +808,7 @@ export default function Home() {
    */
   const autoClosedRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (!activeSetup || !livePosition || livePosition.state !== 'closed') return;
+    if (!activeSetup) return;
     if (isEvaluatingOutcome || marketPrice === null) return;
     // Never close a spot trade on a futures price: the two are tens of dollars
     // apart, so the level it appears to have reached is not a level the market
@@ -771,44 +816,61 @@ export default function Home() {
     if (!quoteIsSpot) return;
     if (autoClosedRef.current === activeSetup.id) return;
 
+    const close = resolveClose(replay, livePosition?.state === 'closed' ? livePosition.closedBy : null);
+    if (!close) return;
+
     autoClosedRef.current = activeSetup.id;
-    const hit = livePosition.closedBy;
-    const level = hit === 'TP3' ? 3 : hit === 'TP2' ? 2 : 1;
+    const { trigger: hit, level } = close;
+    const when = close.at ? ` at ${new Date(close.at).toLocaleString()}` : '';
     setAutoResolveNotice(
       hit === 'SL'
-        ? `Price reached the stop at ${activeSetup.stopLoss.toFixed(2)}. The engine closed the trade and recorded it.`
+        ? `Price reached the stop at ${activeSetup.stopLoss.toFixed(
+            2
+          )}${when}. The engine closed the trade and recorded it.`
         : `Price reached ${hit} at ${(hit === 'TP3'
             ? activeSetup.takeProfit3
             : hit === 'TP2'
             ? activeSetup.takeProfit2
             : activeSetup.takeProfit1
-          ).toFixed(2)}. The engine closed the trade and recorded it.`
+          ).toFixed(2)}${when}. The engine closed the trade and recorded it.`
     );
     void handleSimulateOutcome(hit === 'SL' ? 'SL' : 'TP', level as 1 | 2 | 3);
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, livePosition, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, livePosition, replay, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const autoResolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (!activeSetup || !pendingVerdict || pendingVerdict.state === 'waiting') return;
+    if (!activeSetup) return;
     if (isEvaluatingOutcome || marketPrice === null) return;
     // Same rule as the automatic close: a missed entry recorded from a futures
     // quote is a miss that never happened.
     if (!quoteIsSpot) return;
     if (autoResolvedRef.current === activeSetup.id) return;
 
+    const miss = resolveMiss(replay, pendingVerdict);
+    if (!miss) return;
+
     autoResolvedRef.current = activeSetup.id;
-    const cause = missCause(pendingVerdict.state);
-    setAutoResolveNotice(`${pendingVerdict.reason} The engine recorded it as a missed entry.`);
-    void handleSimulateOutcome('MISSED', 1, cause);
+    setAutoResolveNotice(`${miss.reason} The engine recorded it as a missed entry.`);
+    void handleSimulateOutcome('MISSED', 1, missCause(miss.cause));
     // handleSimulateOutcome is recreated each render but closes over the same
     // setup, so listing it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, pendingVerdict, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, pendingVerdict, replay, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
   const [autoResolveNotice, setAutoResolveNotice] = useState<string | null>(null);
+
+  /**
+   * Says so when the order outran the price history.
+   *
+   * The app can only replay the forty eight hours of candles it carries. An
+   * order older than that had a path nobody recorded, and the one thing it must
+   * not do is invent one. It hands the question back instead, which is a
+   * question the user can answer from their own terminal in a second.
+   */
+  const outcomeNeedsUser = replay?.kind === 'unknown' ? replay.reason : null;
 
   // Handle Locking Initial Equity
   const handleLockEquity = async (amount: number) => {
@@ -1291,6 +1353,27 @@ export default function Home() {
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* The order is older than the candles, so its path is not on record.
+            The app says so and asks, rather than recording a guess. */}
+        {outcomeNeedsUser && !autoResolveNotice && (
+          <div
+            id="outcome-unknown-banner"
+            className="p-4 rounded-xl border bg-sky-500/15 border-sky-500/40 text-sky-300 flex items-start gap-3"
+          >
+            <div className="p-2 rounded-lg bg-black/20 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-sm">This one needs your answer</div>
+              <div className="text-xs opacity-90 mt-0.5">{outcomeNeedsUser}</div>
+              <div className="text-xs opacity-75 mt-1">
+                Check your terminal and record what happened with the buttons on the signal card. The
+                engine will not guess at it, because a guess here becomes a lesson it learns wrongly.
+              </div>
+            </div>
           </div>
         )}
 
