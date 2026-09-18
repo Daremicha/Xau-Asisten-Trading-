@@ -26,7 +26,12 @@ import type { Candle } from '@/lib/candles';
 import { trackPosition } from '@/lib/position-tracker';
 import { QUOTE_POLL_MS } from '@/lib/price-feed';
 import { roundMoney } from '@/lib/trade-result';
+import { accountUnitLabel } from '@/lib/account-display';
 import PositionStatusCard from '@/components/PositionStatusCard';
+import MissAuditPanel, {
+  type AuditSummary,
+  type Correction,
+} from '@/components/MissAuditPanel';
 import {
   GUEST_STATUS,
   failedStatus,
@@ -1216,6 +1221,140 @@ export default function Home() {
     }
   };
 
+  /**
+   * Writes a changed ledger to both homes and recomputes what depends on it.
+   *
+   * Shared by the two audit actions so a correction and a confirmation cannot
+   * drift apart in how they persist.
+   */
+  const persistRecords = useCallback(
+    async (records: SelfLearningMemoryRecord[], nextEquity?: number) => {
+      setLearningRecords(records);
+      setEngineWeights(recalculateEngineWeights(records, tradingStyle));
+      if (typeof nextEquity === 'number') setEquity(nextEquity);
+
+      const changed = records.filter((r) => r.audit);
+      if (currentUser) {
+        const stored = await saveToCloud(async () => {
+          for (const record of changed) {
+            await setDoc(doc(db, 'users', currentUser.uid, 'learning_records', record.id), record, {
+              merge: true,
+            });
+          }
+          await setDoc(
+            doc(db, 'users', currentUser.uid),
+            {
+              ...(typeof nextEquity === 'number' ? { lockedEquity: nextEquity } : {}),
+              totalTrades: records.length,
+              winTrades: records.filter((r) => r.outcome === 'TP').length,
+              lossTrades: records.filter((r) => r.outcome === 'SL').length,
+              missedTrades: records.filter((r) => r.outcome === 'MISSED').length,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        });
+        if (stored) return;
+      }
+      try {
+        localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(records));
+        if (typeof nextEquity === 'number') {
+          localStorage.setItem(LOCAL_KEYS.equity, nextEquity.toString());
+        }
+      } catch {
+        // A browser refusing storage loses the correction on reload, which is
+        // the old behaviour rather than a new failure.
+      }
+    },
+    [currentUser, saveToCloud, tradingStyle]
+  );
+
+  /**
+   * Sends the missed entries to be checked against the candles of their own day.
+   *
+   * Read only on the server: it returns a verdict per row and changes nothing.
+   * What is done about a verdict is decided here, by the user, one row at a time.
+   */
+  const handleAuditMisses = useCallback(async (): Promise<AuditSummary | null> => {
+    try {
+      const res = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: learningRecords.filter((r) => r.outcome === 'MISSED') }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) return null;
+      return data as AuditSummary;
+    } catch {
+      return null;
+    }
+  }, [learningRecords]);
+
+  /**
+   * Rewrites one row to what the user's terminal says actually happened.
+   *
+   * The money comes from the user because the record never kept the lot size,
+   * so it cannot be recomputed here. That is the better source anyway: it is
+   * what the broker actually paid, not what the app calculates it should have.
+   */
+  const handleCorrectRecord = useCallback(
+    async (correction: Correction) => {
+      const target = learningRecords.find((r) => r.id === correction.id);
+      if (!target) return;
+
+      const previous = target.profitOrLossDollars || 0;
+      const money = roundMoney(correction.profitOrLossDollars);
+      const risk = Math.abs((target.context?.stopLossPips ?? 0) / 10);
+      // Measured from where the trade actually closed, which the user supplied.
+      // The price already on the row is the one the app misread the trade from,
+      // so anything derived from it would carry the same error forward.
+      const isLong = target.orderType.includes('BUY');
+      const moved = (correction.exitPrice - target.entryPrice) * (isLong ? 1 : -1);
+
+      const corrected: SelfLearningMemoryRecord = {
+        ...target,
+        outcome: correction.outcome,
+        exitPrice: correction.exitPrice,
+        profitOrLossDollars: money,
+        profitOrLossPips: parseFloat((moved * 10).toFixed(1)),
+        context: target.context
+          ? {
+              ...target.context,
+              // R is the only comparison the engine has across trades, so it
+              // has to follow the corrected result rather than keep a miss's
+              // zero — and it is signed, so a stop counts against the average.
+              rMultiple: risk > 0 ? parseFloat((moved / risk).toFixed(2)) : target.context.rMultiple,
+            }
+          : target.context,
+        audit: {
+          at: new Date().toISOString(),
+          verdict: 'corrected',
+          confirmed: false,
+          correctedFrom: 'MISSED',
+        },
+      };
+
+      const records = learningRecords.map((r) => (r.id === corrected.id ? corrected : r));
+      // A miss moved no money, so the whole corrected result is the difference.
+      const nextEquity = Math.max(0, roundMoney(equity + (money - previous)));
+      await persistRecords(records, nextEquity);
+    },
+    [learningRecords, equity, persistRecords]
+  );
+
+  /** Marks a row as checked and correct, so the audit stops raising it. */
+  const handleConfirmRecord = useCallback(
+    async (id: string) => {
+      const records = learningRecords.map((r) =>
+        r.id === id
+          ? { ...r, audit: { at: new Date().toISOString(), verdict: 'genuine', confirmed: true } }
+          : r
+      );
+      await persistRecords(records);
+    },
+    [learningRecords, persistRecords]
+  );
+
   // Prefer the frozen read captured with the active setup, otherwise the live
   // structural read. Both come from real candles; neither is a placeholder.
   const displayMT = activeSetup ? activeSetup.multiTimeframeAlignment : liveRead?.multiTimeframe ?? null;
@@ -1592,6 +1731,16 @@ export default function Home() {
             <EconomicCalendar events={economicEvents} notice={calendarMessage} theme={theme} />
           </div>
         </div>
+
+        {/* Rows the engine may be learning the wrong lesson from. */}
+        <MissAuditPanel
+          learningRecords={learningRecords}
+          onAudit={handleAuditMisses}
+          onCorrect={handleCorrectRecord}
+          onConfirm={handleConfirmRecord}
+          accountUnit={accountUnitLabel(accountType)}
+          theme={theme}
+        />
 
         {/* Autonomous Continuous Self-Learning Engine Section */}
         <SelfLearningDashboard

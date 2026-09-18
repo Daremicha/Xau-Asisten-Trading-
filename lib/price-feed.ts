@@ -626,3 +626,72 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
           )} seconds old. Do not trade on it.`) + instrumentNote,
   };
 }
+
+/**
+ * Fifteen minute candles for a past window, for re-examining closed records.
+ *
+ * Separate from the live feed on purpose. The live path keeps one rolling
+ * window in module state and refuses a refetch while it is fresh, which is
+ * exactly wrong for a question about last Tuesday. This asks for a named range
+ * and caches nothing: an audit is rare, and a stale answer to it would be worse
+ * than a slow one.
+ *
+ * Bounded at five thousand candles, which is Twelve Data's own ceiling for one
+ * request and about seven weeks of trading. One call covers every record a
+ * ledger of this size holds, so the audit costs one request rather than one per
+ * row.
+ *
+ * Returns an empty array when no key is set or the provider refuses. The caller
+ * reports that as an audit it could not perform, never as a verdict.
+ */
+export async function fetchHistoricalCandles(
+  startMs: number,
+  endMs: number
+): Promise<{ candles: Candle[]; message: string }> {
+  const key = process.env.TWELVE_DATA_API_KEY;
+  if (!key || key.trim().length === 0) {
+    return {
+      candles: [],
+      message: 'No market data key is configured, so past prices cannot be fetched.',
+    };
+  }
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { candles: [], message: 'The period to examine is not a valid range.' };
+  }
+
+  // An audit is a deliberate act by the user, so it spends from the essential
+  // reserve rather than being refused when the tick budget is thin.
+  if (!takeRequest(true)) {
+    return {
+      candles: [],
+      message: 'The daily market data allowance is spent. The audit can run again tomorrow.',
+    };
+  }
+
+  const base = (process.env.TWELVE_DATA_BASE_URL || 'https://api.twelvedata.com').replace(/\/$/, '');
+  // Twelve Data takes these as UTC 'YYYY-MM-DD HH:MM:SS'.
+  const stamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+
+  const url =
+    `${base}/time_series?symbol=XAU/USD&interval=15min` +
+    `&start_date=${encodeURIComponent(stamp(startMs))}` +
+    `&end_date=${encodeURIComponent(stamp(endMs))}` +
+    `&outputsize=5000&format=JSON&apikey=${encodeURIComponent(key.trim())}`;
+
+  try {
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      return { candles: [], message: `The market data provider returned HTTP ${res.status}.` };
+    }
+    const payload = await res.json();
+    if ((payload as { status?: string })?.status === 'error') {
+      return { candles: [], message: 'The market data provider declined the request for this period.' };
+    }
+    const candles = mapTwelveDataCandles(payload);
+    return candles.length === 0
+      ? { candles: [], message: 'The provider returned no candles for this period.' }
+      : { candles, message: '' };
+  } catch {
+    return { candles: [], message: 'The market data provider could not be reached.' };
+  }
+}
