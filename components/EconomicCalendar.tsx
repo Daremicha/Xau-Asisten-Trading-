@@ -169,7 +169,14 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        /* The calendar runs as long as the week does. Capped at roughly four
+           rows and scrolled, so it stops pushing the rest of the page down;
+           the count in the heading says how many are below the fold. */
+        <div
+          id="economic-calendar-list"
+          className="space-y-3 max-h-80 overflow-y-auto pr-1"
+          style={{ scrollbarWidth: 'thin' }}
+        >
           {upcomingEvents.map((evt) => (
             <div
               key={evt.id}
@@ -272,6 +279,17 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
             </div>
           ))}
         </div>
+      )}
+
+      {/* The list is capped and scrolls, so say what is below the fold rather
+          than leaving the count to be discovered by scrolling. */}
+      {upcomingEvents.length > 4 && (
+        <p
+          id="economic-calendar-count"
+          className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}
+        >
+          {upcomingEvents.length} releases scheduled. Scroll the list to read the rest.
+        </p>
       )}
     </div>
   );

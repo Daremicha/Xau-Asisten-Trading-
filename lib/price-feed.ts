@@ -211,8 +211,17 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 /**
- * Parses a Twelve Data datetime. Forex series are published in UTC but the
- * string carries no zone designator, so one is added before parsing.
+ * Parses a Twelve Data datetime.
+ *
+ * The string carries no zone designator, so one is added. That is only correct
+ * because every request now asks for `timezone=UTC` outright. It did not, and
+ * the default is the exchange's own zone: the series came back four hours
+ * ahead, every candle was stamped into the future, and the replay read
+ * outcomes from bars that had not happened. A setup was closed the second it
+ * was offered, by its own past.
+ *
+ * If this ever parses a non-UTC string again the times are silently wrong, so
+ * the replay refuses any candle stamped after the present as well.
  */
 export function parseTwelveDataTime(datetime: string): number {
   const trimmed = datetime.trim();
@@ -304,7 +313,7 @@ async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
 
   try {
     const res = await fetchWithTimeout(
-      `${base}/time_series?symbol=XAU/USD&interval=1day&outputsize=${DAILY_CANDLES}&format=JSON&apikey=` +
+      `${base}/time_series?symbol=XAU/USD&interval=1day&timezone=UTC&outputsize=${DAILY_CANDLES}&format=JSON&apikey=` +
         encodeURIComponent(key)
     );
     if (!res.ok) return cachedDaily?.candles ?? [];
@@ -339,7 +348,7 @@ async function fromTwelveData(live: boolean): Promise<ProviderResult | null> {
   // minutes old, rather than on nothing.
   if (candlesAreStale(now) && takeRequest(true, now)) {
     const url =
-      `${base}/time_series?symbol=XAU/USD&interval=15min&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
+      `${base}/time_series?symbol=XAU/USD&interval=15min&timezone=UTC&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
       encodeURIComponent(key.trim());
 
     const res = await fetchWithTimeout(url);
@@ -673,7 +682,7 @@ export async function fetchHistoricalCandles(
   const stamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
   const url =
-    `${base}/time_series?symbol=XAU/USD&interval=15min` +
+    `${base}/time_series?symbol=XAU/USD&interval=15min&timezone=UTC` +
     `&start_date=${encodeURIComponent(stamp(startMs))}` +
     `&end_date=${encodeURIComponent(stamp(endMs))}` +
     `&outputsize=5000&format=JSON&apikey=${encodeURIComponent(key.trim())}`;
