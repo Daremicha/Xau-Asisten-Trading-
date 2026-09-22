@@ -187,8 +187,38 @@ export function auditRecord(
   // A resting order fills inside its bar, so that bar can also take it out. A
   // market order opens at a price its own bar has already traded through.
   const scanFrom = instant ? fillIndex + 1 : fillIndex;
+
+  /**
+   * The first bar that opened after the order was placed.
+   *
+   * The bar already forming at placement straddles the moment: most of it is
+   * from before the trade existed, a sliver of it from after. That makes it
+   * two different kinds of evidence depending on the question.
+   *
+   * It can REFUTE. If even that bar never reached a level, price did not
+   * reach it, whichever minute you look at.
+   *
+   * It cannot CONFIRM. Its high may have been set an hour before anyone asked
+   * for the trade — and confirming from it is exactly what this audit exists
+   * to prevent. Left alone it certified a fabricated take profit as "the win
+   * is real", which is worse than not checking at all.
+   *
+   * So a level reached only inside that bar is neither, and says so.
+   */
+  let firstPostPlacement = window.length;
+  for (let i = 0; i < window.length; i++) {
+    if (window[i].time >= placed) {
+      firstPostPlacement = i;
+      break;
+    }
+  }
+
   let stoppedAt: string | null = null;
+  /** Set only when the stop was reached by a bar wholly after placement. */
+  let stoppedAfterPlacement = false;
   let best = entry;
+  /** The best price reached by bars wholly after placement. */
+  let bestAfterPlacement = entry;
 
   for (let i = scanFrom; i < window.length; i++) {
     const c = window[i];
@@ -196,7 +226,14 @@ export function auditRecord(
     // recovered, and it is not one to guess in your own favour.
     if (isLong ? c.low <= stop : c.high >= stop) {
       stoppedAt = iso(c.time);
+      stoppedAfterPlacement = i >= firstPostPlacement;
       break;
+    }
+    if (i >= firstPostPlacement) {
+      const reachPost = isLong ? c.high : c.low;
+      if (reached(reachPost, bestAfterPlacement, isLong) && reachPost !== bestAfterPlacement) {
+        bestAfterPlacement = reachPost;
+      }
     }
     const reach = isLong ? c.high : c.low;
     if (reached(reach, best, isLong) && reach !== best) best = reach;
@@ -221,13 +258,26 @@ export function auditRecord(
   }
 
   if (record.outcome === 'SL') {
-    if (stoppedAt) {
+    if (stoppedAfterPlacement) {
       return {
         kind: 'confirmed',
         actual: 'stopped',
         filledAt,
         bestPrice,
         reason: `Price did trade through the stop at ${stop.toFixed(2)}. The loss is real.`,
+      };
+    }
+    if (stoppedAt) {
+      // Only the bar straddling placement reached it. That bar is mostly from
+      // before the trade existed, so this neither stands nor falls here.
+      return {
+        kind: 'unknown',
+        actual: null,
+        filledAt,
+        bestPrice,
+        reason: `The stop at ${stop.toFixed(
+          2
+        )} was only reached inside the candle this order was placed in, most of which is from before it existed. The chart cannot settle this one.`,
       };
     }
     return {
@@ -245,7 +295,7 @@ export function auditRecord(
 
   // A take profit: the level it claims to have closed at is its own exit price.
   const claimed = record.exitPrice;
-  if (stoppedAt) {
+  if (stoppedAfterPlacement) {
     return {
       kind: 'contradicted',
       actual: 'stopped',
@@ -256,13 +306,28 @@ export function auditRecord(
       )}. This was a loss, not a take profit.`,
     };
   }
-  if (Number.isFinite(claimed) && reached(best, claimed, isLong)) {
+  // Confirmed only from bars that are wholly this trade's. A high set before
+  // the order was placed is not a win it earned.
+  if (Number.isFinite(claimed) && reached(bestAfterPlacement, claimed, isLong)) {
     return {
       kind: 'confirmed',
       actual: 'reached-level',
       filledAt,
       bestPrice,
       reason: `Price did reach ${claimed.toFixed(2)}. The win is real.`,
+    };
+  }
+  // The whole window did reach it, but only inside the candle the order was
+  // placed in. That is not evidence either way.
+  if (Number.isFinite(claimed) && (reached(best, claimed, isLong) || stoppedAt)) {
+    return {
+      kind: 'unknown',
+      actual: null,
+      filledAt,
+      bestPrice,
+      reason: `${claimed.toFixed(
+        2
+      )} was only reached inside the candle this order was placed in, most of which is from before it existed. The chart cannot settle this one.`,
     };
   }
   return {
