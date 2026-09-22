@@ -249,3 +249,74 @@ describe('which rows are put back to the market at all', () => {
     expect(auditableRecords(rows).map((r) => r.id)).toEqual(['a']);
   });
 });
+
+describe('the candle the order was placed inside', () => {
+  // That bar straddles the moment: most of it is from before the trade
+  // existed, a sliver from after. Left unqualified it certified a fabricated
+  // take profit as "the win is real" — the exact thing this audit exists to
+  // catch. It may refute, it may not confirm, and where it is the only
+  // evidence the honest answer is neither.
+  const PLACED_MID = PLACED + 14 * 60_000;
+
+  function straddling(over: Record<string, unknown> = {}) {
+    return record({
+      orderType: 'BUY LIMIT',
+      entryPrice: 4340,
+      exitPrice: 4368,
+      outcome: 'TP',
+      placedAt: new Date(PLACED_MID).toISOString(),
+      timestamp: new Date(PLACED_MID + 30_000).toISOString(),
+      context: { ...(record().context as object), stopLossPips: 150 },
+      ...over,
+    });
+  }
+
+  test('cannot confirm a win it reached before the order existed', () => {
+    // High 4372 clears the claimed 4368; low 4330 stays above the 4325 stop.
+    const candles = [
+      { time: PLACED, open: 4345, high: 4372, low: 4330, close: 4346, volume: 100 },
+    ];
+    const v = auditRecord(straddling(), candles);
+    expect(v.kind).toBe('unknown');
+    expect(v.reason).toContain('placed in');
+  });
+
+  test('may still refute, because a level it never reached was never reached', () => {
+    const candles = [
+      { time: PLACED, open: 4345, high: 4350, low: 4330, close: 4346, volume: 100 },
+    ];
+    expect(auditRecord(straddling(), candles).kind).toBe('contradicted');
+  });
+
+  test('a later bar of its own confirms it properly', () => {
+    const candles = [
+      { time: PLACED, open: 4345, high: 4350, low: 4330, close: 4346, volume: 100 },
+      { time: PLACED + M15, open: 4346, high: 4372, low: 4344, close: 4370, volume: 100 },
+    ];
+    const v = auditRecord(
+      straddling({ timestamp: new Date(PLACED + 2 * M15).toISOString() }),
+      candles
+    );
+    expect(v.kind).toBe('confirmed');
+  });
+
+  test('a stop reached only inside that bar is unknown, not a confirmed loss', () => {
+    const candles = [
+      { time: PLACED, open: 4345, high: 4350, low: 4320, close: 4330, volume: 100 },
+    ];
+    const v = auditRecord(straddling({ outcome: 'SL', exitPrice: 4325 }), candles);
+    expect(v.kind).toBe('unknown');
+  });
+
+  test('a stop reached in a later bar is a confirmed loss', () => {
+    const candles = [
+      { time: PLACED, open: 4345, high: 4350, low: 4335, close: 4340, volume: 100 },
+      { time: PLACED + M15, open: 4340, high: 4342, low: 4320, close: 4324, volume: 100 },
+    ];
+    const v = auditRecord(
+      straddling({ outcome: 'SL', exitPrice: 4325, timestamp: new Date(PLACED + 2 * M15).toISOString() }),
+      candles
+    );
+    expect(v.kind).toBe('confirmed');
+  });
+});
