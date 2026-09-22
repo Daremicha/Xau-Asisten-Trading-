@@ -22,65 +22,11 @@ import {
   WyckoffVolumeAnalysis,
 } from './types';
 
-export interface StyleProfile {
-  /** Minimum stop distance in dollars, before the ATR buffer is added. */
-  minStopDollars: number;
-  /**
-   * Maximum stop distance in dollars. Without a ceiling a long run of stop outs
-   * pushes the learned ATR buffer up until an intraday order carries a swing
-   * sized stop, which is not the style the trader selected.
-   */
-  maxStopDollars: number;
-  /** Stop distance as a multiple of ATR. */
-  atrStopMultiple: number;
-  /** Reward multiples applied to the final risk distance. */
-  tpMultiples: [number, number, number];
-  /** How far from price an entry may sit before it becomes a market order. */
-  instantToleranceDollars: number;
-  /**
-   * Furthest a pending entry may sit from live price, as a multiple of ATR.
-   * A point of interest beyond this is a real level but not a fillable one for
-   * this style: an intraday order parked three ATR away simply will not trade
-   * before the session ends.
-   */
-  maxEntryAtrMultiple: number;
-  /** Floor for the same limit, so an unusually quiet market stays tradeable. */
-  minEntryReachDollars: number;
-  label: string;
-}
-
-export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
-  Scalping: {
-    minStopDollars: 1.8,
-    maxStopDollars: 7.0,
-    atrStopMultiple: 0.6,
-    tpMultiples: [1.2, 2.0, 3.2],
-    instantToleranceDollars: 0.5,
-    maxEntryAtrMultiple: 0.8,
-    minEntryReachDollars: 2.0,
-    label: 'M15 / M5 precision scalp',
-  },
-  Intraday: {
-    minStopDollars: 4.5,
-    maxStopDollars: 18.0,
-    atrStopMultiple: 1.0,
-    tpMultiples: [1.5, 2.6, 4.0],
-    instantToleranceDollars: 1.2,
-    maxEntryAtrMultiple: 1.5,
-    minEntryReachDollars: 6.0,
-    label: 'H1 / M15 session play',
-  },
-  Swing: {
-    minStopDollars: 12.0,
-    maxStopDollars: 60.0,
-    atrStopMultiple: 2.0,
-    tpMultiples: [2.0, 3.6, 6.0],
-    instantToleranceDollars: 4.0,
-    maxEntryAtrMultiple: 3.0,
-    minEntryReachDollars: 20.0,
-    label: 'D1 / H4 macro swing',
-  },
-};
+// The numbers themselves live apart so the screen can read them without
+// pulling this engine into the browser bundle. Re-exported here because every
+// caller already reaches for them through the engine.
+import { STYLE_PROFILES, type StyleProfile } from './style-profiles';
+export { STYLE_PROFILES, type StyleProfile };
 
 export interface ConfluenceFactor {
   name: string;
