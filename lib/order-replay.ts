@@ -69,6 +69,15 @@ const CANDLE_MS = 15 * 60_000;
  */
 const START_TOLERANCE_MS = CANDLE_MS;
 
+/**
+ * Clock skew allowed before a candle counts as stamped in the future.
+ *
+ * A candle is stamped at its open, so the newest one always opened at or
+ * before now. Two minutes covers the difference between a provider's clock and
+ * this one; anything further ahead is a timezone fault, not a clock.
+ */
+const FUTURE_TOLERANCE_MS = 2 * 60_000;
+
 function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -103,13 +112,24 @@ function targetHit(setup: ReplaySetup, candle: Candle, isLong: boolean): TargetL
  */
 export function replayOrder(
   setup: ReplaySetup,
-  candles: Candle[],
+  allCandles: Candle[],
   now: number = Date.now()
 ): ReplayVerdict {
   const issuedAt = Date.parse(setup.timestamp ?? '');
   if (!Number.isFinite(issuedAt)) {
     return { kind: 'unknown', reason: 'The order carries no readable timestamp, so its history cannot be found.' };
   }
+
+  // A bar cannot describe what has not happened. This is not a hypothetical
+  // tidiness check: the feed's default is the exchange's own timezone, the
+  // parser assumed UTC, and the whole series arrived stamped four hours ahead.
+  // Every stale bar then looked like it came after the order, and a setup was
+  // closed the moment it was offered by price action from its own past.
+  //
+  // The requests now ask for UTC outright, which fixes the cause. This refuses
+  // the consequence, so a timezone that drifts again cannot reach the ledger.
+  const candles = allCandles.filter((c) => c.time <= now + FUTURE_TOLERANCE_MS);
+
   if (candles.length === 0) {
     return { kind: 'unknown', reason: 'No price history is loaded, so what happened cannot be established.' };
   }
