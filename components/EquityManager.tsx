@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
+import { stopBandLabel, stopBandPips } from '@/lib/style-profiles';
 
 interface EquityManagerProps {
   equity: number;
@@ -252,7 +253,7 @@ export default function EquityManager({
                   {tradingStyle === style && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
                 </div>
                 <div className={`text-[10px] mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {style === 'Scalping' ? '15-30p' : style === 'Intraday' ? '45-80p' : '120-250p'}
+                  {stopBandLabel(style)}
                 </div>
               </button>
             ))}
@@ -607,10 +608,16 @@ export default function EquityManager({
                 ? `Pro Account utilizes raw spreads (~${currentBroker.spreadProPips} pips). A $${currentBroker.commissionProPerLot.toFixed(2)}/lot round turn commission is accounted for directly in position risk.`
                 : `Standard Account utilizes standard 100 Troy Oz contracts with all broker fees incorporated into floating spreads.`}{' '}
               {tradingStyle === 'Scalping'
-                ? 'Stop losses are framed tightly around 15-30 pips for fast market turns.'
+                ? `Stop losses are framed tightly, between ${stopBandPips('Scalping').min} and ${
+                    stopBandPips('Scalping').max
+                  } pips, for fast market turns.`
                 : tradingStyle === 'Swing'
-                ? 'Stop losses are broadened to 120-250 pips to capture macro institutional expansions.'
-                : 'Stop losses are calibrated for 45-80 pips for daily session liquidity runs.'}
+                ? `Stop losses are broadened to between ${stopBandPips('Swing').min} and ${
+                    stopBandPips('Swing').max
+                  } pips to capture macro institutional expansions.`
+                : `Stop losses are calibrated between ${stopBandPips('Intraday').min} and ${
+                    stopBandPips('Intraday').max
+                  } pips for daily session liquidity runs.`}
             </span>
           </div>
         </div>

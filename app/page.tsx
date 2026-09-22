@@ -845,7 +845,17 @@ export default function Home() {
     });
   }, [activeSetup, marketPrice, quoteIsSpot, feedStatus, quoteAgeSeconds, candles]);
 
-  const autoClosedRef = React.useRef<string | null>(null);
+  /**
+   * The setup this screen has already resolved, whichever path resolved it.
+   *
+   * One ref for both, because a trade may only be recorded once. The close and
+   * the miss used to keep a guard each, and their conditions happen not to
+   * overlap today — a position cannot be closed and still pending — but that
+   * is an accident of the current rules rather than a promise. Sharing the
+   * guard makes it one: whichever path reaches a verdict first, the other
+   * finds the trade already settled.
+   */
+  const resolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!activeSetup) return;
     if (isEvaluatingOutcome || marketPrice === null) return;
@@ -853,7 +863,7 @@ export default function Home() {
     // apart, so the level it appears to have reached is not a level the market
     // the user trades in ever touched.
     if (!quoteIsSpot) return;
-    if (autoClosedRef.current === activeSetup.id) return;
+    if (resolvedRef.current === activeSetup.id) return;
 
     const close = resolveClose(
       replay,
@@ -861,7 +871,7 @@ export default function Home() {
     );
     if (!close) return;
 
-    autoClosedRef.current = activeSetup.id;
+    resolvedRef.current = activeSetup.id;
     const { trigger: hit, level } = close;
     const when = close.at ? ` at ${new Date(close.at).toLocaleString()}` : '';
     setAutoResolveNotice(
@@ -882,14 +892,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
 
-  const autoResolvedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!activeSetup) return;
     if (isEvaluatingOutcome || marketPrice === null) return;
     // Same rule as the automatic close: a missed entry recorded from a futures
     // quote is a miss that never happened.
     if (!quoteIsSpot) return;
-    if (autoResolvedRef.current === activeSetup.id) return;
+    if (resolvedRef.current === activeSetup.id) return;
 
     // A miss recorded from a price that cannot be trusted is the same mistake
     // as a close recorded from one, and costs more: it teaches the engine to
@@ -897,7 +906,7 @@ export default function Home() {
     const miss = resolveMiss(replay, tickTrust.ok ? pendingVerdict : null);
     if (!miss) return;
 
-    autoResolvedRef.current = activeSetup.id;
+    resolvedRef.current = activeSetup.id;
     setAutoResolveNotice(`${miss.reason} The engine recorded it as a missed entry.`);
     void handleSimulateOutcome('MISSED', 1, missCause(miss.cause));
     // handleSimulateOutcome is recreated each render but closes over the same
