@@ -186,7 +186,11 @@ Respond strictly in valid JSON format:
     const learningRecord: SelfLearningMemoryRecord = {
       id: 'learn_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       analysisId: setup.id,
+      // When the row was written, which is when the trade ended.
       timestamp: new Date().toISOString(),
+      // When it began. The two are the same only for a trade that closed
+      // instantly, and an audit needs the beginning.
+      placedAt: setup.timestamp,
       outcome,
       symbol: 'XAUUSD',
       orderType: setup.orderType,

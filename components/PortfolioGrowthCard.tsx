@@ -40,6 +40,14 @@ interface PortfolioGrowthCardProps {
   /** Denomination of the user's account, so figures read like their terminal. */
   accountType?: AccountType;
   onResetBaseline?: () => void;
+  /**
+   * Sets the balance to what the recorded trades add up to.
+   *
+   * Offered only when the two have drifted apart, and only on the user's click:
+   * the ledger is the auditable side, so moving the balance to meet it is the
+   * safe direction, but it is still their money and their call.
+   */
+  onReconcileToLedger?: (ledgerBalance: number) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -136,6 +144,7 @@ export default function PortfolioGrowthCard({
   activeSetup,
   accountType = 'Standard',
   onResetBaseline,
+  onReconcileToLedger,
   theme = 'dark',
 }: PortfolioGrowthCardProps) {
   const isDark = theme === 'dark';
@@ -488,6 +497,16 @@ export default function PortfolioGrowthCard({
             <div id="ledger-balance-gap" className="text-[10px] mt-1 text-amber-500 leading-snug">
               Ledger and balance differ by {formatAccountMoney(Math.abs(ledgerGap), accountType)}: these
               trades put the balance at {formatUnitsSimple(ledgerBalance)}.
+              {onReconcileToLedger && (
+                <button
+                  id="reconcile-to-ledger-btn"
+                  type="button"
+                  onClick={() => onReconcileToLedger(ledgerBalance)}
+                  className="ml-1 underline underline-offset-2 hover:no-underline cursor-pointer font-semibold"
+                >
+                  Use the ledger figure
+                </button>
+              )}
             </div>
           )}
         </div>

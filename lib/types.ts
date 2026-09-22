@@ -323,6 +323,15 @@ export interface SelfLearningMemoryRecord {
   strategyEvolutionLesson: string;
   /** Style the trade was taken with, so learning can be segmented by it. */
   tradingStyle?: TradingStyle;
+  /**
+   * When the order was placed.
+   *
+   * `timestamp` above is when this row was written, which is when the trade
+   * ended — for a miss, that can be hours after the order went on the book.
+   * Replaying a trade needs the moment it began, so it is kept outright rather
+   * than recovered from the analysis id every time.
+   */
+  placedAt?: string;
   /** True when the engine closed the order itself rather than the user. */
   autoResolved?: boolean;
   /**

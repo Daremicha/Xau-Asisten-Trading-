@@ -1,22 +1,26 @@
 'use client';
 
 /**
- * Puts the recorded misses back to the market, and shows what it finds.
+ * Puts the trades the engine closed by itself back to the market.
  *
- * A missed entry is a real lesson and the engine uses it: `medianMissPips` is
- * computed from these rows and it decides how much closer the next entry is
- * placed. So a miss that never happened is not a stray row — it pushes entries
- * toward market on the evidence of a trade that filled where it was put and won
- * there, and takes that win out of the strike rate at the same time.
+ * Every such row is a claim: that an order filled, or never did, and that price
+ * reached a particular level. Each was made from whatever single number the
+ * screen was showing at the time, and a number cannot describe a path.
  *
- * Which is why nothing here deletes anything. The rows that stand up keep their
- * lesson; the rows that do not are handed back with what the candles say, and
- * the user supplies the outcome from the terminal that actually holds it.
+ * Every kind of wrong row teaches its own wrong lesson. A miss that never
+ * happened drags `medianMissPips`, which decides how much closer the next entry
+ * goes — it pushes entries toward market on the evidence of a trade that filled
+ * where it was put and won there. A stop loss that never happened is worse: a
+ * loss in the ledger and a failure recorded against a setup that never lost.
+ *
+ * Which is why nothing here deletes anything. Rows that stand up keep their
+ * lesson; rows that do not are handed back with what the candles say, and the
+ * user supplies the truth from the terminal that actually holds it.
  */
 
 import React, { useState } from 'react';
 import { SelfLearningMemoryRecord } from '@/lib/types';
-import type { MissAuditVerdict } from '@/lib/miss-audit';
+import { auditableRecords, type RecordAuditVerdict } from '@/lib/record-audit';
 import { AlertTriangle, CheckCircle2, History, Loader2, ShieldQuestion } from 'lucide-react';
 
 export interface AuditRow {
@@ -24,7 +28,10 @@ export interface AuditRow {
   timestamp: string;
   orderType: string;
   entryPrice: number;
-  verdict: MissAuditVerdict;
+  outcome: 'TP' | 'SL' | 'MISSED';
+  recordedExit: number;
+  recordedResult: number;
+  verdict: RecordAuditVerdict;
   contradicted: boolean;
 }
 
@@ -38,9 +45,13 @@ export interface AuditSummary {
   results: AuditRow[];
 }
 
+/** The form's working state. An empty outcome means the user has not chosen. */
+type Draft = { outcome: 'TP' | 'SL' | 'MISSED' | ''; exit: string; amount: string };
+
 export type Correction = {
   id: string;
-  outcome: 'TP' | 'SL';
+  /** What it really was. A row can also be corrected back to a missed entry. */
+  outcome: 'TP' | 'SL' | 'MISSED';
   /**
    * Where the trade actually closed.
    *
@@ -60,7 +71,7 @@ export type Correction = {
   profitOrLossDollars: number;
 };
 
-interface MissAuditPanelProps {
+interface RecordAuditPanelProps {
   learningRecords: SelfLearningMemoryRecord[];
   /** Runs the audit; resolves with the summary, or null when it could not run. */
   onAudit: () => Promise<AuditSummary | null>;
@@ -72,31 +83,60 @@ interface MissAuditPanelProps {
   theme?: 'dark' | 'light';
 }
 
-function verdictTone(kind: MissAuditVerdict['kind']): 'bad' | 'good' | 'unsure' {
-  if (kind === 'genuine') return 'good';
+/**
+ * What the candles suggest the row should say, as the form's starting point.
+ *
+ * The audit has already read the path, so making the user re-select what it
+ * just told them is busywork. It is a default and nothing more: every field
+ * stays editable, because only their terminal knows what they actually did.
+ */
+function suggestedDraft(row: AuditRow): Draft {
+  const actual = row.verdict.actual;
+  if (actual === 'never-filled') {
+    // The order never opened, so there is no exit and no result. The entry
+    // stands in for a price the trade never had.
+    return { outcome: 'MISSED', exit: row.entryPrice.toFixed(2), amount: '' };
+  }
+  if (actual === 'stopped') return { outcome: 'SL', exit: '', amount: '' };
+  if (actual === 'reached-level') return { outcome: 'TP', exit: String(row.recordedExit), amount: '' };
+  // The order opened and was still between its levels when the app closed it.
+  // What became of it after that is not on the chart: whether the trade was
+  // ever placed, and where it was let go, is known only to the person who
+  // placed it. Presuming a win would hand them a profit they may not have
+  // made, and presuming they skipped it would erase one they did. So nothing
+  // is preselected, and the form stays shut until they say.
+  return {
+    outcome: '',
+    exit: typeof row.verdict.bestPrice === 'number' ? String(row.verdict.bestPrice) : '',
+    amount: '',
+  };
+}
+
+function verdictTone(kind: RecordAuditVerdict['kind']): 'bad' | 'good' | 'unsure' {
+  if (kind === 'confirmed') return 'good';
   if (kind === 'unknown') return 'unsure';
   return 'bad';
 }
 
-export default function MissAuditPanel({
+export default function RecordAuditPanel({
   learningRecords,
   onAudit,
   onCorrect,
   onConfirm,
   accountUnit,
   theme = 'dark',
-}: MissAuditPanelProps) {
+}: RecordAuditPanelProps) {
   const isDark = theme === 'dark';
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<
-    Record<string, { outcome: 'TP' | 'SL'; exit: string; amount: string }>
-  >({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
 
-  const missed = learningRecords.filter((r) => r.outcome === 'MISSED');
-  const unchecked = missed.filter((r) => !r.audit);
+  // Only what the engine decided on its own. A result the user typed is their
+  // own testimony, and this screen has no standing to dispute it.
+  const auto = learningRecords.filter((r) => r.autoResolved);
+  const unchecked = auditableRecords(learningRecords);
 
   const run = async () => {
     setRunning(true);
@@ -117,17 +157,19 @@ export default function MissAuditPanel({
   const apply = async (row: AuditRow) => {
     const draft = drafts[row.id];
     if (!draft) return;
-    const amount = Number(draft.amount);
+    if (draft.outcome === '') return;
+    const amount = draft.outcome === 'MISSED' ? 0 : Number(draft.amount);
     const exit = Number(draft.exit);
     if (!Number.isFinite(amount) || !Number.isFinite(exit) || exit <= 0) return;
     setBusyId(row.id);
     try {
       await onCorrect({
         id: row.id,
-        outcome: draft.outcome,
+        outcome: draft.outcome as 'TP' | 'SL' | 'MISSED',
         exitPrice: exit,
         // A stop is a loss whichever sign the user happened to type.
-        profitOrLossDollars: draft.outcome === 'SL' ? -Math.abs(amount) : Math.abs(amount),
+        profitOrLossDollars:
+          draft.outcome === 'MISSED' ? 0 : draft.outcome === 'SL' ? -Math.abs(amount) : Math.abs(amount),
       });
       setSummary((prev) =>
         prev ? { ...prev, results: prev.results.filter((r) => r.id !== row.id) } : prev
@@ -153,32 +195,32 @@ export default function MissAuditPanel({
   const sub = isDark ? 'text-slate-400' : 'text-slate-500';
   const heading = isDark ? 'text-slate-100' : 'text-slate-900';
 
-  if (missed.length === 0) return null;
+  if (auto.length === 0) return null;
 
   return (
-    <div id="miss-audit-panel" className={`rounded-2xl border p-5 ${card}`}>
+    <div id="record-audit-panel" className={`rounded-2xl border p-5 ${card}`}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400 shrink-0">
             <History className="w-5 h-5" />
           </div>
           <div>
-            <h3 className={`font-bold ${heading}`}>Re-examine missed entries</h3>
+            <h3 className={`font-bold ${heading}`}>Re-examine trades the engine closed</h3>
             <p className={`text-xs mt-1 max-w-xl ${sub}`}>
-              A trade that filled and reached its target can be recorded as a missed entry if the app
-              only ever saw the price after it drifted back. That row then teaches the engine to place
-              the next entry closer to market — the opposite of what happened. This checks each one
-              against the candles from the day it was placed.
+              Every trade the engine closed by itself is a claim about the market, made from whatever
+              single price the screen was showing at the time. A stop loss booked against a level the
+              market never touched is a loss in your ledger and a failure recorded against a setup
+              that never lost. This walks each row through the candles of its own lifetime.
             </p>
             <p className={`text-xs mt-1.5 ${sub}`}>
-              {missed.length} missed {missed.length === 1 ? 'entry' : 'entries'} on record
-              {unchecked.length < missed.length && `, ${unchecked.length} not yet checked`}. Nothing is
+              {auto.length} {auto.length === 1 ? 'row' : 'rows'} closed by the engine
+              {unchecked.length < auto.length && `, ${unchecked.length} not yet checked`}. Nothing is
               deleted or changed without you.
             </p>
           </div>
         </div>
         <button
-          id="run-miss-audit-btn"
+          id="run-record-audit-btn"
           type="button"
           onClick={run}
           disabled={running}
@@ -191,7 +233,7 @@ export default function MissAuditPanel({
 
       {failure && (
         <div
-          id="miss-audit-failed"
+          id="record-audit-failed"
           className="mt-4 p-3 rounded-xl border bg-rose-500/10 border-rose-500/40 text-rose-300 text-xs"
         >
           {failure}
@@ -203,7 +245,7 @@ export default function MissAuditPanel({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { label: 'Examined', value: summary.audited, tone: sub },
-              { label: 'Not a miss', value: summary.contradicted, tone: 'text-rose-400' },
+              { label: 'Never happened', value: summary.contradicted, tone: 'text-rose-400' },
               { label: 'Confirmed real', value: summary.genuine, tone: 'text-emerald-400' },
               { label: 'Undetermined', value: summary.unknown, tone: 'text-slate-400' },
             ].map((s) => (
@@ -225,8 +267,8 @@ export default function MissAuditPanel({
             <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/40 text-emerald-300 text-xs flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
-                Nothing left to correct. The misses that remain are real, and the engine should keep
-                learning from them.
+                Nothing left to correct. Every row the engine closed is one the market really did,
+                and the engine should keep learning from all of them.
               </span>
             </div>
           )}
@@ -234,7 +276,7 @@ export default function MissAuditPanel({
           {summary.results
             .filter((r) => r.contradicted)
             .map((row) => {
-              const draft = drafts[row.id] ?? { outcome: 'TP' as const, exit: '', amount: '' };
+              const draft = drafts[row.id] ?? suggestedDraft(row);
               const tone = verdictTone(row.verdict.kind);
               return (
                 <div
@@ -251,19 +293,28 @@ export default function MissAuditPanel({
                     <AlertTriangle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <div className={`text-sm font-semibold ${heading}`}>
+                        <span
+                          className={`mr-2 px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                            row.outcome === 'SL'
+                              ? 'bg-rose-500/20 text-rose-300'
+                              : row.outcome === 'TP'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-slate-500/20 text-slate-300'
+                          }`}
+                        >
+                          {row.outcome === 'MISSED' ? 'MISSED' : `${row.outcome} HIT`}
+                        </span>
                         {row.orderType} @ {row.entryPrice.toFixed(2)}
                         <span className={`ml-2 font-normal text-xs ${sub}`}>
                           {new Date(row.timestamp).toLocaleString()}
                         </span>
                       </div>
                       <p className={`text-xs mt-1 ${sub}`}>{row.verdict.reason}</p>
-                      {row.verdict.kind === 'filled-profitable' && (
-                        <p className={`text-xs mt-1 ${sub}`}>
-                          Your terminal holds where it closed and for how much. This screen will not
-                          guess at either — the price shown as a hint is the furthest it ran, not
-                          where you took it.
-                        </p>
-                      )}
+                      <p className={`text-xs mt-1 ${sub}`}>
+                        Your terminal holds where this really closed and for how much. This screen
+                        will not guess at either — any price it shows is the furthest the market
+                        went, not where you came out.
+                      </p>
                     </div>
                   </div>
 
@@ -277,7 +328,17 @@ export default function MissAuditPanel({
                         onChange={(e) =>
                           setDrafts((p) => ({
                             ...p,
-                            [row.id]: { ...draft, outcome: e.target.value === 'SL' ? 'SL' : 'TP' },
+                            [row.id]: {
+                              ...draft,
+                              outcome:
+                                e.target.value === 'SL'
+                                  ? 'SL'
+                                  : e.target.value === 'MISSED'
+                                  ? 'MISSED'
+                                  : e.target.value === 'TP'
+                                  ? 'TP'
+                                  : '',
+                            },
                           }))
                         }
                         className={`px-2.5 py-1.5 rounded-lg border text-sm ${
@@ -286,8 +347,10 @@ export default function MissAuditPanel({
                             : 'bg-white border-slate-300 text-slate-900'
                         }`}
                       >
+                        <option value="">Choose…</option>
                         <option value="TP">Take profit</option>
                         <option value="SL">Stop loss</option>
+                        <option value="MISSED">Never placed it</option>
                       </select>
                     </label>
 
@@ -300,9 +363,11 @@ export default function MissAuditPanel({
                         step="0.01"
                         inputMode="decimal"
                         value={draft.exit}
-                        placeholder={row.verdict.kind === 'filled-profitable'
-                          ? String(row.verdict.bestPrice)
-                          : '0.00'}
+                        placeholder={
+                          typeof row.verdict.bestPrice === 'number'
+                            ? String(row.verdict.bestPrice)
+                            : '0.00'
+                        }
                         onChange={(e) =>
                           setDrafts((p) => ({ ...p, [row.id]: { ...draft, exit: e.target.value } }))
                         }
@@ -314,7 +379,7 @@ export default function MissAuditPanel({
                       />
                     </label>
 
-                    <label className="flex flex-col gap-1">
+                    <label className={`flex flex-col gap-1 ${draft.outcome === 'MISSED' ? 'opacity-50' : ''}`}>
                       <span className={`text-[11px] uppercase tracking-wide ${sub}`}>
                         Result ({accountUnit})
                       </span>
@@ -322,7 +387,8 @@ export default function MissAuditPanel({
                         type="number"
                         step="0.01"
                         inputMode="decimal"
-                        value={draft.amount}
+                        value={draft.outcome === 'MISSED' ? '0' : draft.amount}
+                        disabled={draft.outcome === 'MISSED'}
                         placeholder="e.g. 12.50"
                         onChange={(e) =>
                           setDrafts((p) => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))
@@ -340,10 +406,12 @@ export default function MissAuditPanel({
                       onClick={() => apply(row)}
                       disabled={
                         busyId === row.id ||
-                        draft.amount === '' ||
+                        draft.outcome === '' ||
                         draft.exit === '' ||
-                        !Number.isFinite(Number(draft.amount)) ||
-                        !Number.isFinite(Number(draft.exit))
+                        !Number.isFinite(Number(draft.exit)) ||
+                        // A trade that was never placed has no result to supply.
+                        (draft.outcome !== 'MISSED' &&
+                          (draft.amount === '' || !Number.isFinite(Number(draft.amount))))
                       }
                       className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-500 text-slate-900 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
@@ -360,7 +428,7 @@ export default function MissAuditPanel({
                           : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      Leave as a miss
+                      Leave as recorded
                     </button>
                   </div>
                 </div>
@@ -375,7 +443,7 @@ export default function MissAuditPanel({
             >
               <ShieldQuestion className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
-                {summary.unknown} {summary.unknown === 1 ? 'row is' : 'rows are'} older than the price
+                {summary.unknown} {summary.unknown === 1 ? 'row is' : 'rows are'} beyond the price
                 history the provider will serve, so {summary.unknown === 1 ? 'it was' : 'they were'}{' '}
                 left exactly as {summary.unknown === 1 ? 'it is' : 'they are'}. An unexamined row is
                 better than an invented verdict.

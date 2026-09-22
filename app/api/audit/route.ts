@@ -1,5 +1,5 @@
 /**
- * Puts recorded misses back to the market and reports what it finds.
+ * Puts recorded trades back to the market and reports what it finds.
  *
  * Read only. Nothing here rewrites a record: the endpoint returns a verdict per
  * row and the user decides what to do with it. A ledger corrected on the
@@ -10,7 +10,12 @@
 
 import { NextResponse } from 'next/server';
 import { fetchHistoricalCandles } from '@/lib/price-feed';
-import { auditMiss, contradictsRecord, type MissAuditVerdict } from '@/lib/miss-audit';
+import {
+  auditRecord,
+  contradictsRecord,
+  placementTime,
+  type RecordAuditVerdict,
+} from '@/lib/record-audit';
 import { publicErrorMessage } from '@/lib/safe-error';
 import type { SelfLearningMemoryRecord } from '@/lib/types';
 
@@ -30,7 +35,8 @@ function looksLikeRecord(value: unknown): value is SelfLearningMemoryRecord {
     typeof r.timestamp === 'string' &&
     typeof r.orderType === 'string' &&
     typeof r.entryPrice === 'number' &&
-    r.outcome === 'MISSED'
+    typeof r.exitPrice === 'number' &&
+    (r.outcome === 'MISSED' || r.outcome === 'TP' || r.outcome === 'SL')
   );
 }
 
@@ -45,7 +51,7 @@ export async function POST(request: Request) {
   const raw = (body as { records?: unknown })?.records;
   if (!Array.isArray(raw)) {
     return NextResponse.json(
-      { success: false, error: 'Send a records array of missed-entry rows to examine.' },
+      { success: false, error: 'Send a records array of resolved rows to examine.' },
       { status: 400 }
     );
   }
@@ -56,19 +62,23 @@ export async function POST(request: Request) {
       success: true,
       audited: 0,
       contradicted: 0,
+      genuine: 0,
+      unknown: 0,
       results: [],
-      message: 'There are no missed entries to examine.',
+      message: 'There are no rows left to examine.',
     });
   }
 
   try {
     const now = Date.now();
+    // Placement, not the moment the row was written: a miss is recorded long
+    // after its order went on the book, and the window has to reach the start.
     const times = records
-      .map((r) => Date.parse(r.timestamp))
-      .filter((t) => Number.isFinite(t));
+      .map((r) => placementTime(r))
+      .filter((t): t is number => t !== null);
     if (times.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'None of these records carry a readable timestamp.' },
+        { success: false, error: 'None of these rows record when their order was placed.' },
         { status: 400 }
       );
     }
@@ -84,6 +94,8 @@ export async function POST(request: Request) {
         success: false,
         audited: 0,
         contradicted: 0,
+        genuine: 0,
+        unknown: 0,
         results: [],
         // Not a verdict. The rows stay exactly as they are.
         message: message || 'Past prices could not be fetched, so nothing was examined.',
@@ -91,19 +103,22 @@ export async function POST(request: Request) {
     }
 
     const results = records.map((record) => {
-      const verdict: MissAuditVerdict = auditMiss(record, candles);
+      const verdict: RecordAuditVerdict = auditRecord(record, candles);
       return {
         id: record.id,
         timestamp: record.timestamp,
         orderType: record.orderType,
         entryPrice: record.entryPrice,
+        outcome: record.outcome,
+        recordedExit: record.exitPrice,
+        recordedResult: record.profitOrLossDollars,
         verdict,
         contradicted: contradictsRecord(verdict),
       };
     });
 
     const contradicted = results.filter((r) => r.contradicted).length;
-    const genuine = results.filter((r) => r.verdict.kind === 'genuine').length;
+    const genuine = results.filter((r) => r.verdict.kind === 'confirmed').length;
     const unknown = results.filter((r) => r.verdict.kind === 'unknown').length;
 
     return NextResponse.json({
@@ -117,8 +132,8 @@ export async function POST(request: Request) {
       results,
       message:
         contradicted === 0
-          ? `All ${results.length} missed entries stand up to the price history.`
-          : `${contradicted} of ${results.length} were not missed entries at all.`,
+          ? `All ${results.length} rows stand up to the price history.`
+          : `${contradicted} of ${results.length} describe something the market never did.`,
     });
   } catch (err: unknown) {
     console.error('Audit error:', err);
