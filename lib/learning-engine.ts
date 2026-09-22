@@ -163,6 +163,42 @@ export function recencyWeight(positionFromNewest: number): number {
   return Math.pow(0.5, positionFromNewest / RECENCY_HALF_LIFE);
 }
 
+/**
+ * How far an unverified machine reading counts against a checked one.
+ *
+ * Not zero, because most auto-resolutions are right and a row that taught
+ * nothing would waste a real trade. Not one, because some were not right at
+ * all: this engine has recorded a market order as filled and stopped out
+ * seconds after it was offered, against a price range the market traded
+ * before the order existed. Three of those went into a ledger in four
+ * minutes, each one a loss the account never took and a failure against a
+ * setup that never lost.
+ *
+ * At six tenths an unverified row still teaches, and a checked one outweighs
+ * it. That is the honest ordering: a reading the market has confirmed, or the
+ * trader has confirmed from their own terminal, is worth more than a reading
+ * nobody has looked at.
+ */
+const UNVERIFIED_WEIGHT = 0.6;
+
+/**
+ * How much a single record should count.
+ *
+ * Recency, and then whether anyone has checked it. A result the user entered
+ * is their own testimony about their own terminal. A row the audit has been
+ * over has been held against the candles of its own lifetime. A row the engine
+ * closed by itself and nobody has examined is an inference, and is weighed as
+ * one.
+ */
+export function evidenceWeight(
+  record: Pick<SelfLearningMemoryRecord, 'autoResolved' | 'audit'>,
+  positionFromNewest: number
+): number {
+  const recency = recencyWeight(positionFromNewest);
+  const verified = !record.autoResolved || Boolean(record.audit);
+  return verified ? recency : recency * UNVERIFIED_WEIGHT;
+}
+
 /** Evidence grows with sample size but saturates, so it never reaches certainty. */
 export function confidenceFrom(effectiveSampleSize: number): number {
   if (effectiveSampleSize <= 0) return 0;
@@ -309,7 +345,7 @@ export function summariseEvidence(records: SelfLearningMemoryRecord[]): Learning
   const missDistances: number[] = [];
 
   ordered.forEach((record, index) => {
-    const w = recencyWeight(index);
+    const w = evidenceWeight(record, index);
     effective += w;
     weightedTotal += w;
 

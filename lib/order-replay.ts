@@ -138,6 +138,28 @@ export function replayOrder(
     else break;
   }
 
+  /**
+   * The first candle that belongs wholly to this order.
+   *
+   * The bar already forming when an order is issued is not evidence about it.
+   * Its high and low are the fifteen minutes *before* the order existed, and
+   * reading an outcome from them is how a setup came to be closed the second
+   * it was offered: an order one minute old, reported as filled and stopped
+   * out, against a range price had traded through before anyone asked for it.
+   *
+   * What that bar may still do is establish a fill, below. A fill is not an
+   * outcome — it writes nothing and moves no money. All it does is stop the
+   * order being called a miss, which is the safer way to be wrong. An outcome
+   * needs a bar that is actually about this trade.
+   */
+  let firstPostIssue = candles.length;
+  for (let i = 0; i < candles.length; i++) {
+    if (candles[i].time >= issuedAt) {
+      firstPostIssue = i;
+      break;
+    }
+  }
+
   let fillIndex = -1;
   let fillPrice = setup.entryPrice;
 
@@ -157,6 +179,10 @@ export function replayOrder(
         fillPrice = setup.entryPrice;
         break;
       }
+
+      // Past here the bar is being read for a reason to end the order, and
+      // the bar that was forming when it was issued cannot supply one.
+      if (i < firstPostIssue) continue;
 
       if (isLong ? c.low <= setup.stopLoss : c.high >= setup.stopLoss) {
         return {
@@ -208,8 +234,10 @@ export function replayOrder(
 
   const filledAt = iso(candles[fillIndex].time);
   // A resting order fills inside its bar, so that bar can also take it out. A
-  // market order opens at a price the bar has already traded through.
-  const scanFrom = instant ? fillIndex + 1 : fillIndex;
+  // market order opens at a price the bar has already traded through. Either
+  // way the scan cannot begin before the first bar that belongs to this order:
+  // a fill may be read from the bar that was already forming, an exit may not.
+  const scanFrom = Math.max(instant ? fillIndex + 1 : fillIndex, firstPostIssue);
 
   for (let i = scanFrom; i < candles.length; i++) {
     const c = candles[i];
