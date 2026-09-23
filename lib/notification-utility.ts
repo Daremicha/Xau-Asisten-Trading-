@@ -117,30 +117,45 @@ export function playProximityChime(alertType: 'TP' | 'SL') {
 }
 
 /**
- * Triggers a native system browser notification with graceful fallback.
+ * Shows a system notification.
+ *
+ * Through the service worker whenever there is one: Chrome on Android throws
+ * on `new Notification()` from a page, so that path never reached a phone. The
+ * constructor stays as the fallback for desktop browsers without a worker.
  */
-export function triggerBrowserNotification(
+export async function triggerBrowserNotification(
   title: string,
   options?: NotificationOptions
-): Notification | null {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return null;
-  }
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
 
-  if (Notification.permission === 'granted') {
+  const full: NotificationOptions = {
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png',
+    silent: false,
+    ...options,
+  };
+
+  if ('serviceWorker' in navigator) {
     try {
-      return new Notification(title, {
-        badge: '/icon.png',
-        icon: '/icon.png',
-        silent: false,
-        ...options,
-      });
-    } catch {
-      // In some iframe contexts, creating a Notification might throw a security error
-      return null;
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, full);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Service worker notification failed:', err);
     }
   }
-  return null;
+
+  try {
+    new Notification(title, full);
+    return true;
+  } catch (err) {
+    console.warn('Notification failed:', err);
+    return false;
+  }
 }
 
 /**
@@ -250,7 +265,7 @@ export function evaluatePriceProximity(
         }
 
         if (options.enableBrowserNotification !== false) {
-          triggerBrowserNotification(title, {
+          void triggerBrowserNotification(title, {
             body: message,
             tag: alertKey,
           });
