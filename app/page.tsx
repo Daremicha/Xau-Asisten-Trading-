@@ -86,6 +86,7 @@ import {
   evaluatePriceProximity,
   getNotificationPermission,
   requestNotificationPermission,
+  triggerBrowserNotification,
   playProximityChime,
   ProximityAlertEvent,
   NotificationPermissionState,
@@ -135,6 +136,11 @@ export default function Home() {
     setNotificationPermission(perm);
     if (perm === 'granted') {
       playProximityChime('TP');
+      // Proof on the spot that alerts reach this device's notification shade.
+      void triggerBrowserNotification('XAU Assistant notifications are on', {
+        body: 'You will be alerted here when price nears your TP or SL.',
+        tag: 'notifications-enabled',
+      });
     }
   };
 
