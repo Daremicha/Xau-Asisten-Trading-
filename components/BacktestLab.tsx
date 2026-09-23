@@ -35,10 +35,11 @@ import {
   assessProtection,
   assessRiskFloor,
   convictionBreakdown,
-  netAboveThreshold,
+  assessFloors,
   rollingWinRate,
 } from '@/lib/backtest-stats';
 import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
+import { factorReliability, NOISE_BAR_STANDARD_ERRORS } from '@/lib/factor-learning';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 
 interface BacktestLabProps {
@@ -195,14 +196,31 @@ export default function BacktestLab({
   const quality = useMemo(() => {
     if (!result) return null;
     const buckets = convictionBreakdown(result.control.trades);
-    const floors = QUALITY_CHOICES.map((floor) => ({
-      floor,
-      net: netAboveThreshold(result.control.trades, floor),
-      trades: result.control.trades.filter((t) => t.filled && t.convictionScore >= floor).length,
-    }));
-    const best = floors.reduce((a, b) => (b.net > a.net ? b : a), floors[0]);
-    return { buckets, floors, best };
+    // Judged on return per point of drawdown, not on money alone: on a small
+    // account every extra trade is another minimum-lot bet.
+    const verdict = assessFloors(
+      result.control.trades,
+      result.control.summary.startingEquity,
+      QUALITY_CHOICES,
+      result.control.summary.accountType
+    );
+    return { buckets, verdict };
   }, [result]);
+
+  /**
+   * Each factor over the whole replay, evenly weighted, on the run whose
+   * weights never moved, so the votes are the engine's own and not the
+   * product of what it had already learned.
+   */
+  const factorTable = useMemo(
+    () =>
+      result
+        ? factorReliability(result.control.records, Number.POSITIVE_INFINITY).filter(
+            (factor) => factor.agreedSamples > 0 && factor.opposedSamples > 0
+          )
+        : [],
+    [result]
+  );
 
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
 
@@ -837,18 +855,17 @@ export default function BacktestLab({
 
               <div className={`mt-2 text-[11px] leading-relaxed ${muted}`}>
                 Refusing everything below a floor would have left:{' '}
-                {quality.floors.map((f, i) => (
-                  <span key={f.floor}>
+                {quality.verdict.floors.map((f, i) => (
+                  <span key={f.floor} id={`backtest-floor-${f.floor}`}>
                     {i > 0 && ' • '}
-                    <span className={f.floor === quality.best.floor ? 'text-emerald-400 font-bold' : ''}>
-                      {f.floor === 0 ? 'all setups' : `${f.floor}+`} {money(f.net, true)} from {f.trades} trades
+                    <span className={f.floor === quality.verdict.recommended ? 'text-emerald-400 font-bold' : ''}>
+                      {f.floor === 0 ? 'all setups' : `${f.floor}+`} {money(f.netDollars, true)} from {f.trades} trades,{' '}
+                      worst drawdown {f.maxDrawdownPercent}%{f.consistent ? '' : ' (not profitable in both halves)'}
                     </span>
                   </span>
                 ))}
                 .{' '}
-                {quality.best.floor === 0
-                  ? 'Taking everything was the best of these over this period, so a floor would not have helped.'
-                  : `A floor of ${quality.best.floor} was the best of these over this period. Set it above and re-run to trade it properly, with compounding and position sizing applied.`}
+                <span id="backtest-floor-verdict">{quality.verdict.reason}</span>
               </div>
             </div>
           )}
@@ -874,10 +891,10 @@ export default function BacktestLab({
               return (
                 <div id="backtest-factor-multipliers" className={`mt-2 text-[11px] ${muted}`}>
                   {moved.length === 0 ? (
-                    'No single factor was reliably right or wrong over this period, so every factor keeps its full say.'
+                    'The learning run ended with every factor at its full say: none cleared the bar of being reliably right or wrong.'
                   ) : (
                     <>
-                      Factor trust learned over {result.adaptive.trades.filter((t) => t.filled).length} filled trades:{' '}
+                      Factor trust the learning run ended on:{' '}
                       {moved.map(([name, value], i) => (
                         <span key={name}>
                           {i > 0 ? ', ' : ''}
@@ -893,6 +910,56 @@ export default function BacktestLab({
                 </div>
               );
             })()}
+            {factorTable.length > 0 && (
+              <div id="backtest-factor-table" className="mt-3 overflow-x-auto">
+                <div className={`text-[11px] font-semibold mb-1 ${strong}`}>
+                  Every factor over the whole period, on the fixed parameter run
+                </div>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className={muted}>
+                      <th className="text-left font-medium py-1">Factor</th>
+                      <th className="text-right font-medium py-1">When it agreed</th>
+                      <th className="text-right font-medium py-1">When outvoted</th>
+                      <th className="text-right font-medium py-1">Gap</th>
+                      <th className="text-right font-medium py-1">Beyond noise</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {factorTable.map((factor) => {
+                      const real = factor.strength !== null && Math.abs(factor.strength) >= NOISE_BAR_STANDARD_ERRORS;
+                      return (
+                        <tr key={factor.name} className={isDark ? 'border-t border-slate-800' : 'border-t border-slate-100'}>
+                          <td className={`py-1 font-sans ${muted}`}>{factor.name}</td>
+                          <td className={`py-1 text-right ${muted}`}>
+                            {factor.agreedR === null ? '—' : `${factor.agreedR > 0 ? '+' : ''}${factor.agreedR}R`} ({factor.agreedSamples})
+                          </td>
+                          <td className={`py-1 text-right ${muted}`}>
+                            {factor.opposedR === null ? '—' : `${factor.opposedR > 0 ? '+' : ''}${factor.opposedR}R`} ({factor.opposedSamples})
+                          </td>
+                          <td
+                            className={`py-1 text-right font-bold ${
+                              !real ? muted : (factor.edge ?? 0) > 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {factor.edge === null ? '—' : `${factor.edge > 0 ? '+' : ''}${factor.edge}R`}
+                          </td>
+                          <td className={`py-1 text-right ${real ? strong : muted}`}>
+                            {factor.strength === null ? '—' : `${Math.abs(factor.strength).toFixed(1)}×`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className={`text-[10px] mt-1 ${muted}`}>
+                  Gap is what trades a factor backed returned minus trades it argued against. A factor worth
+                  listening to has a positive gap; a negative one means the market kept doing what it argued
+                  against. Only a gap at least {NOISE_BAR_STANDARD_ERRORS}× its own noise is coloured, and only
+                  those can move the engine.
+                </p>
+              </div>
+            )}
 
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
               {(() => {

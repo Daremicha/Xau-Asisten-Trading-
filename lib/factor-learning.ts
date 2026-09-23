@@ -51,11 +51,16 @@ export const NOISE_BAR_STANDARD_ERRORS = 2;
 /**
  * Trades back at which a trade counts half, for this measure only.
  *
- * Longer than the engine's own twenty. Whether RSI tends to be right on gold
- * is a slow property of the market, not this week's mood, and a short memory
- * leaves too little evidence to ever clear the bar above.
+ * Far longer than the engine's own twenty. Whether RSI tends to be right on
+ * gold is a slow property of the market, not this week's mood, and a short
+ * memory leaves too little evidence to ever clear the bar above. The first
+ * version used sixty, which over a 24 month replay of 1,391 filled trades
+ * meant the verdict rested on roughly the last 170: the replay reported that
+ * no factor was reliably right or wrong over the period while having looked
+ * at an eighth of it. At 250 a live account is weighed almost evenly, and a
+ * two year replay counts most of its own history.
  */
-const FACTOR_HALF_LIFE = 60;
+export const FACTOR_HALF_LIFE = 250;
 
 /** How far a factor's say moves for each standard error past the bar. */
 const STEP_PER_STANDARD_ERROR = 0.15;
@@ -203,7 +208,11 @@ function newestFirst(records: SelfLearningMemoryRecord[]): SelfLearningMemoryRec
  * the direction was right. Rows recorded before votes were kept are left out
  * too, rather than guessed at.
  */
-export function factorReliability(records: SelfLearningMemoryRecord[]): FactorReliability[] {
+export function factorReliability(
+  records: SelfLearningMemoryRecord[],
+  /** Trades back at which one counts half. Infinity weighs the whole record evenly. */
+  halfLife: number = FACTOR_HALF_LIFE
+): FactorReliability[] {
   const usable = newestFirst(records).filter(
     (r) =>
       (r.outcome === 'TP' || r.outcome === 'SL') &&
@@ -214,7 +223,8 @@ export function factorReliability(records: SelfLearningMemoryRecord[]): FactorRe
   const sides = new Map<string, { agreed: Side; opposed: Side }>();
 
   usable.forEach((record, index) => {
-    const w = Math.pow(0.5, index / FACTOR_HALF_LIFE) * verificationWeight(record);
+    const recency = Number.isFinite(halfLife) && halfLife > 0 ? Math.pow(0.5, index / halfLife) : 1;
+    const w = recency * verificationWeight(record);
     const r = record.context!.rMultiple;
     const votes = sanitiseFactorVotes(record.context!.factorVotes) ?? {};
     for (const [name, vote] of Object.entries(votes)) {

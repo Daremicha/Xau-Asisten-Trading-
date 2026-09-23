@@ -269,3 +269,31 @@ describe('a backtest can hand its verdicts to live trading', () => {
     expect(merged.factorMultipliers.RSI).toBe(own);
   });
 });
+
+describe('how far back a factor is judged', () => {
+  test('evenly across a whole replay when asked, so old evidence is not thrown away', () => {
+    // The oldest hundred trades carry the pattern and the newest hundred are
+    // flat. A short memory barely sees it; the whole-period reading does.
+    const old = history(200, 3, { name: 'RSI', winWhenAgreed: 0.25, winWhenOpposed: 0.6 });
+    const recent = history(200, 4).map((r, i) => ({
+      ...r,
+      timestamp: new Date(Date.UTC(2027, 0, 1) + i * 3_600_000).toISOString(),
+    }));
+    const records = [...old, ...recent];
+    const whole = factorReliability(records, Number.POSITIVE_INFINITY).find((f) => f.name === 'RSI')!;
+    const short = factorReliability(records, 20).find((f) => f.name === 'RSI')!;
+    expect(Math.abs(whole.strength!)).toBeGreaterThan(Math.abs(short.strength!));
+    expect(whole.agreedSamples + whole.opposedSamples).toBe(400);
+  });
+
+  test('evenly weighted, the averages are plain averages', () => {
+    const records = [
+      trade(0, { RSI: 0.6 }, 1.5),
+      trade(1, { RSI: 0.6 }, -1),
+      trade(2, { RSI: -0.6 }, -1),
+    ];
+    const rsi = factorReliability(records, Number.POSITIVE_INFINITY).find((f) => f.name === 'RSI')!;
+    expect(rsi.agreedR).toBe(0.25);
+    expect(rsi.opposedR).toBe(-1);
+  });
+});
