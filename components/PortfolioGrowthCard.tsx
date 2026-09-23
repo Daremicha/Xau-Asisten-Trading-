@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -15,6 +15,8 @@ import {
   Layers,
   History,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -302,6 +304,36 @@ export default function PortfolioGrowthCard({
 
   const plotWidth = Math.max(240, chartData.length * POINT_WIDTH);
 
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [canScrollBack, setCanScrollBack] = useState(false);
+  const [canScrollForward, setCanScrollForward] = useState(false);
+  /** The point whose details show under the curve; the latest trade until one is tapped. */
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
+  const shownPoint = chartData[selectedPoint ?? chartData.length - 1] ?? chartData[chartData.length - 1];
+
+  const updateScrollEdges = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setCanScrollBack(el.scrollLeft > 1);
+    setCanScrollForward(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+
+  // Open on the latest trade: that is the one the user just recorded, and on a
+  // phone only a handful of trades fit, so starting at the first would hide it.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || activeTab !== 'chart') return;
+    el.scrollLeft = el.scrollWidth;
+    updateScrollEdges();
+    setSelectedPoint(null);
+  }, [chartData.length, activeTab]);
+
+  const scrollCurve = (direction: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
   /**
    * One vertical scale for both halves of the chart.
    *
@@ -555,7 +587,7 @@ export default function PortfolioGrowthCard({
             isDark ? 'bg-slate-950/90 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono">
                 Equity Curve Trajectory
@@ -608,12 +640,23 @@ export default function PortfolioGrowthCard({
 
             <div
               id="equity-curve-scroller"
-              className="flex-1 overflow-x-auto overflow-y-hidden"
-              style={{ scrollbarWidth: 'thin' }}
+              ref={scrollerRef}
+              onScroll={updateScrollEdges}
+              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden [&_*:focus]:outline-none"
+              style={{ scrollbarWidth: 'thin', touchAction: 'pan-x pan-y' }}
             >
               <div className="h-56" style={{ width: plotWidth, minWidth: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 14, bottom: CHART_BOTTOM }}>
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 10, right: 20, left: 14, bottom: CHART_BOTTOM }}
+                    onClick={(state) => {
+                      const index = Number(state?.activeTooltipIndex);
+                      if (Number.isInteger(index) && index >= 0 && index < chartData.length) {
+                        setSelectedPoint(index);
+                      }
+                    }}
+                  >
                 <defs>
                   <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop
@@ -649,7 +692,10 @@ export default function PortfolioGrowthCard({
                     so the two halves line up exactly. */}
                 <YAxis hide domain={equityDomain} />
 
-                <Tooltip content={<CustomTooltip isDark={isDark} accountType={accountType} />} />
+                {/* Tap to pick a trade; its details show under the curve. A
+                    floating tooltip would open on every swipe and be cut off by
+                    the edge of the scroll area. */}
+                <Tooltip trigger="click" content={() => null} />
 
                 <ReferenceLine
                   y={initialEquity > 0 ? initialEquity : 5000}
@@ -689,9 +735,44 @@ export default function PortfolioGrowthCard({
             </div>
           </div>
 
+          {shownPoint && shownPoint.outcome !== 'INITIAL' && (
+            <div className="mt-2 [&>div]:w-full [&>div]:max-w-none">
+              <CustomTooltip
+                active
+                payload={[{ payload: shownPoint }]}
+                isDark={isDark}
+                accountType={accountType}
+              />
+            </div>
+          )}
+
           {chartData.length > VISIBLE_POINTS && (
-            <div className={`text-[10px] mt-1.5 text-right ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-              {chartData.length - 1} trades recorded. Scroll the curve sideways to read the earlier ones.
+            <div className="flex items-center justify-between gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => scrollCurve(-1)}
+                disabled={!canScrollBack}
+                aria-label="Earlier trades"
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-mono disabled:opacity-30 ${
+                  isDark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-600'
+                }`}
+              >
+                <ChevronLeft className="w-4 h-4" /> Earlier
+              </button>
+              <span className="text-[11px] text-center text-slate-500">
+                {chartData.length - 1} trades. Swipe the curve or use the buttons; tap a point for its details.
+              </span>
+              <button
+                type="button"
+                onClick={() => scrollCurve(1)}
+                disabled={!canScrollForward}
+                aria-label="Later trades"
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-mono disabled:opacity-30 ${
+                  isDark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-600'
+                }`}
+              >
+                Later <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           )}
 
