@@ -176,8 +176,9 @@ export default function MarketChart({
           </div>
         </div>
 
-        {/* Timeframe Selector & Chart View Mode */}
-        <div className="flex items-center gap-2">
+        {/* Timeframe Selector & Chart View Mode. Wraps on a phone rather than
+            pushing the Levels button off the right edge. */}
+        <div className="flex flex-wrap items-center gap-2">
           {/* Timeframe Buttons D1 -> H4 -> H1 -> M15 */}
           <div
             className={`flex items-center p-1 rounded-xl border ${
