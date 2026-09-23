@@ -36,6 +36,7 @@ import {
   assessRiskFloor,
   convictionBreakdown,
   assessFloors,
+  FLOOR_CHOICES,
   rollingWinRate,
 } from '@/lib/backtest-stats';
 import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
@@ -67,8 +68,6 @@ interface BacktestLabProps {
 }
 
 const MONTH_CHOICES = [6, 12, 24];
-/** Conviction floors offered: off, then the three band boundaries. */
-const QUALITY_CHOICES = [0, 40, 55, 70];
 
 function formatDate(ms: number | null): string {
   if (ms === null) return '—';
@@ -201,7 +200,7 @@ export default function BacktestLab({
     const verdict = assessFloors(
       result.control.trades,
       result.control.summary.startingEquity,
-      QUALITY_CHOICES,
+      FLOOR_CHOICES,
       result.control.summary.accountType
     );
     return { buckets, verdict };
@@ -384,7 +383,7 @@ export default function BacktestLab({
         <div className={`border rounded-xl p-3 ${panel}`}>
           <div className={`text-[11px] mb-1.5 ${muted}`}>Only trade conviction above</div>
           <div className="flex gap-1.5">
-            {QUALITY_CHOICES.map((choice) => (
+            {FLOOR_CHOICES.map((choice) => (
               <button
                 key={choice}
                 type="button"
@@ -867,6 +866,22 @@ export default function BacktestLab({
                 .{' '}
                 <span id="backtest-floor-verdict">{quality.verdict.reason}</span>
               </div>
+
+              {result.floorCheck && (
+                <div
+                  id="backtest-floor-check"
+                  className={`mt-2 p-2.5 rounded-lg border text-[11px] leading-relaxed ${
+                    result.floorCheck.held
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                      : 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+                  }`}
+                >
+                  <span className="font-bold">
+                    {result.floorCheck.held ? 'Checked: the floor holds up. ' : 'Checked: the floor does not hold up. '}
+                  </span>
+                  {result.floorCheck.reason}
+                </div>
+              )}
             </div>
           )}
 

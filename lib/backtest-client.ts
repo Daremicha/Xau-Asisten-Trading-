@@ -17,6 +17,10 @@ import { Candle } from './candles';
 import { createBacktest, type BacktestResult } from './backtest-engine';
 import {
   assessAdoption,
+  assessFloors,
+  confirmFloor,
+  FLOOR_CHOICES,
+  type FloorCheck,
   assessProtection,
   compareRuns,
   comparePhases,
@@ -46,7 +50,7 @@ const BREAK_EVEN_AT_R = 1;
 /** Retries per page when the provider is rate limiting. */
 const MAX_RATE_LIMIT_RETRIES = 3;
 
-export type BacktestPhase = 'download' | 'control' | 'adaptive' | 'frozen' | 'protected' | 'done';
+export type BacktestPhase = 'download' | 'control' | 'adaptive' | 'frozen' | 'protected' | 'floor' | 'done';
 
 export interface BacktestProgressUpdate {
   phase: BacktestPhase;
@@ -115,6 +119,11 @@ export interface BacktestJobResult {
   /** Whether protecting a trade at break-even is worth doing on live setups. */
   protection: ProtectionVerdict;
   phases: PhaseComparison;
+  /**
+   * The recommended conviction floor, traded for real. Null when no floor
+   * above the one this run used was recommended. Absent on older results.
+   */
+  floorCheck?: FloorCheck | null;
   ranAt: string;
 }
 
@@ -278,6 +287,8 @@ async function replay(
         ? 'Testing the learned parameters'
         : phase === 'protected'
           ? 'Testing the break-even stop'
+          : phase === 'floor'
+            ? 'Testing the recommended floor'
           : adaptive
             ? 'Learning run'
             : 'Control run';
@@ -328,7 +339,25 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
   // A fourth pass over the control's own setups, managed differently: the stop
   // moves to entry once the trade is a full R up. It answers the question a run
   // of stop outs always raises, with this period's own trades.
-  const guarded = await replay(candles, options, false, 'protected', 85, 14, null, BREAK_EVEN_AT_R);
+  const guarded = await replay(candles, options, false, 'protected', 85, 7, null, BREAK_EVEN_AT_R);
+
+  // A fifth pass, only when a stricter floor is recommended: the estimate
+  // drops trades from this run, but a run with the floor takes different ones,
+  // and only trading it says whether the recommendation is real.
+  const verdict = assessFloors(control.trades, options.equity, FLOOR_CHOICES, options.accountType);
+  const estimate = verdict.floors.find((f) => f.floor === verdict.recommended);
+  let floorCheck: FloorCheck | null = null;
+  if (estimate && verdict.recommended > (options.minConviction ?? 0)) {
+    const floorRun = await replay(
+      candles,
+      { ...options, minConviction: verdict.recommended },
+      false,
+      'floor',
+      92,
+      7
+    );
+    floorCheck = confirmFloor(estimate, floorRun);
+  }
 
   options.onProgress?.({ phase: 'done', label: 'Backtest complete.', percent: 100 });
 
@@ -346,6 +375,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     adoption: assessAdoption(control, frozen),
     protection: assessProtection(control, guarded),
     phases: comparePhases(adaptive),
+    floorCheck,
     ranAt: new Date().toISOString(),
   };
 }

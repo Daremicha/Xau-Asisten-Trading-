@@ -456,6 +456,61 @@ export function assessFloors(
   };
 }
 
+/** Conviction floors the lab offers and judges: off, then the band boundaries. */
+export const FLOOR_CHOICES = [0, 40, 55, 70];
+
+export interface FloorCheck {
+  floor: number;
+  /** What refusing the weaker trades of the take-everything run suggested. */
+  estimate: FloorOutcome;
+  /** What trading the period with the floor actually did. */
+  actual: FloorOutcome;
+  /** True when the real run made money in both halves, as the estimate claimed. */
+  held: boolean;
+  reason: string;
+}
+
+/**
+ * Whether a recommended floor survives being traded.
+ *
+ * The estimate removes trades from a run that took everything. A run with the
+ * floor is a different run: with the weaker setups refused, the engine is free
+ * when other setups appear, and takes those instead. A 24 month replay showed
+ * the gap plainly. The estimate for a floor of 70 was 99 trades, profitable in
+ * both halves; trading it took 174, and the second half lost money. So a
+ * recommendation is only offered as one once the real run agrees.
+ */
+export function confirmFloor(estimate: FloorOutcome, run: BacktestResult): FloorCheck {
+  const accountType = run.summary.accountType;
+  const actual = {
+    ...assessFloors(run.trades, run.summary.startingEquity, [0], accountType).floors[0],
+    floor: estimate.floor,
+  };
+  const held = actual.consistent && actual.netDollars > 0;
+  const amount = (value: number) => formatAccountMoney(value, accountType, { signed: true });
+  const traded = `Traded for real with a floor of ${estimate.floor}, the period earned ${amount(actual.netDollars)} from ${
+    actual.trades
+  } trades with a worst drawdown of ${actual.maxDrawdownPercent}%`;
+  const why =
+    actual.trades !== estimate.trades
+      ? ` It took ${actual.trades} trades rather than the ${estimate.trades} estimated: with weaker setups refused, the engine was free to take others.`
+      : '';
+
+  return {
+    floor: estimate.floor,
+    estimate,
+    actual,
+    held,
+    reason: held
+      ? `${traded}, and made money in both halves. The recommendation held up.${why}`
+      : `${traded}, ${
+          actual.netDollars > 0 ? 'but did not make money in both halves' : 'and lost money overall'
+        } (${amount(actual.firstHalfNet)} then ${amount(
+          actual.secondHalfNet
+        )}). The estimate did not hold up, so this period does not support the floor.${why}`,
+  };
+}
+
 /**
  * Margin over the defaults below which a win is not distinguishable from luck.
  *

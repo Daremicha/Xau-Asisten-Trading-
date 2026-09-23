@@ -92,6 +92,7 @@ import {
   NotificationPermissionState,
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
+import { TESTED_FLOOR, TESTED_STYLE } from '@/lib/tested-configuration';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
@@ -214,7 +215,7 @@ export default function Home() {
   const [initialEquity, setInitialEquity] = useState<number>(5000);
   const [isEquityLocked, setIsEquityLocked] = useState<boolean>(false);
   const [riskPercentage, setRiskPercentage] = useState<number>(1.0);
-  const [tradingStyle, setTradingStyle] = useState<TradingStyle>('Intraday');
+  const [tradingStyle, setTradingStyle] = useState<TradingStyle>(TESTED_STYLE);
   // Read inside the auth listener, which must not resubscribe when the style changes.
   const tradingStyleRef = React.useRef<TradingStyle>('Intraday');
   useEffect(() => {
@@ -250,7 +251,7 @@ export default function Home() {
    * engine produces, which is how it behaved before the backtest showed which
    * bands were paying for themselves.
    */
-  const [minConviction, setMinConviction] = useState<number>(0);
+  const [minConviction, setMinConviction] = useState<number>(TESTED_FLOOR);
   /**
    * Multiple of risk at which a setup tells the user to move the stop to entry,
    * or null when trades are held exactly as quoted. Turned on from the backtest
@@ -1037,6 +1038,13 @@ export default function Home() {
     await persistSettings({ tradingStyle: style });
   };
 
+  const handleApplyTestedConfiguration = async () => {
+    setTradingStyle(TESTED_STYLE);
+    setMinConviction(TESTED_FLOOR);
+    setSkippedSetup(null);
+    await persistSettings({ tradingStyle: TESTED_STYLE, minConviction: TESTED_FLOOR });
+  };
+
   // Update Account Type (Standard / Cent / Pro)
   const handleChangeAccountType = async (acc: AccountType) => {
     setAccountType(acc);
@@ -1807,6 +1815,7 @@ export default function Home() {
           onChangeRiskPct={handleChangeRiskPercentage}
           onChangeMinConviction={handleChangeMinConviction}
           onChangeTradingStyle={handleChangeTradingStyle}
+          onApplyTestedConfiguration={handleApplyTestedConfiguration}
           onChangeAccountType={handleChangeAccountType}
           onChangeBroker={handleChangeBroker}
           onResetEquity={handleResetEquity}

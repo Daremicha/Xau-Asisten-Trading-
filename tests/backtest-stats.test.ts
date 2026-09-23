@@ -3,6 +3,7 @@ import {
   assessAdoption,
   assessDeadBand,
   assessFloors,
+  confirmFloor,
   MIN_FLOOR_TRADES,
   assessProtection,
   assessRiskFloor,
@@ -561,5 +562,51 @@ describe('a conviction floor is judged on the risk it saves, not only the money 
     const verdict = assessFloors(decaying, 1000, [0, 70], 'Cent');
     expect(verdict.recommended).toBe(0);
     expect(verdict.reason).toContain('No floor made money in both halves');
+  });
+});
+
+describe('a recommended floor is only a recommendation once it has been traded', () => {
+  const HOUR = 3_600_000;
+  const at = (hour: number, net: number) =>
+    trade({ openedAt: hour * HOUR, closedAt: hour * HOUR + HOUR, convictionScore: 75, netDollars: net, outcome: net > 0 ? 'TP' : 'SL' });
+  const estimate = {
+    floor: 70,
+    trades: 99,
+    netDollars: 2.8,
+    returnPercent: 74,
+    maxDrawdownPercent: 29,
+    firstHalfNet: 2.1,
+    secondHalfNet: 0.7,
+    consistent: true,
+    returnToDrawdown: 2.5,
+  };
+
+  test('a real run that pays in both halves confirms it, and explains a different trade count', () => {
+    const run = result(Array.from({ length: 120 }, (_, i) => at(i, i % 3 === 0 ? -1 : 1)), 378);
+    const check = confirmFloor(estimate, run);
+    expect(check.held).toBe(true);
+    expect(check.actual.trades).toBe(120);
+    expect(check.actual.floor).toBe(70);
+    expect(check.reason).toContain('held up');
+    expect(check.reason).toContain('120 trades rather than the 99 estimated');
+  });
+
+  test('a real run that loses its second half refutes the estimate', () => {
+    // The shape the 24 month replay produced: early gains, a losing second half.
+    const trades = [
+      ...Array.from({ length: 87 }, (_, i) => at(i, 1)),
+      ...Array.from({ length: 87 }, (_, i) => at(100 + i, i % 2 === 0 ? -1.2 : 1)),
+    ];
+    const check = confirmFloor(estimate, result(trades, 378));
+    expect(check.held).toBe(false);
+    expect(check.actual.netDollars).toBeGreaterThan(0);
+    expect(check.reason).toContain('did not make money in both halves');
+    expect(check.reason).toContain('does not support the floor');
+  });
+
+  test('a real run that loses overall says so', () => {
+    const check = confirmFloor(estimate, result(Array.from({ length: 60 }, (_, i) => at(i, -1)), 378));
+    expect(check.held).toBe(false);
+    expect(check.reason).toContain('lost money overall');
   });
 });
