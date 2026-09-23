@@ -327,6 +327,135 @@ export function netAboveThreshold(trades: BacktestTrade[], threshold: number): n
   );
 }
 
+/** A floor that leaves fewer trades than this cannot be told apart from luck. */
+export const MIN_FLOOR_TRADES = 50;
+
+/**
+ * How much better, per unit of drawdown, a floor has to be before it is worth
+ * the signals it throws away.
+ */
+const FLOOR_ADVANTAGE = 1.25;
+
+export interface FloorOutcome {
+  floor: number;
+  /** Filled trades left above the floor. */
+  trades: number;
+  netDollars: number;
+  returnPercent: number;
+  /** Worst fall from a high, replaying only the trades above the floor. */
+  maxDrawdownPercent: number;
+  /** Money made in each half of the period, on the run's own timeline. */
+  firstHalfNet: number;
+  secondHalfNet: number;
+  /** True when the floor made money in both halves. */
+  consistent: boolean;
+  /** Return divided by worst drawdown: what the floor paid for the pain it caused. */
+  returnToDrawdown: number | null;
+}
+
+export interface FloorVerdict {
+  floors: FloorOutcome[];
+  /** The floor this period supports, which is 0 when taking everything is best. */
+  recommended: number;
+  reason: string;
+}
+
+/**
+ * Which conviction floor this period supports, judged on risk and not only on
+ * money.
+ *
+ * The old rule picked whichever floor left the most money, and so always
+ * favoured taking everything. That is only right when every trade risks the
+ * same small share of the balance and the drawdown takes care of itself. On a
+ * small account it does not: when the broker minimum lot already risks twice
+ * the budget, each extra trade is another full-size bet, and a floor that
+ * earns a little less from a fraction of the trades can be the far better
+ * account to hold. A 24 month replay showed exactly that. Taking everything
+ * earned the most and fell 63% from its high. The 70+ band earned less in
+ * total from a fourteenth of the trades, and was the only band that made money
+ * in both halves of the period.
+ *
+ * So a floor is judged on return per unit of drawdown. It has to leave enough
+ * trades to mean something and make money in both halves of the period, and it
+ * has to beat taking everything by a clear margin before it is worth the
+ * signals it refuses.
+ */
+export function assessFloors(
+  trades: BacktestTrade[],
+  startingEquity: number,
+  floors: number[],
+  accountType: BacktestResult['summary']['accountType']
+): FloorVerdict {
+  const opened = trades.map((t) => t.openedAt).sort((a, b) => a - b);
+  const midpoint = opened.length ? opened[Math.floor(opened.length / 2)] : 0;
+
+  const outcomes: FloorOutcome[] = floors.map((floor) => {
+    const kept = trades.filter((t) => t.filled && t.convictionScore >= floor);
+    const stats = summariseTrades(kept, startingEquity);
+    const sum = (subset: BacktestTrade[]) => money(subset.reduce((acc, t) => acc + t.netDollars, 0));
+    const firstHalfNet = sum(kept.filter((t) => t.openedAt < midpoint));
+    const secondHalfNet = sum(kept.filter((t) => t.openedAt >= midpoint));
+    return {
+      floor,
+      trades: kept.length,
+      netDollars: stats.netDollars,
+      returnPercent: stats.returnPercent,
+      maxDrawdownPercent: stats.maxDrawdownPercent,
+      firstHalfNet,
+      secondHalfNet,
+      consistent: firstHalfNet > 0 && secondHalfNet > 0,
+      returnToDrawdown:
+        kept.length > 0 ? round(stats.returnPercent / Math.max(stats.maxDrawdownPercent, 1), 2) : null,
+    };
+  });
+
+  const baseline = outcomes.find((o) => o.floor === 0) ?? outcomes[0];
+  const amount = (value: number) => formatAccountMoney(value, accountType, { signed: true });
+  const describe = (o: FloorOutcome) =>
+    `${amount(o.netDollars)} from ${o.trades} trades with a worst drawdown of ${o.maxDrawdownPercent}%`;
+
+  const eligible = outcomes.filter(
+    (o) => o.trades >= MIN_FLOOR_TRADES && o.consistent && o.netDollars > 0 && o.returnToDrawdown !== null
+  );
+
+  if (eligible.length === 0) {
+    return {
+      floors: outcomes,
+      recommended: 0,
+      reason: `No floor made money in both halves of this period with at least ${MIN_FLOOR_TRADES} trades, so none of them is a rule this period supports. Taking everything earned ${describe(
+        baseline
+      )}.`,
+    };
+  }
+
+  const best = eligible.reduce((a, b) => ((b.returnToDrawdown ?? 0) > (a.returnToDrawdown ?? 0) ? b : a));
+  const baselineRatio = baseline.returnToDrawdown ?? 0;
+  const clearlyBetter =
+    best.floor !== baseline.floor &&
+    (baselineRatio <= 0 || (best.returnToDrawdown ?? 0) >= baselineRatio * FLOOR_ADVANTAGE);
+
+  if (!clearlyBetter) {
+    return {
+      floors: outcomes,
+      recommended: 0,
+      reason: `Taking everything earned ${describe(
+        baseline
+      )}, and no floor paid clearly more for each point of drawdown, so a floor would not have helped.`,
+    };
+  }
+
+  const multiple =
+    baselineRatio > 0 ? ` That is ${round((best.returnToDrawdown ?? 0) / baselineRatio, 1)} times the return per point of drawdown.` : '';
+
+  return {
+    floors: outcomes,
+    recommended: best.floor,
+    reason: `A floor of ${best.floor} earned ${describe(best)}, against ${describe(
+      baseline
+    )} for taking everything, and made money in both halves of the period.${multiple} Set it above and re-run to trade it properly, with compounding and position sizing applied.`,
+  };
+}
+
 /**
  * Margin over the defaults below which a win is not distinguishable from luck.
  *

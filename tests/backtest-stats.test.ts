@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   assessAdoption,
   assessDeadBand,
+  assessFloors,
+  MIN_FLOOR_TRADES,
   assessProtection,
   assessRiskFloor,
   comparePhases,
@@ -489,5 +491,75 @@ describe('whether one conviction band is worth refusing', () => {
     expect(band?.firstHalfPerTrade).toBeLessThan(0);
     expect(band?.secondHalfPerTrade).toBeLessThan(0);
     expect(buckets[0].firstHalfPerTrade).toBeGreaterThan(0);
+  });
+});
+
+describe('a conviction floor is judged on the risk it saves, not only the money it leaves', () => {
+  const HOUR = 3_600_000;
+  /** A trade at hour `at` with conviction `score` that made `net`. */
+  const at = (hour: number, score: number, net: number) =>
+    trade({ openedAt: hour * HOUR, closedAt: hour * HOUR + HOUR, convictionScore: score, netDollars: net, outcome: net > 0 ? 'TP' : 'SL' });
+
+  /**
+   * The shape of a real 24 month replay: the weak setups make money early,
+   * give most of it back in one long slide, and end slightly up; the strong
+   * ones pay steadily through both halves.
+   */
+  function period(strongCount = 60, strongSpread: 'both' | 'first' = 'both') {
+    const out: BacktestTrade[] = [];
+    for (let i = 0; i < 100; i++) out.push(at(i * 2, 30, 5));
+    for (let i = 0; i < 60; i++) out.push(at(200 + i * 2, 30, -8));
+    for (let i = 0; i < 40; i++) out.push(at(320 + i * 2, 30, 5));
+    // The halves are cut by trade count, so 'first' keeps them inside the first quarter.
+    const span = strongSpread === 'both' ? 400 : 100;
+    for (let i = 0; i < strongCount; i++) out.push(at(1 + Math.floor((i * span) / strongCount), 75, 4));
+    return out.sort((a, b) => a.openedAt - b.openedAt);
+  }
+
+  test('a floor that earns less but falls far less is the one recommended', () => {
+    const verdict = assessFloors(period(), 1000, [0, 70], 'Cent');
+    const [all, strong] = verdict.floors;
+    // Taking everything left more money...
+    expect(all.netDollars).toBeGreaterThan(strong.netDollars);
+    // ...and took a far deeper fall to get it.
+    expect(all.maxDrawdownPercent).toBeGreaterThan(strong.maxDrawdownPercent * 5);
+    expect(verdict.recommended).toBe(70);
+    expect(verdict.reason).toContain('made money in both halves');
+  });
+
+  test('the drawdown is measured on the trades the floor keeps', () => {
+    const verdict = assessFloors(period(), 1000, [0, 70], 'Cent');
+    // Sixty steady winners never fall from a high.
+    expect(verdict.floors[1].maxDrawdownPercent).toBe(0);
+    expect(verdict.floors[1].trades).toBe(60);
+  });
+
+  test('a floor with too few trades to judge is never recommended', () => {
+    const verdict = assessFloors(period(MIN_FLOOR_TRADES - 1), 1000, [0, 70], 'Cent');
+    expect(verdict.floors[1].trades).toBe(MIN_FLOOR_TRADES - 1);
+    expect(verdict.recommended).toBe(0);
+  });
+
+  test('a floor that only made money in one half is a stretch of luck, not a rule', () => {
+    const verdict = assessFloors(period(60, 'first'), 1000, [0, 70], 'Cent');
+    expect(verdict.floors[1].consistent).toBe(false);
+    expect(verdict.recommended).toBe(0);
+  });
+
+  test('when taking everything was already smooth, no floor is worth the signals it refuses', () => {
+    const steady = Array.from({ length: 200 }, (_, i) => at(i, i % 2 ? 30 : 75, 5));
+    const verdict = assessFloors(steady, 1000, [0, 70], 'Cent');
+    expect(verdict.recommended).toBe(0);
+    expect(verdict.reason).toContain('a floor would not have helped');
+  });
+
+  test('when nothing made money in both halves, it says so rather than naming a winner', () => {
+    const decaying = [
+      ...Array.from({ length: 100 }, (_, i) => at(i, i % 2 ? 30 : 75, 5)),
+      ...Array.from({ length: 100 }, (_, i) => at(100 + i, i % 2 ? 30 : 75, -6)),
+    ];
+    const verdict = assessFloors(decaying, 1000, [0, 70], 'Cent');
+    expect(verdict.recommended).toBe(0);
+    expect(verdict.reason).toContain('No floor made money in both halves');
   });
 });
