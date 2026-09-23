@@ -1,5 +1,6 @@
 'use client';
 
+import { followsTestedConfiguration, TESTED_FLOOR, TESTED_STYLE } from '@/lib/tested-configuration';
 import React, { useState } from 'react';
 import {
   Lock,
@@ -30,6 +31,8 @@ interface EquityManagerProps {
   onLockEquity: (initialAmount: number) => void;
   onChangeRiskPct: (pct: number) => void;
   onChangeMinConviction: (score: number) => void;
+  /** Switches to the style and floor that held up in the 24 month replay. */
+  onApplyTestedConfiguration?: () => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
   onChangeAccountType: (account: AccountType) => void;
   onChangeBroker: (broker: BrokerId) => void;
@@ -48,6 +51,7 @@ export default function EquityManager({
   onLockEquity,
   onChangeRiskPct,
   onChangeMinConviction,
+  onApplyTestedConfiguration,
   onChangeTradingStyle,
   onChangeAccountType,
   onChangeBroker,
@@ -162,6 +166,36 @@ export default function EquityManager({
           ))}
         </div>
       </div>
+
+      {!followsTestedConfiguration(tradingStyle, minConviction) && (
+        <div
+          id="tested-configuration-note"
+          className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200"
+        >
+          <p className="text-[11px] leading-relaxed">
+            <span className="font-bold text-amber-300">Not the tested setting. </span>
+            On 24 months of XAUUSD (Sep 2024 – Sep 2026), only {TESTED_STYLE} with conviction {TESTED_FLOOR}+ made money
+            in both halves: profit factor 1.29, worst drawdown 13%.{' '}
+            {tradingStyle === 'Intraday'
+              ? minConviction < TESTED_FLOOR
+                ? 'Intraday below a floor of 70 lost money in the second half; taking everything fell 63% from its high.'
+                : 'Intraday with a floor of 70 made money overall but lost it in the second half.'
+              : tradingStyle === 'Scalping'
+                ? 'Scalping taking every setup only broke even, and lower floors were not confirmed.'
+                : `${tradingStyle} was not part of that test.`}
+          </p>
+          {onApplyTestedConfiguration && (
+            <button
+              type="button"
+              id="apply-tested-configuration-btn"
+              onClick={onApplyTestedConfiguration}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold cursor-pointer hover:bg-amber-400"
+            >
+              Use {TESTED_STYLE} + {TESTED_FLOOR}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Signal quality floor. Skipping a weak setup costs nothing, which is
           why this sits beside the risk budget rather than buried in a menu. */}

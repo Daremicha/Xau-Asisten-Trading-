@@ -597,7 +597,7 @@ export default function PortfolioGrowthCard({
               </span>
             </div>
 
-            <div className="flex items-center gap-3 text-[11px] font-mono">
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono">
               <span className="flex items-center gap-1 text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                 TP Hit (+Gain)
@@ -605,6 +605,10 @@ export default function PortfolioGrowthCard({
               <span className="flex items-center gap-1 text-rose-400">
                 <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
                 SL Hit (-Loss)
+              </span>
+              <span className="flex items-center gap-1 text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-slate-500 inline-block" />
+                Missed
               </span>
             </div>
           </div>
@@ -716,11 +720,25 @@ export default function PortfolioGrowthCard({
                   strokeWidth={2.5}
                   fillOpacity={1}
                   fill="url(#equityGradient)"
-                  dot={{
-                    r: 4,
-                    fill: isNetPositive ? '#10b981' : '#f43f5e',
-                    stroke: isDark ? '#0f172a' : '#ffffff',
-                    strokeWidth: 2,
+                  // Each point is coloured by its own trade, as the legend says,
+                  // not by whether the account is up overall.
+                  dot={(props: { cx?: number; cy?: number; index?: number; payload?: { outcome?: string } }) => {
+                    const { cx, cy, index, payload } = props;
+                    if (typeof cx !== 'number' || typeof cy !== 'number') return <g key={`dot-${index}`} />;
+                    const outcome = payload?.outcome;
+                    const fill =
+                      outcome === 'TP' ? '#10b981' : outcome === 'SL' ? '#f43f5e' : outcome === 'MISSED' ? '#64748b' : '#f59e0b';
+                    return (
+                      <circle
+                        key={`dot-${index}`}
+                        cx={cx}
+                        cy={cy}
+                        r={4}
+                        fill={fill}
+                        stroke={isDark ? '#0f172a' : '#ffffff'}
+                        strokeWidth={2}
+                      />
+                    );
                   }}
                   activeDot={{
                     r: 6,
