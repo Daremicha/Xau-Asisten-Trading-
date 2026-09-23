@@ -91,6 +91,7 @@ import {
   ProximityAlertEvent,
   NotificationPermissionState,
 } from '@/lib/notification-utility';
+import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
@@ -136,9 +137,16 @@ export default function Home() {
     setNotificationPermission(perm);
     if (perm === 'granted') {
       playProximityChime('TP');
-      // Proof on the spot that alerts reach this device's notification shade.
+      const push = await enableClosedAppAlerts(activeSetup);
+      // Proof on the spot that alerts reach this device's notification shade,
+      // and an honest word on whether they also arrive with the app closed.
       void triggerBrowserNotification('XAU Assistant notifications are on', {
-        body: 'You will be alerted here when price nears your TP or SL.',
+        body:
+          push === 'on'
+            ? 'TP, SL, fill and missed-order alerts will reach this phone even when the app is closed.'
+            : push === 'unconfigured'
+              ? 'You will be alerted while the app is open. Alerts with the app closed are not set up on the server yet.'
+              : 'You will be alerted while the app is open. This device could not sign up for alerts with the app closed.',
         tag: 'notifications-enabled',
       });
     }
@@ -438,6 +446,22 @@ export default function Home() {
   useEffect(() => {
     if (!setupHydrated) return;
     saveActiveSetup(activeSetup);
+  }, [activeSetup, setupHydrated]);
+
+  // Keep the server watching the same setup, so alerts still arrive when the
+  // app is closed. A device that already allowed notifications is subscribed
+  // on first load without asking again.
+  const pushEnabledRef = React.useRef(false);
+  useEffect(() => {
+    if (!setupHydrated) return;
+    if (!pushEnabledRef.current) {
+      pushEnabledRef.current = true;
+      if (getNotificationPermission() === 'granted') {
+        void enableClosedAppAlerts(activeSetup);
+        return;
+      }
+    }
+    void syncWatchedSetup(activeSetup);
   }, [activeSetup, setupHydrated]);
 
   // Mirror it to the cloud so the same order follows the user to another device.

@@ -12,6 +12,28 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// A push from the server, which watches the open setup while the app is
+// closed. It always shows something: a push that shows nothing is treated by
+// the browser as abuse and can cost the site its permission.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'XAU Assistant', {
+      body: data.body || '',
+      tag: data.tag,
+      renotify: Boolean(data.tag),
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
+      requireInteraction: true,
+    })
+  );
+});
+
 // Tapping a notification brings the app forward, or opens it if it was closed.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
