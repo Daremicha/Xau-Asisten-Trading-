@@ -51,6 +51,16 @@ export default function SelfLearningDashboard({
     ...learned.conditions.byAlignment,
   ].filter((bucket) => bucket.samples > 0);
 
+  /**
+   * Each confluence factor measured on its own: what trades it argued for
+   * returned, against what trades it argued against returned. Only factors
+   * with trades on both sides say anything, so only those are shown.
+   */
+  const factorRows = learned.factorReliability.filter(
+    (factor) => factor.agreedSamples > 0 && factor.opposedSamples > 0
+  );
+  const formatR = (value: number | null) => (value === null ? '—' : `${value > 0 ? '+' : ''}${value}R`);
+
   return (
     <div
       id="self-learning-dashboard-card"
@@ -164,6 +174,67 @@ export default function SelfLearningDashboard({
             <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               Measured per unit of risk, so a wide stop and a tight one can be compared. A condition only
               moves the engine once it carries eight closed trades.
+            </p>
+          </div>
+        )}
+
+        {factorRows.length > 0 && (
+          <div
+            id="factor-reliability"
+            className={`mt-3 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}
+          >
+            <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              Which signals have earned their say
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className={isDark ? 'text-slate-500' : 'text-slate-400'}>
+                    <th className="text-left font-medium py-1">Factor</th>
+                    <th className="text-right font-medium py-1">When it agreed</th>
+                    <th className="text-right font-medium py-1">When outvoted</th>
+                    <th className="text-right font-medium py-1">Counts</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {factorRows.map((factor) => (
+                    <tr
+                      key={factor.name}
+                      className={isDark ? 'border-t border-slate-800/70' : 'border-t border-slate-100'}
+                    >
+                      <td className={`py-1 font-sans ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {factor.name}
+                      </td>
+                      <td className={`py-1 text-right ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {formatR(factor.agreedR)}{' '}
+                        <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>({factor.agreedSamples})</span>
+                      </td>
+                      <td className={`py-1 text-right ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {formatR(factor.opposedR)}{' '}
+                        <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>({factor.opposedSamples})</span>
+                      </td>
+                      <td
+                        className={`py-1 text-right font-bold ${
+                          factor.multiplier > 1
+                            ? 'text-emerald-400'
+                            : factor.multiplier < 1
+                            ? 'text-rose-400'
+                            : isDark
+                            ? 'text-slate-500'
+                            : 'text-slate-400'
+                        }`}
+                      >
+                        {factor.multiplier.toFixed(2)}x
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              A factor whose outvoted trades keep doing better than the ones it backed is misleading the engine,
+              and its vote is turned down. Nothing moves until a factor has eight filled trades on each side and
+              the gap is twice its own noise, so a lucky streak changes nothing.
             </p>
           </div>
         )}

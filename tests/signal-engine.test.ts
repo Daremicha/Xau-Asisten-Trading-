@@ -689,3 +689,74 @@ describe('the main trend, and how honestly it is counted', () => {
     expect(ema.detail).not.toContain('EMA 200');
   });
 });
+
+describe('a factor the record has learned to distrust speaks more quietly', () => {
+  test('its weight in the vote is multiplied by what it has earned', () => {
+    const plain = scoreConfluence(inputs()).factors.find((f) => f.name === 'RSI')!;
+    const learned = scoreConfluence(
+      inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: { RSI: 0.6 } } })
+    ).factors.find((f) => f.name === 'RSI')!;
+    expect(learned.weight).toBeCloseTo(plain.weight * 0.6, 6);
+    expect(learned.detail).toContain('Counted at 0.6x on its own track record.');
+  });
+
+  test('the factors it has no verdict on are untouched', () => {
+    const plain = scoreConfluence(inputs()).factors;
+    const learned = scoreConfluence(
+      inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: { RSI: 0.6 } } })
+    ).factors;
+    for (const factor of learned.filter((f) => f.name !== 'RSI')) {
+      expect(factor.weight).toBe(plain.find((p) => p.name === factor.name)!.weight);
+    }
+  });
+
+  test('a multiplier outside the learned range is bounded, not applied as stored', () => {
+    // Weights reach the engine from storage; a value learning could not have
+    // produced must not silence a factor or let one drown out the rest.
+    const plain = scoreConfluence(inputs()).factors.find((f) => f.name === 'RSI')!;
+    const silenced = scoreConfluence(
+      inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: { RSI: 0 } } })
+    ).factors.find((f) => f.name === 'RSI')!;
+    const shouting = scoreConfluence(
+      inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: { RSI: 40 } } })
+    ).factors.find((f) => f.name === 'RSI')!;
+    expect(silenced.weight).toBeCloseTo(plain.weight * 0.5, 6);
+    expect(shouting.weight).toBeCloseTo(plain.weight * 1.5, 6);
+  });
+
+  test('turning down the factors that argued for a trade lowers its conviction', () => {
+    const agreeing = scoreConfluence(inputs())
+      .factors.filter((f) => f.direction > 0 && f.name !== 'Higher timeframe order flow')
+      .map((f) => f.name);
+    const distrusted = Object.fromEntries(agreeing.map((name) => [name, 0.5]));
+    const before = buildSignal(inputs());
+    const after = buildSignal(inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: distrusted } }));
+    expect(Math.abs(scoreConfluence(inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: distrusted } })).score)).toBeLessThan(
+      Math.abs(scoreConfluence(inputs()).score)
+    );
+    expect(after.confidenceScore).toBeLessThanOrEqual(before.confidenceScore);
+  });
+});
+
+describe('the refusal for an order price has left behind names the right side', () => {
+  test('a short whose level sits far above price says price is below it', () => {
+    const far = (timeframe: TimeframeType): SmcStructure => {
+      const base = structure(timeframe, 'Bearish', false);
+      return {
+        ...base,
+        orderBlock: { ...base.orderBlock, low: PRICE + 28, high: PRICE + 36 },
+        fairValueGap: { ...base.fairValueGap, bottom: PRICE + 30, top: PRICE + 34 },
+        liquidityPools: { ...base.liquidityPools, asiaHigh: PRICE + 40 },
+      };
+    };
+    const decision = buildSignal({
+      ...bearishInputs(),
+      structures: { d1: far('D1'), h4: far('H4'), h1: far('H1'), m15: far('M15') },
+      indicators: { ...INDICATORS, trendFromEma: 'Bearish', rsi14: 38, stochasticSignal: 'Overbought Cross', atr14: 20 },
+    });
+    expect(decision.direction).toBe('short');
+    expect(decision.entryUnfillable).toBe(true);
+    expect(decision.unfillableReason).toContain('pips below the');
+    expect(decision.unfillableReason).not.toContain('pips above the');
+  });
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
+import { alignedVotes, directionOfOrder } from '@/lib/factor-learning';
 import {
   getEconomicCalendar,
   filterUpcoming,
@@ -567,6 +568,9 @@ Reply with JSON only:
       // Kept on the setup so the result can be learned from by condition, not
       // just by outcome: which level the entry came from, and how far it sat.
       entryAnchor: proposalOutcome.accepted ? 'Market' : decision.anchor,
+      // How each factor voted against the direction actually placed, so the
+      // result can later be credited to the factors that were right about it.
+      factorVotes: alignedVotes(decision.factors, directionOfOrder(finalOrder.orderType)),
       // Only the engine's own targets carry a basis; a model proposal that was
       // accepted replaced them, and saying otherwise would be a fabrication.
       targetBasis: proposalOutcome.accepted ? undefined : decision.targetBasis,

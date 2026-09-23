@@ -10,6 +10,7 @@
 import { Candle, priceToPips, round2 } from './candles';
 import { selectTargets } from './target-engine';
 import { isDeadOnArrival } from './order-validity';
+import { FACTOR_MULTIPLIER_MAX, FACTOR_MULTIPLIER_MIN } from './factor-learning';
 import {
   AdaptiveStrategyEngineWeights,
   ForexFactoryEvent,
@@ -315,6 +316,19 @@ export function scoreConfluence(inputs: SignalInputs): {
     });
   }
 
+  // What each factor has been worth on this account's own trades. A factor
+  // that kept arguing for the losing side speaks more quietly; one that kept
+  // being right speaks up. Bounded again here, because weights can arrive from
+  // storage and a value outside the learned range was not learned.
+  const learned = weights.factorMultipliers ?? {};
+  for (const factor of factors) {
+    const multiplier = learned[factor.name];
+    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier === 1) continue;
+    const bounded = Math.max(FACTOR_MULTIPLIER_MIN, Math.min(FACTOR_MULTIPLIER_MAX, multiplier));
+    factor.weight *= bounded;
+    factor.detail += ` Counted at ${bounded}x on its own track record.`;
+  }
+
   const score = factors.reduce((acc, f) => acc + f.direction * f.weight, 0);
   return { score, factors };
 }
@@ -538,7 +552,7 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
   const entryDistance = Math.abs(price - entryPrice);
   const entryUnfillable = isDeadOnArrival({ orderType, entryPrice, stopLoss }, price);
   const unfillableReason = entryUnfillable
-    ? `Price is ${priceToPips(entryDistance)} pips above the ${entry.anchor.toLowerCase()} this read is built on at ${entryPrice.toFixed(
+    ? `Price is ${priceToPips(entryDistance)} pips ${direction === 'long' ? 'above' : 'below'} the ${entry.anchor.toLowerCase()} this read is built on at ${entryPrice.toFixed(
         2
       )}, which is further than the ${priceToPips(
         riskDistance

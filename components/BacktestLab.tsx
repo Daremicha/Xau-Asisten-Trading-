@@ -868,6 +868,31 @@ export default function BacktestLab({
               <div>Stop buffer: <span className={strong}>{result.adaptive.finalWeights.atrBufferFactor}× ATR</span></div>
               <div>Entry pulled closer: <span className={strong}>{result.adaptive.finalWeights.entryBufferPips ?? 0} pips</span></div>
             </div>
+            {/* Which factors the run found it could trust, over enough trades to judge them. */}
+            {(() => {
+              const moved = Object.entries(result.adaptive.finalWeights.factorMultipliers ?? {});
+              return (
+                <div id="backtest-factor-multipliers" className={`mt-2 text-[11px] ${muted}`}>
+                  {moved.length === 0 ? (
+                    'No single factor was reliably right or wrong over this period, so every factor keeps its full say.'
+                  ) : (
+                    <>
+                      Factor trust learned over {result.adaptive.trades.filter((t) => t.filled).length} filled trades:{' '}
+                      {moved.map(([name, value], i) => (
+                        <span key={name}>
+                          {i > 0 ? ', ' : ''}
+                          {name}{' '}
+                          <span className={`font-mono font-bold ${value < 1 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            {value}x
+                          </span>
+                        </span>
+                      ))}
+                      . Adopting carries these into live analysis.
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
               {(() => {

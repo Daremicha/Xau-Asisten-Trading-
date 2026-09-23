@@ -301,6 +301,12 @@ export interface TradeContext {
   stopLossPips: number;
   /** Result as a multiple of the risk taken, the only cross-trade comparison. */
   rMultiple: number;
+  /**
+   * How each confluence factor voted, turned to face the trade actually
+   * taken: positive argued for it, negative argued against it and was
+   * outvoted. What lets the engine learn which factors mislead it.
+   */
+  factorVotes?: Record<string, number>;
 }
 
 export interface SelfLearningMemoryRecord {
@@ -465,6 +471,12 @@ export interface InstitutionalTradingSetup {
   stopLossPips: number;
   /** The level the entry was derived from, kept so the result can be learned from. */
   entryAnchor?: 'Order Block' | 'Fair Value Gap' | 'Market';
+  /**
+   * Each confluence factor's vote relative to this order's direction, kept so
+   * the result can be credited to the factors that argued for it and against
+   * the ones that argued the other way.
+   */
+  factorVotes?: Record<string, number>;
   /** Why each target sits where it does, in target order. */
   targetBasis?: string[];
   /** True when no level was reachable and the targets used the typical range. */
@@ -529,4 +541,9 @@ export interface AdaptiveStrategyEngineWeights {
   historicalWinRate: number;
   /** Pips to pull entries closer to price, learned from orders that never filled. */
   entryBufferPips?: number;
+  /**
+   * Learned multiplier on each confluence factor's weight, by factor name.
+   * Only factors whose record moved them appear; a missing name means 1.
+   */
+  factorMultipliers?: Record<string, number>;
 }
