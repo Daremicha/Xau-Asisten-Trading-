@@ -205,6 +205,29 @@ describe('replay', () => {
     expect(result.summary.bars).toBe(candles.length);
   });
 
+  test('every record keeps how each factor voted, so factor trust can be learned from it', () => {
+    // The live app records the same map; without it a two year replay could
+    // not tell the engine which of its factors had been misleading it.
+    expect(result.records.length).toBeGreaterThan(0);
+    for (const record of result.records) {
+      const votes = record.context?.factorVotes;
+      expect(votes).toBeDefined();
+      expect(Object.keys(votes!)).toContain('Higher timeframe order flow');
+      for (const vote of Object.values(votes!)) expect(Number.isFinite(vote)).toBe(true);
+    }
+  });
+
+  test('a filled trade\u2019s votes face the direction it was taken in', () => {
+    // The higher timeframe carries weight one, so it decides most directions:
+    // across the run it must agree with far more trades than it opposes.
+    const htf = result.records
+      .filter((r) => r.outcome !== 'MISSED')
+      .map((r) => r.context!.factorVotes!['Higher timeframe order flow']);
+    const agreed = htf.filter((v) => v > 0).length;
+    const opposed = htf.filter((v) => v < 0).length;
+    expect(agreed).toBeGreaterThan(opposed);
+  });
+
   test('trades never overlap', () => {
     for (let i = 1; i < result.trades.length; i++) {
       expect(result.trades[i].openedAt).toBeGreaterThanOrEqual(result.trades[i - 1].closedAt);

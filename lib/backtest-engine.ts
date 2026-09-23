@@ -29,6 +29,7 @@ import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
 import { computeValidity } from './order-validity';
 import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
+import { alignedVotes } from './factor-learning';
 import { resultFromMove, roundMoney } from './trade-result';
 import type { MarketSnapshot } from './price-feed';
 import {
@@ -662,6 +663,7 @@ export function createBacktest(config: BacktestConfig): Runner {
           entryDistancePips: Math.abs(decision.entryDistancePips),
           stopLossPips: decision.stopLossPips,
           rMultiple: 0,
+          factorVotes: alignedVotes(decision.factors, decision.direction),
         })
       );
       equityCurve.push({ sequence, time: missBar.time, equity });
@@ -732,6 +734,7 @@ export function createBacktest(config: BacktestConfig): Runner {
         entryDistancePips: Math.abs(decision.entryDistancePips),
         stopLossPips: decision.stopLossPips,
         rMultiple: trade.rMultiple,
+        factorVotes: alignedVotes(decision.factors, decision.direction),
       })
     );
     equityCurve.push({ sequence, time: exitBar.time, equity });

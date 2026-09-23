@@ -16,6 +16,18 @@
 
 import { AdaptiveStrategyEngineWeights, SelfLearningMemoryRecord, TradingStyle } from './types';
 import { STYLE_PROFILES } from './signal-engine';
+import { evidenceWeight } from './evidence-weight';
+import {
+  describeFactorChange,
+  factorMultipliers,
+  factorReliability,
+  sanitiseFactorMultipliers,
+  type FactorReliability,
+} from './factor-learning';
+
+// Kept apart so modules the learning engine reads from can weigh evidence the
+// same way without importing this file back. Re-exported for existing callers.
+export { evidenceWeight, recencyWeight } from './evidence-weight';
 
 /** The engine's starting beliefs, used before evidence and shrunk toward. */
 export const PRIOR_WEIGHTS = {
@@ -44,6 +56,13 @@ export type PriorWeights = {
   indicatorConfluenceWeight: number;
   atrBufferFactor: number;
   entryBufferPips: number;
+  /**
+   * How much each confluence factor's vote counts, as measured by the run
+   * that produced this prior. Two years of replay is hundreds of trades,
+   * which is the sample a factor needs to be judged at all; a live account
+   * rarely has that many. Absent when the run moved nothing.
+   */
+  factorMultipliers?: Record<string, number>;
 };
 
 /**
@@ -71,17 +90,18 @@ export function normalisePrior(candidate: Partial<PriorWeights> | null | undefin
 
   const atr = pick('atrBufferFactor');
   const buffer = pick('entryBufferPips');
+  const factorMultipliers = sanitiseFactorMultipliers(candidate.factorMultipliers);
 
   return {
     ...normaliseConfluence(confluence),
     atrBufferFactor:
       atr === null ? PRIOR_WEIGHTS.atrBufferFactor : Math.max(ATR_BUFFER_MIN, Math.min(ATR_BUFFER_MAX, atr)),
     entryBufferPips: buffer === null ? 0 : Math.min(MAX_ENTRY_BUFFER_PIPS, buffer),
+    // Left out rather than set to undefined, which Firestore would refuse.
+    ...(factorMultipliers ? { factorMultipliers } : {}),
   };
 }
 
-/** Trades older than this many positions back count half as much. */
-const RECENCY_HALF_LIFE = 20;
 /** Evidence needed before adjustments reach roughly half their full size. */
 const CONFIDENCE_MIDPOINT = 8;
 /** A single weight may never drift further than this from its prior. */
@@ -156,47 +176,6 @@ export interface LearningEvidence {
   expectancyDollars: number | null;
   /** Zero to one. How much the engine should trust its own adjustments. */
   confidence: number;
-}
-
-/** Recency weight for a record, newest first. */
-export function recencyWeight(positionFromNewest: number): number {
-  return Math.pow(0.5, positionFromNewest / RECENCY_HALF_LIFE);
-}
-
-/**
- * How far an unverified machine reading counts against a checked one.
- *
- * Not zero, because most auto-resolutions are right and a row that taught
- * nothing would waste a real trade. Not one, because some were not right at
- * all: this engine has recorded a market order as filled and stopped out
- * seconds after it was offered, against a price range the market traded
- * before the order existed. Three of those went into a ledger in four
- * minutes, each one a loss the account never took and a failure against a
- * setup that never lost.
- *
- * At six tenths an unverified row still teaches, and a checked one outweighs
- * it. That is the honest ordering: a reading the market has confirmed, or the
- * trader has confirmed from their own terminal, is worth more than a reading
- * nobody has looked at.
- */
-const UNVERIFIED_WEIGHT = 0.6;
-
-/**
- * How much a single record should count.
- *
- * Recency, and then whether anyone has checked it. A result the user entered
- * is their own testimony about their own terminal. A row the audit has been
- * over has been held against the candles of its own lifetime. A row the engine
- * closed by itself and nobody has examined is an inference, and is weighed as
- * one.
- */
-export function evidenceWeight(
-  record: Pick<SelfLearningMemoryRecord, 'autoResolved' | 'audit'>,
-  positionFromNewest: number
-): number {
-  const recency = recencyWeight(positionFromNewest);
-  const verified = !record.autoResolved || Boolean(record.audit);
-  return verified ? recency : recency * UNVERIFIED_WEIGHT;
 }
 
 /** Evidence grows with sample size but saturates, so it never reaches certainty. */
@@ -421,6 +400,10 @@ export interface AdaptiveWeightsWithEvidence extends AdaptiveStrategyEngineWeigh
   evidence: LearningEvidence;
   /** What each kind of setup actually returned, for the dashboard and sizing. */
   conditions: ReturnType<typeof conditionalPerformance>;
+  /** How each confluence factor has performed when it agreed and when it did not. */
+  factorReliability: FactorReliability[];
+  /** The learned multiplier on each factor's weight, only where it moved. */
+  factorMultipliers: Record<string, number>;
   /** Plain sentences describing what changed and why. */
   adjustments: string[];
 }
@@ -449,8 +432,11 @@ export function matchesDefaultPrior(candidate: Partial<PriorWeights> | null | un
   const sameWeights = weightKeys.every((key) => Math.abs(prior[key] - defaults[key]) < 0.005);
   const sameBuffer = Math.abs(prior.atrBufferFactor - defaults.atrBufferFactor) < 0.01;
   const sameEntry = Math.abs(prior.entryBufferPips - defaults.entryBufferPips) < 0.5;
+  // A run that learned to distrust a factor has found something, even when
+  // every other parameter ended where it began.
+  const sameFactors = !prior.factorMultipliers;
 
-  return sameWeights && sameBuffer && sameEntry;
+  return sameWeights && sameBuffer && sameEntry && sameFactors;
 }
 
 /**
@@ -478,6 +464,12 @@ export function deriveAdaptiveWeights(
 
   const evidence = summariseEvidence(segment);
   const conditions = conditionalPerformance(segment);
+  const reliability = factorReliability(segment);
+  // An adopted backtest's verdicts are the starting point. Where this
+  // account's own trades have reached a verdict of their own, theirs stands:
+  // they describe the market as it is being traded now.
+  const liveMultipliers = factorMultipliers(reliability);
+  const multipliers = { ...(prior.factorMultipliers ?? {}), ...liveMultipliers };
   const adjustments: string[] = [];
 
   const confluence: {
@@ -637,6 +629,23 @@ export function deriveAdaptiveWeights(
       );
       adjustments.push(`${newsLosses} stop-out(s) traced to scheduled news, so the news shield strengthened.`);
     }
+
+    // Which individual factors have earned their say. A factor that keeps
+    // arguing for the losing side loses weight; one whose outvoted trades
+    // are the ones that went wrong gains it. Nothing moves until the gap
+    // clears its own noise, so on a patternless record this says nothing.
+    for (const factor of reliability) {
+      if (factor.multiplier !== 1) adjustments.push(describeFactorChange(factor));
+    }
+  }
+
+  const carried = Object.entries(prior.factorMultipliers ?? {}).filter(([name]) => !(name in liveMultipliers));
+  if (carried.length > 0) {
+    adjustments.push(
+      `Carried from the adopted backtest: ${carried
+        .map(([name, value]) => `${name} ${value}x`)
+        .join(', ')}. Your own trades replace any of these once they reach a verdict.`
+    );
   }
 
   const normalised = normaliseConfluence(confluence);
@@ -650,6 +659,8 @@ export function deriveAdaptiveWeights(
     historicalWinRate: evidence.winRate ?? 0,
     evidence,
     conditions,
+    factorReliability: reliability,
+    factorMultipliers: multipliers,
     adjustments:
       adjustments.length > 0
         ? adjustments

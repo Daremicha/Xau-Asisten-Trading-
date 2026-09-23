@@ -4,6 +4,7 @@ import { SelfLearningMemoryRecord, TradeContext } from '@/lib/types';
 import { validateLearnBody } from '@/lib/request-validation';
 import { computeTradeResult } from '@/lib/trade-result';
 import { publicErrorMessage } from '@/lib/safe-error';
+import { sanitiseFactorVotes } from '@/lib/factor-learning';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,6 +148,7 @@ Respond strictly in valid JSON format:
     // result so the engine can learn which kinds of setup pay rather than only
     // how often it wins overall.
     const riskDistance = Math.abs(setup.entryPrice - setup.stopLoss);
+    const factorVotes = sanitiseFactorVotes(setup.factorVotes);
     const context: TradeContext = {
       anchor: setup.entryAnchor ?? 'Market',
       convictionScore: setup.convictionScore ?? 0,
@@ -181,6 +183,9 @@ Respond strictly in valid JSON format:
         riskDistance > 0 && !isMissed
           ? parseFloat(((Math.abs(closedPrice - setup.entryPrice) / riskDistance) * (isProfit ? 1 : -1)).toFixed(2))
           : 0,
+      // Only present when the setup carried them. Firestore refuses an
+      // undefined field, so an absent map is left out rather than written.
+      ...(factorVotes ? { factorVotes } : {}),
     };
 
     const learningRecord: SelfLearningMemoryRecord = {
