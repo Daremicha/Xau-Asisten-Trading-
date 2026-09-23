@@ -136,7 +136,7 @@ export default function EquityManager({
 
         {/* Risk Percentage Switcher */}
         <div
-          className={`flex items-center gap-2 self-start sm:self-auto p-1.5 rounded-xl border ${
+          className={`flex flex-wrap items-center gap-2 self-start max-w-full sm:self-auto p-1.5 rounded-xl border ${
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
