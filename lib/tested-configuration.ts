@@ -11,6 +11,11 @@
  * 1.34 with the stop moved to entry at 1R, which also cut the worst drawdown
  * to 20% and the worst losing streak to 10. About six trades a week.
  *
+ * Taking everything on Intraday also holds up once the weakest setups need
+ * the pivot bias on their side (see session-rules): profit factor 1.31 with
+ * the stop to entry at 1R, a 23% worst drawdown and about eight trades a week.
+ * More trades and more money than 40, for a little more drawdown.
+ *
  * An earlier replay on the unfiltered bars favoured Scalping at 70. The weekend
  * prints had been shrinking the ATR and skewing structure, and Intraday most.
  *
@@ -25,16 +30,14 @@ export const TESTED_FLOOR = 40;
 /** Multiple of risk at which the stop moves to entry. */
 export const TESTED_PROTECT_AT_R = 1;
 
+/** Every Intraday floor the app offers held up, taking everything included. */
 export function followsTestedConfiguration(style: TradingStyle, floor: number): boolean {
-  return style === TESTED_STYLE && floor >= TESTED_FLOOR;
+  return style === TESTED_STYLE && floor >= 0;
 }
 
 /** What the same replay said about a setting that is not the tested one. */
 export function untestedSettingNote(style: TradingStyle, floor: number): string | null {
   if (followsTestedConfiguration(style, floor)) return null;
-  if (style === 'Intraday') {
-    return 'Intraday taking every setup lost money in the second half and fell 57% from its high.';
-  }
   if (style === 'Scalping') {
     return floor >= 70
       ? 'Scalping at a floor of 70 made money in both halves, but earned less than a tenth as much.'

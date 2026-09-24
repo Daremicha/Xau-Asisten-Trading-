@@ -33,3 +33,28 @@ export function sessionDeclineNote(userFloor: number, zone: Zone, score: number)
   if (score >= floor || userFloor >= floor) return null;
   return `The Asian session asks for a conviction of ${floor}: weaker setups in this quiet range lost money in both halves of a 24 month replay. London opens at 07:00 UTC (14:00 WIB).`;
 }
+
+/**
+ * The weakest setups are only worth taking when the directional bias agrees.
+ *
+ * Under a conviction of 40, taking everything was the part of the engine that
+ * lost: swings from hundreds of break-even trades, each a minimum lot. Split
+ * by how each factor voted, the pivot and directional bias read was the
+ * clearest divider, the same way round in both halves of a 24 month Intraday
+ * replay: setups it argued for returned +0.09R and +0.25R, setups it argued
+ * against -0.06R and -0.11R. Taking only the first kind moved taking
+ * everything from profit factor 1.02 and a 60% worst drawdown, losing money in
+ * the second half, to 1.22 and 24%, both halves paying: more trades than a
+ * floor of 40 and more money, for the same drawdown. Applying the same test up
+ * to 55 did worse, so it stops at 40.
+ */
+export const WEAK_SETUP_BELOW = 40;
+const PIVOT_FACTOR = 'Pivot and directional bias';
+const AGREES = 0.15;
+
+/** Why a weak setup is declined, or null when it may be taken. */
+export function weakSetupDecline(score: number, alignedFactorVotes: Record<string, number>): string | null {
+  if (score >= WEAK_SETUP_BELOW) return null;
+  if ((alignedFactorVotes[PIVOT_FACTOR] ?? 0) > AGREES) return null;
+  return `A setup under a conviction of ${WEAK_SETUP_BELOW} is only offered when the pivot and directional bias agrees with it. Weak setups without it lost money in both halves of a 24 month replay.`;
+}

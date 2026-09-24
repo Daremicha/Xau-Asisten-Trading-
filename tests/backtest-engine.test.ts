@@ -365,8 +365,15 @@ describe('a conviction floor', () => {
     expect(open.summary.belowConviction).toBe(none.summary.belowConviction);
   });
 
-  test('even with no floor, no weak setup is traded in the Asian session', () => {
+  test('with no floor, a setup under 40 is only traded when the pivot bias agrees', () => {
     const run = runBacktest(config(candles, { warmupBars: 1400, minConviction: 0 }));
+    const weak = run.records.filter((r) => r.context && r.context.convictionScore < 40);
+    for (const r of weak) expect(r.context!.factorVotes!['Pivot and directional bias']).toBeGreaterThan(0.15);
+  });
+
+  test('even with no floor, no weak setup is traded in the Asian session', () => {
+    // A series that trades in the Asian session at all, so the check has something to check.
+    const run = runBacktest(config(walk(6000, 12), { warmupBars: 1400, minConviction: 0 }));
     const asian = run.trades.filter((t) => getICTKillZoneStatus(new Date(t.openedAt)).currentZone === 'Asian Session');
     expect(asian.length).toBeGreaterThan(0);
     expect(asian.every((t) => t.convictionScore >= ASIAN_SESSION_MIN_CONVICTION)).toBe(true);
@@ -490,7 +497,8 @@ describe('moving the stop to entry once a trade has paid', () => {
   });
 
   test('a protected run and the control trade the same setups', () => {
-    const candles = walk(4000);
+    // A series where some trade reaches 1R and then comes back, so the rule acts.
+    const candles = walk(4000, 12);
     const control = runBacktest(config(candles, { warmupBars: 1400 }));
     const guarded = runBacktest(config(candles, { warmupBars: 1400, breakEvenAtR: 1 }));
     // The rule manages trades, it does not decide them: the first order of both
