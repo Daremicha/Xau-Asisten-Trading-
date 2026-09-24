@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import { getICTKillZoneStatus } from '../lib/market-engine';
+import { ASIAN_SESSION_MIN_CONVICTION } from '../lib/session-rules';
 import {
   createBacktest,
   runBacktest,
@@ -359,7 +361,15 @@ describe('a conviction floor', () => {
     const open = runBacktest(config(candles, { warmupBars: 1400, minConviction: 0 }));
     const none = runBacktest(config(candles, { warmupBars: 1400 }));
     expect(open.trades.length).toBe(none.trades.length);
-    expect(open.summary.belowConviction).toBe(0);
+    // The only setups a zero floor declines are the weak Asian-session ones.
+    expect(open.summary.belowConviction).toBe(none.summary.belowConviction);
+  });
+
+  test('even with no floor, no weak setup is traded in the Asian session', () => {
+    const run = runBacktest(config(candles, { warmupBars: 1400, minConviction: 0 }));
+    const asian = run.trades.filter((t) => getICTKillZoneStatus(new Date(t.openedAt)).currentZone === 'Asian Session');
+    expect(asian.length).toBeGreaterThan(0);
+    expect(asian.every((t) => t.convictionScore >= ASIAN_SESSION_MIN_CONVICTION)).toBe(true);
   });
 
   test('a floor nothing can reach produces no trades rather than an error', () => {

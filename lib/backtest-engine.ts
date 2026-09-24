@@ -23,6 +23,7 @@
  */
 
 import { Candle } from './candles';
+import { effectiveConvictionFloor } from './session-rules';
 import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal } from './signal-engine';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
@@ -572,7 +573,7 @@ export function createBacktest(config: BacktestConfig): Runner {
     }
 
     if (
-      conviction.convictionScore < minConviction ||
+      conviction.convictionScore < effectiveConvictionFloor(minConviction, killZone.currentZone) ||
       (deadBand &&
         conviction.convictionScore >= deadBand.min &&
         conviction.convictionScore < deadBand.max)
