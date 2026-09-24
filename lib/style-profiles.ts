@@ -56,10 +56,11 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     instantToleranceDollars: 0.5,
     maxEntryAtrMultiple: 0.8,
     minEntryReachDollars: 2.0,
-    // Tested on 24 months of M15 history at a floor of 70: shifting entries
-    // within ten pips beyond a $10 level to five pips in front of it raised
-    // profit factor from 1.29 to 1.36 and cut the worst drawdown from 13.2% to
-    // 11.1%, improving both halves, and every nearby setting did the same.
+    // Tested on 24 months of M15 history at a floor of 70, weekend bars
+    // removed: shifting entries within ten pips beyond a $10 level to five
+    // pips in front of it took profit factor from 1.25 to 1.27 and net from
+    // +108 to +117 Cent. A small gain, and it catches the round-number near
+    // misses that are most frustrating to watch.
     roundLevelFrontRun: { stepDollars: 10, zoneDollars: 1, offsetDollars: 0.5 },
     label: 'M15 / M5 precision scalp',
   },
@@ -71,8 +72,9 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     instantToleranceDollars: 1.2,
     maxEntryAtrMultiple: 1.5,
     minEntryReachDollars: 6.0,
-    // The same rule made Intraday worse (profit factor 1.15 to 1.11), so its
-    // entries stay on structure.
+    // On Intraday the same rule moved profit factor between 1.36 and 1.39
+    // around a baseline of 1.38 depending on the setting: noise, not an edge,
+    // so its entries stay on structure.
     roundLevelFrontRun: null,
     label: 'H1 / M15 session play',
   },

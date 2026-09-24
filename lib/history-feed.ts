@@ -13,6 +13,7 @@
  */
 
 import { Candle } from './candles';
+import { tradingCandles } from './market-hours';
 import { mapTwelveDataCandles, mapYahooCandles } from './price-feed';
 
 /** Largest page Twelve Data returns in a single request. */
@@ -112,7 +113,9 @@ async function twelveDataPage(
 
   const candles = mapTwelveDataCandles(payload);
   return {
-    candles,
+    // Paging reads the raw page below; only what is handed on is filtered, so
+    // a page thinned by a weekend is not mistaken for the end of the history.
+    candles: tradingCandles(candles),
     provider: 'Twelve Data (XAU/USD spot)',
     interval,
     oldestMs: candles.length ? candles[0].time : null,
@@ -148,7 +151,7 @@ async function yahooRange(interval: HistoryInterval, beforeMs: number | null): P
 
   const candles = mapYahooCandles(await res.json());
   return {
-    candles,
+    candles: tradingCandles(candles),
     provider: 'Yahoo Finance (GC=F gold futures)',
     interval,
     oldestMs: candles.length ? candles[0].time : null,

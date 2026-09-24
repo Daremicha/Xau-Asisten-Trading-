@@ -92,7 +92,7 @@ import {
   NotificationPermissionState,
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
-import { TESTED_FLOOR, TESTED_STYLE } from '@/lib/tested-configuration';
+import { TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
@@ -1041,8 +1041,13 @@ export default function Home() {
   const handleApplyTestedConfiguration = async () => {
     setTradingStyle(TESTED_STYLE);
     setMinConviction(TESTED_FLOOR);
+    setProtectStopAtR(TESTED_PROTECT_AT_R);
     setSkippedSetup(null);
-    await persistSettings({ tradingStyle: TESTED_STYLE, minConviction: TESTED_FLOOR });
+    await persistSettings({
+      tradingStyle: TESTED_STYLE,
+      minConviction: TESTED_FLOOR,
+      protectStopAtR: TESTED_PROTECT_AT_R,
+    });
   };
 
   // Update Account Type (Standard / Cent / Pro)

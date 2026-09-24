@@ -8,6 +8,7 @@
  */
 
 import { Candle, round2 } from './candles';
+import { tradingCandles } from './market-hours';
 import { budgetState, takeRequest } from './request-budget';
 
 export type FeedStatus = 'live' | 'stale' | 'unavailable';
@@ -621,7 +622,9 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
     dayHigh: result.dayHigh === null ? null : round2(result.dayHigh),
     dayLow: result.dayLow === null ? null : round2(result.dayLow),
     previousClose: result.previousClose === null ? null : round2(result.previousClose),
-    candlesM15: result.candlesM15,
+    // Weekend prints are dropped here, so every reader of the snapshot, the
+    // engine and the push check alike, sees only bars the market traded.
+    candlesM15: tradingCandles(result.candlesM15),
     candlesD1: result.candlesD1,
     message:
       (effective === 'live'
@@ -696,7 +699,7 @@ export async function fetchHistoricalCandles(
     if ((payload as { status?: string })?.status === 'error') {
       return { candles: [], message: 'The market data provider declined the request for this period.' };
     }
-    const candles = mapTwelveDataCandles(payload);
+    const candles = tradingCandles(mapTwelveDataCandles(payload));
     return candles.length === 0
       ? { candles: [], message: 'The provider returned no candles for this period.' }
       : { candles, message: '' };
