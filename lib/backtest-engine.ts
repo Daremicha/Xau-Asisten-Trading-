@@ -17,6 +17,10 @@
  *    itself.
  *  - Spread is charged on every filled trade, and commission wherever the
  *    account charges it.
+ *  - Slippage is charged on every fill at market: an instant entry, a stop,
+ *    and a close at the holding limit. A stop gapped through at a bar's open
+ *    fills at that open. Limit entries and targets fill at their own price, as
+ *    a resting limit order does.
  *  - No economic calendar. Historical releases are not available to the app, so
  *    the news shield is inactive here and the run says so rather than pretending
  *    it was applied.
@@ -90,6 +94,11 @@ export interface BacktestConfig {
    * control. See `OrderPlan.breakEvenAtR`.
    */
   breakEvenAtR?: number | null;
+  /**
+   * Dollars an order filled at market loses to slippage: instant entries,
+   * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
+   */
+  slippageDollars?: number;
   /**
    * Bars of history required before the first decision. Defaults to what the
    * timeframe needs; pinning it makes two runs over different slice lengths
@@ -314,7 +323,18 @@ export interface OrderPlan {
    * which is why it is an option here rather than a default.
    */
   breakEvenAtR?: number | null;
+  /** Adverse slippage on market fills, in dollars. Zero when omitted. */
+  slippageDollars?: number;
 }
+
+/**
+ * Slippage charged on market fills when a run does not say otherwise.
+ *
+ * Twenty cents, two pips: an ordinary fill on spot gold at a retail broker
+ * outside news. Stops in a fast move slip further, so this is a floor on what
+ * reality costs, not an estimate of the worst of it.
+ */
+export const DEFAULT_SLIPPAGE_DOLLARS = 0.2;
 
 export type OrderOutcome =
   | { kind: 'missed'; index: number; reason: string }
@@ -381,7 +401,11 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
   }
 
   const fillBar = candles[fillIndex];
-  const fillPrice = plan.instant ? decisionBar.close : plan.entryPrice;
+  const slip = Math.max(0, plan.slippageDollars ?? 0);
+  // Market fills go against the trader; a resting limit fills at its price.
+  const adverseEntry = isLong ? slip : -slip;
+  const adverseExit = isLong ? -slip : slip;
+  const fillPrice = plan.instant ? decisionBar.close + adverseEntry : plan.entryPrice;
   const riskDistance = Math.abs(fillPrice - plan.stopLoss);
   const armAt = plan.breakEvenAtR && plan.breakEvenAtR > 0 && riskDistance > 0
     ? riskDistance * plan.breakEvenAtR
@@ -400,12 +424,16 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
     // The order of events inside a bar cannot be recovered from open, high, low
     // and close, so the losing side is assumed to come first.
     if (isLong ? c.low <= stop : c.high >= stop) {
+      // A bar that opens beyond the stop, after a weekend or a release, fills
+      // the stop at that open, not at the level. The fill bar of a resting
+      // order is excluded: its open came before the entry, not after.
+      const gapped = j > fillIndex && (isLong ? c.open < stop : c.open > stop);
       return {
         kind: 'filled',
         fillIndex,
         fillPrice,
         exitIndex: j,
-        exitPrice: stop,
+        exitPrice: (gapped ? c.open : stop) + adverseExit,
         outcome: 'SL',
         reason: protectedStop
           ? 'Price came back to the entry after the stop had been moved there, so the trade cost only its spread.'
@@ -441,7 +469,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         fillIndex,
         fillPrice,
         exitIndex: j,
-        exitPrice: c.close,
+        exitPrice: c.close + adverseExit,
         outcome: profitable ? 'TP' : 'SL',
         reason: `Closed at market after the ${Math.round(plan.maxHoldMs / 3_600_000)} hour holding limit.`,
       };
@@ -608,6 +636,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       expiresAt: bar.time + validity.validForMinutes * MINUTE_MS,
       maxHoldMs,
       breakEvenAtR: config.breakEvenAtR ?? null,
+      slippageDollars: config.slippageDollars ?? DEFAULT_SLIPPAGE_DOLLARS,
     });
 
     if (outcome.kind === 'unresolved') {

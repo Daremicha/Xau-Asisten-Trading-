@@ -181,7 +181,7 @@ export default function EquityManager({
           <p className="text-[11px] leading-relaxed">
             <span className="font-bold text-amber-300">Not the tested setting. </span>
             On 24 months of XAUUSD (Sep 2024 – Sep 2026), {TESTED_STYLE} with conviction {TESTED_FLOOR}+ and the stop
-            moved to entry at {TESTED_PROTECT_AT_R}R made money in both halves: profit factor 1.34, worst drawdown 20%,
+            moved to entry at {TESTED_PROTECT_AT_R}R made money in both halves: profit factor 1.30 after slippage, worst drawdown 20%,
             about six trades a week. {untestedSettingNote(tradingStyle, minConviction)}
           </p>
           {onApplyTestedConfiguration && (

@@ -1217,7 +1217,8 @@ export default function BacktestLab({
             taken, because the order inside a bar cannot be recovered from its open, high, low and close.
             Spread is charged on every fill, and commission where the account charges it. Historical
             economic releases are not available to the app, so the news shield was inactive for the whole
-            replay. Slippage, weekend gaps in execution and swap are not modelled. Position size is a
+            replay. Market fills, stops and holding-limit closes lose two pips to slippage, and a stop gapped
+            through at a bar&apos;s open fills at that open. Swap is not modelled. Position size is a
             fixed percentage of the running balance, so a winning stretch compounds and the later trades
             dominate the total. Past results are evidence about parameters, not a promise about the next
             trade. The third column freezes the learning run&apos;s final parameters from the first candle,

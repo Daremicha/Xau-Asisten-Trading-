@@ -7,6 +7,7 @@ import {
   simulateOrder,
   type BacktestConfig,
   type OrderPlan,
+  DEFAULT_SLIPPAGE_DOLLARS,
 } from '../lib/backtest-engine';
 import type { Candle } from '../lib/candles';
 
@@ -30,6 +31,57 @@ function plan(overrides: Partial<OrderPlan> = {}): OrderPlan {
     ...overrides,
   };
 }
+
+describe('slippage and gaps', () => {
+  const filled = (o: ReturnType<typeof simulateOrder>) => {
+    if (o.kind !== 'filled') throw new Error(`expected a fill, got ${o.kind}`);
+    return o;
+  };
+
+  test('a market entry fills against the trader by the slippage', () => {
+    const candles = [bar(0, 2000, 2001, 1999, 2000), bar(1, 2000, 2016, 1999, 2015)];
+    const long = filled(simulateOrder(candles, plan({ instant: true, slippageDollars: 0.2 })));
+    expect(long.fillPrice).toBeCloseTo(2000.2, 6);
+    const short = filled(
+      simulateOrder([bar(0, 2000, 2001, 1999, 2000), bar(1, 2000, 2001, 1984, 1985)], plan({
+        direction: 'short', instant: true, stopLoss: 2010, takeProfit1: 1985, slippageDollars: 0.2,
+      }))
+    );
+    expect(short.fillPrice).toBeCloseTo(1999.8, 6);
+  });
+
+  test('a limit entry and its target fill at their own prices', () => {
+    const candles = [bar(0, 2003, 2004, 2002, 2003), bar(1, 2002, 2003, 1999, 2001), bar(2, 2001, 2016, 2000, 2015)];
+    const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0.5 })));
+    expect(trade.fillPrice).toBe(2000);
+    expect(trade.outcome).toBe('TP');
+    expect(trade.exitPrice).toBe(2015);
+  });
+
+  test('a stop fills past its level by the slippage', () => {
+    const candles = [bar(0, 2003, 2004, 2002, 2003), bar(1, 2002, 2003, 1999, 2001), bar(2, 2000, 2001, 1989, 1990)];
+    const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0.2 })));
+    expect(trade.outcome).toBe('SL');
+    expect(trade.exitPrice).toBeCloseTo(1989.8, 6);
+  });
+
+  test('a stop gapped through at the open fills at that open, not at the level', () => {
+    const candles = [bar(0, 2003, 2004, 2002, 2003), bar(1, 2002, 2003, 1999, 2001), bar(2, 1985, 1987, 1983, 1986)];
+    const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0.2 })));
+    expect(trade.exitPrice).toBeCloseTo(1984.8, 6);
+  });
+
+  test('the bar a resting order fills on is not treated as a gap', () => {
+    // Opens below the stop, trades up through the entry: the open came first.
+    const candles = [bar(0, 2003, 2004, 2002, 2003), bar(1, 1988, 2001, 1987, 2000)];
+    const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0 })));
+    expect(trade.exitPrice).toBe(1990);
+  });
+
+  test('the engine charges two pips by default', () => {
+    expect(DEFAULT_SLIPPAGE_DOLLARS).toBe(0.2);
+  });
+});
 
 describe('order simulation', () => {
   test('a resting order fills when a bar trades through its price', () => {
