@@ -9,11 +9,14 @@
  * setting. Once weak Asian-session setups were declined (see session-rules),
  * a floor of 40 gave the most trades that still paid: profit factor 1.27, and
  * 1.34 with the stop moved to entry at 1R, which also cut the worst drawdown
- * to 20% and the worst losing streak to 10. About six trades a week.
+ * to 20% and the worst losing streak to 10. About six trades a week. Charging
+ * two pips of slippage on market fills and stops, and filling gapped stops at
+ * the open, brings that to 1.30 with a 20% worst drawdown.
  *
  * Taking everything on Intraday also holds up once the weakest setups need
  * the pivot bias on their side (see session-rules): profit factor 1.31 with
- * the stop to entry at 1R, a 23% worst drawdown and about eight trades a week.
+ * the stop to entry at 1R, a 23% worst drawdown and about eight trades a week;
+ * 1.27 and 26% once slippage and gaps are charged.
  * More trades and more money than 40, for a little more drawdown.
  *
  * An earlier replay on the unfiltered bars favoured Scalping at 70. The weekend
