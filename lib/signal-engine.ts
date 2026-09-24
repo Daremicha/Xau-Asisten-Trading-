@@ -254,7 +254,11 @@ export function scoreConfluence(inputs: SignalInputs): {
     )}, reading ${indicators.stochasticSignal}.`,
   });
 
-  // Discount favours longs, premium favours shorts.
+  // Discount favours longs, premium favours shorts. On its own this vote looks
+  // backwards: weak setups it argued for did worse than those it argued
+  // against. But in the engine it also steers direction and conviction, and a
+  // 24 month replay did worse with it removed (profit factor 1.31 to 1.29),
+  // halved (1.30) or inverted (1.20). It stays as it is.
   const zoneVote = exec.pricingZone === 'Discount' ? 0.6 : exec.pricingZone === 'Premium' ? -0.6 : 0;
   factors.push({
     name: 'Premium and discount',
