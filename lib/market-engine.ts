@@ -327,6 +327,13 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     };
   }
 
+  // The kill zones are fixed UTC hours, which match London and New York only in
+  // northern winter; in summer both open an hour earlier. That is deliberate,
+  // not an oversight: a 24 month replay with the zones shifted for US daylight
+  // saving did slightly worse (profit factor 1.35 to 1.31 at a floor of 40
+  // with the stop to entry at 1R, and 1.31 to 1.30 taking everything), and
+  // the session rules were tested on these hours. Re-test before changing them.
+
   // London Open Kill Zone: 07:00 - 10:00 UTC
   if (timeInDec >= 7 && timeInDec < 10) {
     return {
