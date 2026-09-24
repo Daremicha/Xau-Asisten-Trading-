@@ -66,6 +66,15 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
   },
   Intraday: {
     minStopDollars: 4.5,
+    // Most Intraday stops sit on this ceiling now that gold trades above
+    // $4000, so it was tested against wider and price-scaled ceilings: 24
+    // months of M15, take-all, break-even at 1R, slippage and news included.
+    // $18 gave profit factor 1.27 and 0.122 R a trade. Fixed ceilings of $12,
+    // $15, $21, $24, $30, $36, $45 and $60, and an $18 ceiling scaled by price
+    // from $2600, $3000, $3400 or $4000, all did worse (1.09 to 1.26, 0.047 to
+    // 0.119 R). The win rate stayed between 40% and 44% at every width: a
+    // wider stop moved the targets out with it rather than saving trades from
+    // being stopped.
     maxStopDollars: 18.0,
     atrStopMultiple: 1.0,
     tpMultiples: [1.5, 2.6, 4.0],
