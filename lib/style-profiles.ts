@@ -38,6 +38,12 @@ export interface StyleProfile {
   maxEntryAtrMultiple: number;
   /** Floor for the same limit, so an unusually quiet market stays tradeable. */
   minEntryReachDollars: number;
+  /**
+   * Moves a limit entry that sits just beyond a round price to just in front
+   * of it, because price so often turns a few pips short of a round number.
+   * Null leaves entries where structure put them. See `frontRunRoundLevel`.
+   */
+  roundLevelFrontRun: { stepDollars: number; zoneDollars: number; offsetDollars: number } | null;
   label: string;
 }
 
@@ -50,6 +56,11 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     instantToleranceDollars: 0.5,
     maxEntryAtrMultiple: 0.8,
     minEntryReachDollars: 2.0,
+    // Tested on 24 months of M15 history at a floor of 70: shifting entries
+    // within ten pips beyond a $10 level to five pips in front of it raised
+    // profit factor from 1.29 to 1.36 and cut the worst drawdown from 13.2% to
+    // 11.1%, improving both halves, and every nearby setting did the same.
+    roundLevelFrontRun: { stepDollars: 10, zoneDollars: 1, offsetDollars: 0.5 },
     label: 'M15 / M5 precision scalp',
   },
   Intraday: {
@@ -60,6 +71,9 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     instantToleranceDollars: 1.2,
     maxEntryAtrMultiple: 1.5,
     minEntryReachDollars: 6.0,
+    // The same rule made Intraday worse (profit factor 1.15 to 1.11), so its
+    // entries stay on structure.
+    roundLevelFrontRun: null,
     label: 'H1 / M15 session play',
   },
   Swing: {
@@ -70,6 +84,7 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     instantToleranceDollars: 4.0,
     maxEntryAtrMultiple: 3.0,
     minEntryReachDollars: 20.0,
+    roundLevelFrontRun: null,
     label: 'D1 / H4 macro swing',
   },
 };

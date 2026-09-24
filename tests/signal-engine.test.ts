@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Candle } from '../lib/candles';
 import {
   buildSignal,
+  frontRunRoundLevel,
   maxEntryDistance,
   resolveOrderType,
   scoreConfluence,
@@ -758,5 +759,37 @@ describe('the refusal for an order price has left behind names the right side', 
     expect(decision.entryUnfillable).toBe(true);
     expect(decision.unfillableReason).toContain('pips below the');
     expect(decision.unfillableReason).not.toContain('pips above the');
+  });
+});
+
+describe('limit entries just beyond a round price are moved in front of it', () => {
+  const rule = STYLE_PROFILES.Scalping.roundLevelFrontRun;
+
+  test('the sell limit that missed by 4.6 pips would now fill', () => {
+    // Entry 4300.06, the high was 4299.60.
+    const moved = frontRunRoundLevel(4300.06, 'short', 4293.4, rule);
+    expect(moved).toEqual({ price: 4299.5, level: 4300 });
+    expect(moved!.price).toBeLessThan(4299.6);
+  });
+
+  test('a buy limit just under a round price moves above it', () => {
+    expect(frontRunRoundLevel(4289.7, 'long', 4296, rule)).toEqual({ price: 4290.5, level: 4290 });
+  });
+
+  test('an entry already in front of the level, or far beyond it, stays put', () => {
+    expect(frontRunRoundLevel(4299.2, 'short', 4293, rule)).toBeNull();
+    expect(frontRunRoundLevel(4304.5, 'short', 4293, rule)).toBeNull();
+    expect(frontRunRoundLevel(4291.5, 'long', 4296, rule)).toBeNull();
+  });
+
+  test('never moves an order onto or past the current price', () => {
+    expect(frontRunRoundLevel(4300.2, 'short', 4299.6, rule)).toBeNull();
+    expect(frontRunRoundLevel(4289.8, 'long', 4290.4, rule)).toBeNull();
+  });
+
+  test('only Scalping uses it; the same rule made Intraday worse', () => {
+    expect(STYLE_PROFILES.Intraday.roundLevelFrontRun).toBeNull();
+    expect(STYLE_PROFILES.Swing.roundLevelFrontRun).toBeNull();
+    expect(frontRunRoundLevel(4300.06, 'short', 4293.4, STYLE_PROFILES.Intraday.roundLevelFrontRun)).toBeNull();
   });
 });

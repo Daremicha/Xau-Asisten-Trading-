@@ -175,7 +175,7 @@ export default function EquityManager({
           <p className="text-[11px] leading-relaxed">
             <span className="font-bold text-amber-300">Not the tested setting. </span>
             On 24 months of XAUUSD (Sep 2024 – Sep 2026), only {TESTED_STYLE} with conviction {TESTED_FLOOR}+ made money
-            in both halves: profit factor 1.29, worst drawdown 13%.{' '}
+            in both halves: profit factor 1.36, worst drawdown 11%.{' '}
             {tradingStyle === 'Intraday'
               ? minConviction < TESTED_FLOOR
                 ? 'Intraday below a floor of 70 lost money in the second half; taking everything fell 63% from its high.'
