@@ -14,15 +14,14 @@ describe('the setting that held up on real history', () => {
     expect(TESTED_PROTECT_AT_R).toBe(1);
   });
 
-  test('a stricter Intraday floor still counts as following it', () => {
-    for (const floor of [40, 55, 70]) {
+  test('every Intraday floor counts as following it, taking everything included', () => {
+    for (const floor of [0, 40, 55, 70]) {
       expect(followsTestedConfiguration('Intraday', floor)).toBe(true);
       expect(untestedSettingNote('Intraday', floor)).toBeNull();
     }
   });
 
-  test('another style or taking everything says what the replay found', () => {
-    expect(untestedSettingNote('Intraday', 0)).toContain('fell 57%');
+  test('another style says what the replay found', () => {
     expect(untestedSettingNote('Scalping', 70)).toContain('less than a tenth');
     expect(untestedSettingNote('Scalping', 40)).toContain('more than 30%');
     expect(untestedSettingNote('Swing', 55)).toContain('not part of that test');

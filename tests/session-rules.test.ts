@@ -4,6 +4,8 @@ import {
   effectiveConvictionFloor,
   sessionConvictionFloor,
   sessionDeclineNote,
+  WEAK_SETUP_BELOW,
+  weakSetupDecline,
 } from '../lib/session-rules';
 
 describe('weak setups are declined in the Asian session', () => {
@@ -27,5 +29,20 @@ describe('weak setups are declined in the Asian session', () => {
     expect(sessionDeclineNote(40, 'Asian Session', 60)).toBeNull();
     expect(sessionDeclineNote(70, 'Asian Session', 48)).toBeNull();
     expect(sessionDeclineNote(40, 'London Open', 30)).toBeNull();
+  });
+});
+
+describe('the weakest setups need the directional bias on their side', () => {
+  test('under 40, a setup is declined unless the pivot bias agrees', () => {
+    expect(WEAK_SETUP_BELOW).toBe(40);
+    expect(weakSetupDecline(30, { 'Pivot and directional bias': 1 })).toBeNull();
+    expect(weakSetupDecline(30, { 'Pivot and directional bias': -1 })).toContain('pivot and directional bias');
+    expect(weakSetupDecline(30, {})).not.toBeNull();
+    expect(weakSetupDecline(30, { 'Pivot and directional bias': 0.1 })).not.toBeNull();
+  });
+
+  test('from 40 up the bias is not required', () => {
+    expect(weakSetupDecline(40, { 'Pivot and directional bias': -1 })).toBeNull();
+    expect(weakSetupDecline(75, {})).toBeNull();
   });
 });

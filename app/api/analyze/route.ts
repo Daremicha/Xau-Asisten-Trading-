@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { effectiveConvictionFloor, sessionDeclineNote } from '@/lib/session-rules';
+import { effectiveConvictionFloor, sessionDeclineNote, WEAK_SETUP_BELOW, weakSetupDecline } from '@/lib/session-rules';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
 import { alignedVotes, directionOfOrder } from '@/lib/factor-learning';
@@ -390,8 +390,10 @@ Reply with JSON only:
     }
 
     const floorNow = effectiveConvictionFloor(input.minConviction, killZone.currentZone);
-    if (conviction.convictionScore < floorNow) {
-      const sessionNote = sessionDeclineNote(input.minConviction, killZone.currentZone, conviction.convictionScore);
+    const weakNote = weakSetupDecline(conviction.convictionScore, alignedVotes(decision.factors, decision.direction));
+    if (conviction.convictionScore < floorNow || weakNote) {
+      const sessionNote =
+        sessionDeclineNote(input.minConviction, killZone.currentZone, conviction.convictionScore) ?? weakNote;
       return NextResponse.json({
         success: true,
         setup: null,
@@ -399,7 +401,7 @@ Reply with JSON only:
           reason: 'below-conviction',
           convictionScore: conviction.convictionScore,
           band: conviction.band,
-          threshold: floorNow,
+          threshold: weakNote && conviction.convictionScore >= floorNow ? WEAK_SETUP_BELOW : floorNow,
           direction: decision.direction,
           notes: sessionNote ? [sessionNote, ...conviction.notes] : conviction.notes,
           rationale: decision.rationale,
