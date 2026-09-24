@@ -1066,7 +1066,7 @@ Ready for direct execution in MetaTrader 5.`;
                 </>
               ) : (
                 <>
-                  under your floor of{' '}
+                  under the floor of{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.threshold}
                   </strong>

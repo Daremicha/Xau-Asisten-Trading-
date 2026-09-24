@@ -6,9 +6,10 @@
  * weekend bars the feed prints while the market is shut removed, tried
  * Intraday and Scalping at each floor. Intraday made money in both halves at
  * every floor from 40 up, which makes it a plateau rather than one lucky
- * setting. A floor of 55 sits in the middle of it: profit factor 1.24, the
- * smallest worst drawdown (22%) and a worst losing streak of 7. Moving the stop
- * to entry at 1R helped at 40, 55 and 70 alike, lifting 55 to 1.33.
+ * setting. Once weak Asian-session setups were declined (see session-rules),
+ * a floor of 40 gave the most trades that still paid: profit factor 1.27, and
+ * 1.34 with the stop moved to entry at 1R, which also cut the worst drawdown
+ * to 20% and the worst losing streak to 10. About six trades a week.
  *
  * An earlier replay on the unfiltered bars favoured Scalping at 70. The weekend
  * prints had been shrinking the ATR and skewing structure, and Intraday most.
@@ -20,7 +21,7 @@
 import type { TradingStyle } from './types';
 
 export const TESTED_STYLE: TradingStyle = 'Intraday';
-export const TESTED_FLOOR = 55;
+export const TESTED_FLOOR = 40;
 /** Multiple of risk at which the stop moves to entry. */
 export const TESTED_PROTECT_AT_R = 1;
 
@@ -32,14 +33,12 @@ export function followsTestedConfiguration(style: TradingStyle, floor: number): 
 export function untestedSettingNote(style: TradingStyle, floor: number): string | null {
   if (followsTestedConfiguration(style, floor)) return null;
   if (style === 'Intraday') {
-    return floor >= 40
-      ? 'Intraday at a floor of 40 made more money, but once lost 16 trades in a row.'
-      : 'Intraday taking every setup lost money in the second half and fell 78% from its high.';
+    return 'Intraday taking every setup lost money in the second half and fell 57% from its high.';
   }
   if (style === 'Scalping') {
     return floor >= 70
-      ? 'Scalping at a floor of 70 made money in both halves, but earned about an eighth as much.'
-      : 'Scalping below a floor of 70 earned little for the drawdown it took.';
+      ? 'Scalping at a floor of 70 made money in both halves, but earned less than a tenth as much.'
+      : 'Scalping below a floor of 70 fell more than 30% from its high for little return.';
   }
   return `${style} was not part of that test.`;
 }

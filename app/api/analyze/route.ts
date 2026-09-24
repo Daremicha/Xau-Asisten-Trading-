@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { effectiveConvictionFloor, sessionDeclineNote } from '@/lib/session-rules';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
 import { alignedVotes, directionOfOrder } from '@/lib/factor-learning';
@@ -388,7 +389,9 @@ Reply with JSON only:
       });
     }
 
-    if (conviction.convictionScore < input.minConviction) {
+    const floorNow = effectiveConvictionFloor(input.minConviction, killZone.currentZone);
+    if (conviction.convictionScore < floorNow) {
+      const sessionNote = sessionDeclineNote(input.minConviction, killZone.currentZone, conviction.convictionScore);
       return NextResponse.json({
         success: true,
         setup: null,
@@ -396,9 +399,9 @@ Reply with JSON only:
           reason: 'below-conviction',
           convictionScore: conviction.convictionScore,
           band: conviction.band,
-          threshold: input.minConviction,
+          threshold: floorNow,
           direction: decision.direction,
-          notes: conviction.notes,
+          notes: sessionNote ? [sessionNote, ...conviction.notes] : conviction.notes,
           rationale: decision.rationale,
           nextCheck: nextCheck(input.tradingStyle),
         },
