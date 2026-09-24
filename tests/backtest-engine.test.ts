@@ -604,3 +604,35 @@ describe('replaying with parameters already adopted', () => {
     expect(drift).toBeLessThanOrEqual(0.9);
   });
 });
+
+describe('news in a replay', () => {
+  const candles = walk(3000, 12);
+  const release = (at: number, currency: 'USD' | 'EUR' = 'USD') => ({
+    id: `r-${at}-${currency}`,
+    title: 'Release',
+    country: currency,
+    currency,
+    impact: 'High' as const,
+    date: '',
+    time: '',
+    scheduledTimestamp: new Date(at).toISOString(),
+    forecast: '',
+    previous: '',
+    marketImplication: '',
+  });
+  // A dollar release every three hours through the whole series.
+  const hourly = candles.filter((_, i) => i % 12 === 0).map((c) => release(c.time));
+
+  test('decisions within an hour of a dollar release are recorded as near news', () => {
+    const withNews = runBacktest(config(candles, { economicEvents: hourly }));
+    expect(withNews.records.some((r) => r.context.newsNearby)).toBe(true);
+  });
+
+  test('no calendar, or only foreign releases, means no news at all', () => {
+    const none = runBacktest(config(candles));
+    const foreign = runBacktest(config(candles, { economicEvents: hourly.map((e) => release(Date.parse(e.scheduledTimestamp), 'EUR')) }));
+    expect(none.records.every((r) => !r.context.newsNearby)).toBe(true);
+    expect(foreign.records.every((r) => !r.context.newsNearby)).toBe(true);
+    expect(foreign.trades.map((t) => t.stopLoss)).toEqual(none.trades.map((t) => t.stopLoss));
+  });
+});

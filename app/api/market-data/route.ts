@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { filterUpcoming, getEconomicCalendar, usdOnly } from '@/lib/economic-calendar';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
+import { archiveCalendar } from '@/lib/calendar-archive';
 import { getContractSpecification } from '@/lib/market-engine';
 import { round2 } from '@/lib/candles';
 import { AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
@@ -61,6 +62,8 @@ export async function GET(request: Request) {
     // cached for fifteen minutes upstream, so serving it beside every quote
     // costs nothing and keeps the panel populated on its own.
     const calendar = await getEconomicCalendar();
+    // Kept for later backtests, after the response so the quote is not delayed.
+    after(() => archiveCalendar(calendar.events));
 
     return NextResponse.json({
       success: true,

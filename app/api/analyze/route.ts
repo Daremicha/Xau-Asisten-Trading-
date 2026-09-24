@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { effectiveConvictionFloor, sessionDeclineNote, WEAK_SETUP_BELOW, weakSetupDecline } from '@/lib/session-rules';
 import { executeGenerativeSynthesisWithProvider } from '@/lib/gen-engine';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
@@ -10,6 +10,7 @@ import {
   usdOnly,
 } from '@/lib/economic-calendar';
 import { getMarketSnapshot } from '@/lib/price-feed';
+import { archiveCalendar } from '@/lib/calendar-archive';
 import { buildInstitutionalRead } from '@/lib/analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from '@/lib/signal-engine';
 import { assessConviction, drawdownFromHistory, effectiveRiskPercentage } from '@/lib/position-sizing';
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
     // an unconfigured or unreachable provider yields no events and no news
     // adjustment at all.
     const calendar = await getEconomicCalendar();
+    after(() => archiveCalendar(calendar.events));
     // The same dollar-only view the screen shows, so the stop is never widened
     // for a release the user was never told about.
     const economicEvents = usdOnly(filterUpcoming(calendar.events));

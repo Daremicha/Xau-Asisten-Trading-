@@ -508,6 +508,10 @@ export default function BacktestLab({
               {!result.coverage.complete &&
                 result.coverage.interval === '15min' &&
                 ' Yahoo only serves sixty days of fifteen minute candles. For a longer replay, set a Twelve Data key or switch to the H1 base.'}
+              {result.news &&
+                ` News: ${result.news.releases} high impact dollar releases in this period${
+                  result.news.archived > 0 ? `, ${result.news.archived} of them from the archived live calendar` : ''
+                }.`}
             </p>
           </div>
 
@@ -1215,9 +1219,10 @@ export default function BacktestLab({
             <span className={strong}>How to read this.</span> Every decision saw only the candles that had
             printed at that moment. When one candle contained both the stop and the target the stop was
             taken, because the order inside a bar cannot be recovered from its open, high, low and close.
-            Spread is charged on every fill, and commission where the account charges it. Historical
-            economic releases are not available to the app, so the news shield was inactive for the whole
-            replay. Market fills, stops and holding-limit closes lose two pips to slippage, and a stop gapped
+            Spread is charged on every fill, and commission where the account charges it. The news
+            shield reacts to every FOMC decision, payrolls and CPI release in the period, plus any other dollar
+            release the live calendar has shown since the archive started. Older releases outside those three
+            are unknown to the replay, so it widens fewer stops than live analysis would. Market fills, stops and holding-limit closes lose two pips to slippage, and a stop gapped
             through at a bar&apos;s open fills at that open. Swap is not modelled. Position size is a
             fixed percentage of the running balance, so a winning stretch compounds and the later trades
             dominate the total. Past results are evidence about parameters, not a promise about the next

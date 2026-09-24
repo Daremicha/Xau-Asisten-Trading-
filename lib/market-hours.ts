@@ -26,3 +26,25 @@ export function isGoldMarketClosed(ms: number): boolean {
 export function tradingCandles(candles: Candle[]): Candle[] {
   return candles.filter((c) => !isGoldMarketClosed(c.time));
 }
+
+/** True while New York is on daylight saving: second Sunday of March 07:00 UTC to first Sunday of November 06:00 UTC. */
+export function isUsDaylightSaving(at: number): boolean {
+  const y = new Date(at).getUTCFullYear();
+  const nthSunday = (month: number, n: number) => {
+    const firstDay = new Date(Date.UTC(y, month, 1)).getUTCDay();
+    return 1 + ((7 - firstDay) % 7) + (n - 1) * 7;
+  };
+  const start = Date.UTC(y, 2, nthSunday(2, 2), 7);
+  const end = Date.UTC(y, 10, nthSunday(10, 1), 6);
+  return at >= start && at < end;
+}
+
+/** A New York wall-clock time on a date (YYYY-MM-DD), as a UTC timestamp. */
+export function newYorkTime(date: string, hour: number, minute: number): number {
+  const [y, m, d] = date.split('-').map(Number);
+  const asIfUtc = Date.UTC(y, m - 1, d, hour, minute);
+  // Eastern is UTC-4 in daylight saving and UTC-5 otherwise. Checking the
+  // candidate instant is exact for release times, which are never near 2am.
+  const summer = asIfUtc + 4 * 3_600_000;
+  return isUsDaylightSaving(summer) ? summer : asIfUtc + 5 * 3_600_000;
+}

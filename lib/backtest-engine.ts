@@ -21,12 +21,14 @@
  *    and a close at the holding limit. A stop gapped through at a bar's open
  *    fills at that open. Limit entries and targets fill at their own price, as
  *    a resting limit order does.
- *  - No economic calendar. Historical releases are not available to the app, so
- *    the news shield is inactive here and the run says so rather than pretending
- *    it was applied.
+ *  - News comes from the calendar the run is given: verified FOMC, NFP and CPI
+ *    dates plus whatever the live calendar has archived. Releases outside that
+ *    set are not known to a replay, so it reacts to fewer events than live
+ *    analysis does. A run given no calendar has no news at all.
  */
 
 import { Candle } from './candles';
+import { filterUpcoming, minutesToNextHighImpact, usdOnly } from './economic-calendar';
 import { effectiveConvictionFloor, weakSetupDecline } from './session-rules';
 import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal } from './signal-engine';
@@ -37,6 +39,7 @@ import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
 import { alignedVotes } from './factor-learning';
 import { resultFromMove, roundMoney } from './trade-result';
 import type { MarketSnapshot } from './price-feed';
+import type { ForexFactoryEvent } from './types';
 import {
   AccountType,
   AdaptiveStrategyEngineWeights,
@@ -99,6 +102,11 @@ export interface BacktestConfig {
    * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
    */
   slippageDollars?: number;
+  /**
+   * Scheduled releases the replay knows about. Only USD high impact ones
+   * reach the engine, exactly as in live analysis. Empty means no news.
+   */
+  economicEvents?: ForexFactoryEvent[];
   /**
    * Bars of history required before the first decision. Defaults to what the
    * timeframe needs; pinning it makes two runs over different slice lengths
@@ -514,6 +522,8 @@ export function createBacktest(config: BacktestConfig): Runner {
       ? Math.max(1, Math.min(config.warmupBars, candles.length - 1))
       : Math.min(warmupBars(intervalMs), Math.max(1, Math.floor(candles.length / 3)));
   const maxHoldMs = MAX_HOLD_MINUTES[tradingStyle] * MINUTE_MS;
+  // The dollar high impact releases, the same view live analysis reacts to.
+  const highImpact = usdOnly(config.economicEvents ?? []).filter((e) => e.impact === 'High');
 
   let cursor = warmup;
   let equity = startingEquity;
@@ -560,6 +570,18 @@ export function createBacktest(config: BacktestConfig): Runner {
     decisions += 1;
     const at = new Date(bar.time);
     const killZone = getICTKillZoneStatus(at);
+    // What the calendar looked like at this bar: only releases still ahead.
+    const news = {
+      upcoming: filterUpcoming(highImpact, bar.time),
+      minutesToNext: minutesToNextHighImpact(highImpact, bar.time),
+    };
+    const newsNearby = news.minutesToNext !== null && news.minutesToNext <= 60;
+    // No entry blackout around releases. Tested on 24 months of M15 with the
+    // FOMC, NFP and CPI calendar: skipping setups 30 to 120 minutes before a
+    // release, or up to an hour after it, moved the result by a few trades
+    // either way, and the best window did not win in both halves at the
+    // default floor. Only about one decision in two hundred falls within an
+    // hour of one of these releases, so the rule would be tuning noise.
 
     const decision = buildSignal({
       price: bar.close,
@@ -574,10 +596,8 @@ export function createBacktest(config: BacktestConfig): Runner {
       wyckoff: read.wyckoff,
       quasimodo: read.quasimodo,
       killZoneActive: killZone.isHighVolatilityTiming,
-      // A historical economic calendar is not available to the app, so the news
-      // shield is deliberately inactive rather than guessed at.
-      upcomingHighImpactEvents: [],
-      minutesToNextEvent: null,
+      upcomingHighImpactEvents: news.upcoming,
+      minutesToNextEvent: news.minutesToNext,
     });
 
     const trends = [read.multiTimeframe.d1.trend, read.multiTimeframe.h4.trend, read.multiTimeframe.h1.trend];
@@ -688,9 +708,7 @@ export function createBacktest(config: BacktestConfig): Runner {
           session: killZone.currentZone,
           killZoneActive: killZone.isHighVolatilityTiming,
           timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
-          // A historical calendar is not available to a replay, so this is
-          // recorded as false rather than guessed at.
-          newsNearby: false,
+          newsNearby,
           entryDistancePips: Math.abs(decision.entryDistancePips),
           stopLossPips: decision.stopLossPips,
           rMultiple: 0,
@@ -761,7 +779,7 @@ export function createBacktest(config: BacktestConfig): Runner {
         session: killZone.currentZone,
         killZoneActive: killZone.isHighVolatilityTiming,
         timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
-        newsNearby: false,
+        newsNearby,
         entryDistancePips: Math.abs(decision.entryDistancePips),
         stopLossPips: decision.stopLossPips,
         rMultiple: trade.rMultiple,

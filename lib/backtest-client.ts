@@ -33,7 +33,8 @@ import {
 } from './backtest-stats';
 import { normalisePrior } from './learning-engine';
 import { fromWire, mergeCandles, INTERVAL_MS, type HistoryInterval } from './history-feed';
-import { AccountType, BrokerId, TradingStyle } from './types';
+import { historicalHighImpactEvents } from './historical-calendar';
+import { AccountType, BrokerId, TradingStyle, type ForexFactoryEvent } from './types';
 
 /** Average days in a month, so "24 months" means two calendar years of data. */
 const DAYS_PER_MONTH = 30.44;
@@ -86,12 +87,16 @@ export interface BacktestJobOptions {
   minConviction?: number;
   /** A conviction band refused outright, when the user has turned one on. */
   skipConvictionBand?: { min: number; max: number } | null;
+  /** Releases the replay reacts to. Fetched by the job when left out. */
+  economicEvents?: ForexFactoryEvent[];
   onProgress?: (update: BacktestProgressUpdate) => void;
   signal?: AbortSignal;
 }
 
 export interface BacktestJobResult {
   coverage: BacktestCoverage;
+  /** What the replay knew about scheduled releases. */
+  news: BacktestNews;
   control: BacktestResult;
   adaptive: BacktestResult;
   /**
@@ -153,6 +158,37 @@ function assertLive(signal?: AbortSignal) {
 export interface DownloadResult {
   candles: Candle[];
   coverage: BacktestCoverage;
+}
+
+export interface BacktestNews {
+  /** USD high impact releases inside the replayed period. */
+  releases: number;
+  /** How many of those came from the live calendar archive. */
+  archived: number;
+}
+
+/**
+ * The calendar for the replay. When it cannot be fetched, the checked history
+ * shipped with the app is used on its own, so a run never silently has no news.
+ */
+async function downloadCalendar(signal?: AbortSignal): Promise<ForexFactoryEvent[]> {
+  try {
+    const res = await fetch('/api/backtest/calendar', { signal });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success && Array.isArray(data.events)) return data.events as ForexFactoryEvent[];
+  } catch {
+    assertLive(signal);
+  }
+  return historicalHighImpactEvents();
+}
+
+export function describeNews(events: ForexFactoryEvent[], coverage: BacktestCoverage): BacktestNews {
+  const inside = (e: ForexFactoryEvent) => {
+    const t = Date.parse(e.scheduledTimestamp);
+    return coverage.from !== null && coverage.to !== null && t >= coverage.from && t <= coverage.to;
+  };
+  const high = events.filter((e) => e.currency === 'USD' && e.impact === 'High' && inside(e));
+  return { releases: high.length, archived: high.filter((e) => e.id.startsWith('arch-')).length };
 }
 
 /** Pulls history backwards until the requested period is covered. */
@@ -272,6 +308,7 @@ async function replay(
     adaptive,
     startingPrior,
     breakEvenAtR,
+    economicEvents: options.economicEvents,
   });
 
   let guard = 0;
@@ -321,6 +358,9 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     );
   }
 
+  options = { ...options, economicEvents: options.economicEvents ?? (await downloadCalendar(options.signal)) };
+  const news = describeNews(options.economicEvents ?? [], coverage);
+
   const control = await replay(candles, options, false, 'control', 40, 15);
   const adaptive = await replay(candles, options, true, 'adaptive', 55, 15);
 
@@ -363,6 +403,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
 
   return {
     coverage,
+    news,
     control,
     adaptive,
     frozen,
