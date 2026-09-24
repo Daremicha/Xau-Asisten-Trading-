@@ -4,7 +4,8 @@
  * A 24 month replay of XAUUSD M15 (September 2024 to September 2026) tried
  * Intraday and Scalping, each taking every setup and with a floor of 70. Only
  * Scalping with the floor made money in both halves of the period: profit
- * factor 1.29, worst drawdown 13%. Scalping taking everything broke even, and
+ * factor 1.29, worst drawdown 13%, and 1.36 and 11% once Scalping entries
+ * stopped resting just beyond round prices. Scalping taking everything broke even, and
  * Intraday taking everything lost money in the second half. These are the
  * defaults for a new user, and the app says so when an account strays.
  *

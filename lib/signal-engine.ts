@@ -357,6 +357,30 @@ export function maxEntryDistance(profile: StyleProfile, atr: number): number {
 }
 
 /**
+ * Moves a limit entry that sits just beyond a round price to just in front of it.
+ *
+ * Resting orders cluster on round numbers, and price often turns a few pips
+ * short of one. A sell limit at 4300.06 missed by 4.6 pips when the high was
+ * 4299.60; at 4299.50 it would have filled. The entry only ever moves toward
+ * price, never past it, and only when it sits within the zone beyond the level.
+ */
+export function frontRunRoundLevel(
+  entry: number,
+  direction: 'long' | 'short',
+  price: number,
+  rule: StyleProfile['roundLevelFrontRun']
+): { price: number; level: number } | null {
+  if (!rule) return null;
+  const level = Math.round(entry / rule.stepDollars) * rule.stepDollars;
+  const beyond = direction === 'short' ? entry - level : level - entry;
+  if (beyond < 0 || beyond > rule.zoneDollars) return null;
+  const moved = round2(direction === 'short' ? level - rule.offsetDollars : level + rule.offsetDollars);
+  // Still a resting order on the retracement side of price, or no change.
+  if (direction === 'short' ? moved <= price : moved >= price) return null;
+  return { price: moved, level };
+}
+
+/**
  * Chooses where to place the entry.
  *
  * Each point of interest offers two entries: its mean threshold, the textbook
@@ -449,6 +473,17 @@ export function selectEntry(
 
   if (inReach.length > 0) {
     const best = [...inReach].sort(rank)[0];
+    const shifted = frontRunRoundLevel(best.price, direction, price, profile.roundLevelFrontRun);
+    if (shifted) {
+      return {
+        price: shifted.price,
+        anchor: best.anchor,
+        detail: `${best.detail} Moved from ${best.price.toFixed(2)} to ${shifted.price.toFixed(2)}, in front of the round ${shifted.level.toFixed(
+          0
+        )} level, because price often turns a few pips short of one.`,
+        outOfReach: false,
+      };
+    }
     return { price: best.price, anchor: best.anchor, detail: best.detail, outOfReach: false };
   }
 
