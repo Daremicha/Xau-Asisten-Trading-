@@ -787,7 +787,7 @@ describe('limit entries just beyond a round price are moved in front of it', () 
     expect(frontRunRoundLevel(4289.8, 'long', 4290.4, rule)).toBeNull();
   });
 
-  test('only Scalping uses it; the same rule made Intraday worse', () => {
+  test('only Scalping uses it; on Intraday the same rule was noise', () => {
     expect(STYLE_PROFILES.Intraday.roundLevelFrontRun).toBeNull();
     expect(STYLE_PROFILES.Swing.roundLevelFrontRun).toBeNull();
     expect(frontRunRoundLevel(4300.06, 'short', 4293.4, STYLE_PROFILES.Intraday.roundLevelFrontRun)).toBeNull();

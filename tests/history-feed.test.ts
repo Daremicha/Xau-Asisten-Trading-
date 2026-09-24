@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test';
-import { fromWire, mergeCandles, toTwelveDataStamp, toWire } from '../lib/history-feed';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { fetchHistoryPage, fromWire, mergeCandles, toTwelveDataStamp, toWire } from '../lib/history-feed';
 import type { Candle } from '../lib/candles';
 
 function candle(time: number, close = 2000): Candle {
@@ -60,5 +60,34 @@ describe('wire format', () => {
 describe('provider query', () => {
   test('the cursor is formatted the way Twelve Data expects', () => {
     expect(toTwelveDataStamp(Date.UTC(2024, 4, 17, 9, 30, 0))).toBe('2024-05-17 09:30:00');
+  });
+});
+
+describe('weekend bars in a downloaded page', () => {
+  const realFetch = globalThis.fetch;
+  const realKey = process.env.TWELVE_DATA_API_KEY;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (realKey === undefined) delete process.env.TWELVE_DATA_API_KEY;
+    else process.env.TWELVE_DATA_API_KEY = realKey;
+  });
+
+  test('are dropped, and a page thinned by them is not taken for the end of history', async () => {
+    process.env.TWELVE_DATA_API_KEY = 'test';
+    // 5000 fifteen minute bars ending on a Wednesday, weekends included, the
+    // way Twelve Data prints them. Newest first, as the API returns them.
+    const end = Date.UTC(2026, 8, 23, 12, 0);
+    const values = Array.from({ length: 5000 }, (_, i) => {
+      const t = new Date(end - i * 900_000);
+      const stamp = t.toISOString().slice(0, 19).replace('T', ' ');
+      return { datetime: stamp, open: '4300', high: '4301', low: '4299', close: '4300', volume: '0' };
+    });
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ status: 'ok', values }), { status: 200 })) as unknown as typeof fetch;
+
+    const page = await fetchHistoryPage('15min', null);
+    expect(page.candles.length).toBeLessThan(5000);
+    expect(page.candles.every((c) => new Date(c.time).getUTCDay() !== 6)).toBe(true);
+    expect(page.exhausted).toBe(false);
   });
 });

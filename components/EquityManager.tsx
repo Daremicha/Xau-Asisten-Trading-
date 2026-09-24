@@ -1,6 +1,12 @@
 'use client';
 
-import { followsTestedConfiguration, TESTED_FLOOR, TESTED_STYLE } from '@/lib/tested-configuration';
+import {
+  followsTestedConfiguration,
+  TESTED_FLOOR,
+  TESTED_PROTECT_AT_R,
+  TESTED_STYLE,
+  untestedSettingNote,
+} from '@/lib/tested-configuration';
 import React, { useState } from 'react';
 import {
   Lock,
@@ -174,15 +180,9 @@ export default function EquityManager({
         >
           <p className="text-[11px] leading-relaxed">
             <span className="font-bold text-amber-300">Not the tested setting. </span>
-            On 24 months of XAUUSD (Sep 2024 – Sep 2026), only {TESTED_STYLE} with conviction {TESTED_FLOOR}+ made money
-            in both halves: profit factor 1.36, worst drawdown 11%.{' '}
-            {tradingStyle === 'Intraday'
-              ? minConviction < TESTED_FLOOR
-                ? 'Intraday below a floor of 70 lost money in the second half; taking everything fell 63% from its high.'
-                : 'Intraday with a floor of 70 made money overall but lost it in the second half.'
-              : tradingStyle === 'Scalping'
-                ? 'Scalping taking every setup only broke even, and lower floors were not confirmed.'
-                : `${tradingStyle} was not part of that test.`}
+            On 24 months of XAUUSD (Sep 2024 – Sep 2026), {TESTED_STYLE} with conviction {TESTED_FLOOR}+ made money in
+            both halves with the smallest drawdown: profit factor 1.24, worst drawdown 22%, and 1.33 with the stop
+            moved to entry at {TESTED_PROTECT_AT_R}R. {untestedSettingNote(tradingStyle, minConviction)}
           </p>
           {onApplyTestedConfiguration && (
             <button
@@ -191,7 +191,7 @@ export default function EquityManager({
               onClick={onApplyTestedConfiguration}
               className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold cursor-pointer hover:bg-amber-400"
             >
-              Use {TESTED_STYLE} + {TESTED_FLOOR}
+              Use {TESTED_STYLE} + {TESTED_FLOOR}, stop to entry at {TESTED_PROTECT_AT_R}R
             </button>
           )}
         </div>
