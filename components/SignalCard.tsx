@@ -1069,9 +1069,25 @@ Ready for direct execution in MetaTrader 5.`;
                   </strong>{' '}
                   band, which your backtest showed losing money in both halves of the period.
                 </>
+              ) : skipped.declinedBy === 'weak-setup' ? (
+                <>
+                  under{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {skipped.threshold}
+                  </strong>
+                  , and the pivot bias does not back it.
+                </>
+              ) : skipped.declinedBy === 'session' ? (
+                <>
+                  under the Asian session&apos;s{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {skipped.threshold}
+                  </strong>
+                  .
+                </>
               ) : (
                 <>
-                  under the floor of{' '}
+                  under your floor of{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.threshold}
                   </strong>
@@ -1134,6 +1150,8 @@ Ready for direct execution in MetaTrader 5.`;
                 ? 'Run the analysis again once price has pulled back toward the level, or switch to a style whose stop is wide enough to reach it.'
                 : skipped.reason === 'dead-band'
                 ? 'Skipping costs nothing. Run the analysis again later, or turn the refused band off in the Strategy Backtest Lab.'
+                : skipped.declinedBy === 'weak-setup' || skipped.declinedBy === 'session'
+                ? 'This rule is part of Take all as it was tested, so lowering the floor does not change it. Skipping costs nothing; run the analysis again later.'
                 : 'Skipping costs nothing. Run the analysis again later, or lower the floor in Capital & Account Configuration.'}
             </p>
           </div>

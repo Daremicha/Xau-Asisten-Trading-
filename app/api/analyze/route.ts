@@ -449,6 +449,14 @@ Reply with JSON only:
           convictionScore: conviction.convictionScore,
           band: conviction.band,
           threshold: weakNote && conviction.convictionScore >= floorNow ? WEAK_SETUP_BELOW : floorNow,
+          // Which rule said no, so the screen does not call the weak-setup
+          // rule "your floor" to someone trading with the floor at zero.
+          declinedBy:
+            conviction.convictionScore < input.minConviction
+              ? 'floor'
+              : conviction.convictionScore < floorNow
+                ? 'session'
+                : 'weak-setup',
           direction: decision.direction,
           notes: sessionNote ? [sessionNote, ...conviction.notes] : conviction.notes,
           rationale: decision.rationale,
