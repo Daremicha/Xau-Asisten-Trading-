@@ -90,4 +90,24 @@ describe('weekend bars in a downloaded page', () => {
     expect(page.candles.every((c) => new Date(c.time).getUTCDay() !== 6)).toBe(true);
     expect(page.exhausted).toBe(false);
   });
+
+  test('are kept for Bitcoin, which trades through the weekend, and the symbol is asked for', async () => {
+    process.env.TWELVE_DATA_API_KEY = 'test';
+    const end = Date.UTC(2026, 8, 23, 12, 0);
+    const values = Array.from({ length: 3000 }, (_, i) => {
+      const stamp = new Date(end - i * 900_000).toISOString().slice(0, 19).replace('T', ' ');
+      return { datetime: stamp, open: '110000', high: '110050', low: '109950', close: '110000', volume: '0' };
+    });
+    let asked = '';
+    globalThis.fetch = (async (url: string) => {
+      asked = String(url);
+      return new Response(JSON.stringify({ status: 'ok', values }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const page = await fetchHistoryPage('15min', null, 'BTC/USD');
+    expect(new URL(asked).searchParams.get('symbol')).toBe('BTC/USD');
+    expect(page.candles).toHaveLength(3000);
+    expect(page.candles.some((c) => new Date(c.time).getUTCDay() === 6)).toBe(true);
+    expect(page.provider).toBe('Twelve Data (BTC/USD spot)');
+  });
 });
