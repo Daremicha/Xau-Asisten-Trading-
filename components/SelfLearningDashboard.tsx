@@ -1,16 +1,19 @@
 'use client';
 
 import { LIVE_LEARNING } from '@/lib/tested-configuration';
-import React from 'react';
-import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle } from '@/lib/types';
+import React, { useState } from 'react';
+import { tradeSummaryText, type SummarySettings } from '@/lib/trade-summary';
+import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle, AccountType } from '@/lib/types';
 import { deriveAdaptiveWeights, summariseEvidence } from '@/lib/learning-engine';
-import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock } from 'lucide-react';
+import { Brain, CheckCircle2, XCircle, AlertTriangle, Sliders, Sparkles, Clock, ClipboardCopy } from 'lucide-react';
 
 interface SelfLearningDashboardProps {
   learningRecords: SelfLearningMemoryRecord[];
   engineWeights: AdaptiveStrategyEngineWeights;
   /** Kept in step with the analysis, which segments learning by style. */
   tradingStyle?: TradingStyle;
+  /** What the copied trade summary says about the account and its settings. */
+  summary?: { equity: number; accountType: AccountType; settings: SummarySettings };
   theme?: 'dark' | 'light';
 }
 
@@ -18,9 +21,39 @@ export default function SelfLearningDashboard({
   learningRecords,
   engineWeights,
   tradingStyle,
+  summary,
   theme = 'dark',
 }: SelfLearningDashboardProps) {
   const isDark = theme === 'dark';
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  /** Puts every recorded trade on the clipboard, ready to paste into a chat. */
+  const copySummary = async () => {
+    if (!summary) return;
+    const text = tradeSummaryText(learningRecords, summary);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState('copied');
+    } catch {
+      // Some in-app browsers refuse the clipboard API; a selected textarea
+      // and the old copy command still work there.
+      try {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(area);
+        setCopyState(ok ? 'copied' : 'failed');
+      } catch {
+        setCopyState('failed');
+      }
+    }
+    setTimeout(() => setCopyState('idle'), 4000);
+  };
   const total = learningRecords.length;
   const wins = learningRecords.filter((r) => r.outcome === 'TP').length;
   const losses = learningRecords.filter((r) => r.outcome === 'SL').length;
@@ -97,7 +130,7 @@ export default function SelfLearningDashboard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={`text-xs font-mono px-3 py-1 rounded-xl border ${
               isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-700'
@@ -105,6 +138,27 @@ export default function SelfLearningDashboard({
           >
             Evaluations Stored: <strong className="text-amber-400">{total}</strong>
           </span>
+          {summary && total > 0 && (
+            <button
+              type="button"
+              id="copy-trade-summary-btn"
+              onClick={copySummary}
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-xl cursor-pointer ${
+                copyState === 'copied'
+                  ? 'bg-emerald-500 text-slate-950'
+                  : copyState === 'failed'
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-sky-500 text-slate-950'
+              }`}
+            >
+              <ClipboardCopy className="w-3.5 h-3.5" />
+              {copyState === 'copied'
+                ? 'Copied, paste it in the chat'
+                : copyState === 'failed'
+                  ? 'Copy failed'
+                  : 'Copy trade summary'}
+            </button>
+          )}
         </div>
       </div>
 
