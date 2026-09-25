@@ -166,6 +166,8 @@ export async function POST(request: Request) {
       reasons: string[];
       anchoredTo?: string;
       model?: string;
+      /** True once a proposal actually arrived and was checked against structure. */
+      reviewed?: boolean;
     } = { attempted: false, accepted: false, reasons: [] };
 
     const hasProviderKey = [
@@ -175,7 +177,14 @@ export async function POST(request: Request) {
       process.env.CLAUDE_API_KEY,
     ].some((k) => typeof k === 'string' && k.trim().length > 0);
 
-    if (hasProviderKey) {
+    // Price levels come from the tested engine. A language model may propose
+    // its own only when AI_PRICE_PROPOSALS is turned on: its orders were never
+    // part of the replay the settings rest on, and a provider that did not
+    // answer used to cost every setup ten points of conviction, enough to push
+    // about one setup in eight under the floor.
+    const proposalsEnabled = hasProviderKey && process.env.AI_PRICE_PROPOSALS?.trim().toLowerCase() === 'on';
+
+    if (proposalsEnabled) {
       proposalOutcome.attempted = true;
 
       const proposalContext: ProposalContext = {
@@ -249,6 +258,7 @@ Reply with JSON only:
             proposalOutcome.reasons = parseReasons;
           } else {
             const verdict = validateProposal(proposal, proposalContext);
+            proposalOutcome.reviewed = true;
             proposalOutcome.accepted = verdict.accepted;
             proposalOutcome.reasons = verdict.reasons;
             proposalOutcome.anchoredTo = verdict.anchoredTo;
@@ -386,10 +396,15 @@ Reply with JSON only:
       killZoneActive: killZone.isHighVolatilityTiming,
       entryOutOfReach: decision.entryOutOfReach && !proposalOutcome.accepted,
       dataStale: snapshot.status === 'stale',
-      proposalRejected: proposalOutcome.attempted && !proposalOutcome.accepted,
-      drawdownPercent,
+      // Only a proposal that arrived and broke a structural rule counts
+      // against the setup. A provider that never answered says nothing about it.
+      proposalRejected: Boolean(proposalOutcome.reviewed) && !proposalOutcome.accepted,
+      // The account's drawdown and the first target's reward to risk are not
+      // part of the score. The 24 month replay the settings rest on scored
+      // setups without them; adding both took profit factor from 1.31 to 1.29
+      // and declined twenty setups that paid. The daily loss limit is the
+      // brake on a bad run, and the minimum lot already caps a small account.
       measuredEdgeR,
-      rewardToRisk: decision.targetRiskReward,
     });
     // A quality floor the user set. Nothing on the chart being good enough is a
     // real answer, and a cheaper one than a bad trade: skipping costs nothing.
@@ -574,12 +589,10 @@ Reply with JSON only:
       {
         label: 'Portfolio and equity growth',
         value:
-          drawdownPercent >= 10
-            ? `${drawdownPercent}% below the account high water mark, so position size is reduced.`
-            : drawdownPercent > 0
-            ? `${drawdownPercent}% below the account high water mark, which is inside the band where size is left alone.`
-            : 'Account at its high water mark, so no drawdown reduction applied.',
-        used: true,
+          drawdownPercent > 0
+            ? `${drawdownPercent}% below the account high water mark. Shown for information; the daily loss limit, not the score, handles a losing run.`
+            : 'Account at its high water mark.',
+        used: false,
       },
     ];
 
