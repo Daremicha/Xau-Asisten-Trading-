@@ -3,7 +3,15 @@ import { getMarketSnapshot } from '@/lib/price-feed';
 import { replayOrder } from '@/lib/order-replay';
 import { messagesFor } from '@/lib/push-watch';
 import { sendPush, vapidPublicKey } from '@/lib/push-send';
-import { claimCheck, deleteRecord, loadRecord, saveRecord, storeConfigured, watchingIds } from '@/lib/push-store';
+import {
+  claimCheck,
+  deleteRecord,
+  loadRecord,
+  recordCheck,
+  saveRecord,
+  storeConfigured,
+  watchingIds,
+} from '@/lib/push-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +21,7 @@ const CHECK_GAP_SECONDS = 45;
 /**
  * Checks every watched setup against the market and pushes what changed.
  *
- * Called on a schedule from outside (a GitHub Actions workflow), because the
+ * Called on a schedule from outside (cron-job.org, every minute), because the
  * point is to run while every phone has the app closed. When PUSH_CRON_SECRET
  * is set the caller must present it; either way checks are spaced at least
  * CHECK_GAP_SECONDS apart, so an outside caller cannot burn the quote budget.
@@ -42,8 +50,12 @@ async function run(request: Request) {
     }
 
     const ids = await watchingIds();
-    // Nothing to watch means nothing to spend a quote on.
-    if (ids.length === 0) return NextResponse.json({ success: true, watching: 0, sent: 0 });
+    // Nothing to watch means nothing to spend a quote on. The run is still
+    // noted, so the app can show that the scheduler is alive.
+    if (ids.length === 0) {
+      await recordCheck({ at: new Date().toISOString(), watching: 0, sent: 0 });
+      return NextResponse.json({ success: true, watching: 0, sent: 0 });
+    }
 
     const snapshot = await getMarketSnapshot(true);
     const now = Date.now();
@@ -92,6 +104,7 @@ async function run(request: Request) {
       }
     }
 
+    await recordCheck({ at: new Date().toISOString(), watching: ids.length, sent });
     return NextResponse.json({ success: true, watching: ids.length, sent, price });
   } catch (err) {
     console.warn('Push check failed:', err);

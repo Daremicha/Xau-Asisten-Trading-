@@ -100,3 +100,61 @@ export async function syncWatchedSetup(setup: InstitutionalTradingSetup | null):
     console.warn('Could not sync the watched setup:', err);
   }
 }
+
+export interface ClosedAppAlertStatus {
+  /** The browser can receive push at all. */
+  supported: boolean;
+  permission: NotificationPermission | 'unsupported';
+  /** This phone has a push subscription. */
+  subscribed: boolean;
+  /** The server has push configured. */
+  serverEnabled: boolean;
+  /** When the scheduled watcher last ran, or null when it never has. */
+  lastCheckAt: string | null;
+}
+
+/** Everything the status panel needs to say whether alerts will arrive with the app closed. */
+export async function closedAppAlertStatus(): Promise<ClosedAppAlertStatus> {
+  if (!supported()) {
+    return { supported: false, permission: 'unsupported', subscribed: false, serverEnabled: false, lastCheckAt: null };
+  }
+  let serverEnabled = false;
+  let lastCheckAt: string | null = null;
+  try {
+    const config = (await (await fetch('/api/push/config', { cache: 'no-store' })).json()) as {
+      enabled?: boolean;
+      lastCheckAt?: string | null;
+    };
+    serverEnabled = Boolean(config.enabled);
+    lastCheckAt = config.lastCheckAt ?? null;
+  } catch {
+    // Unknown reads as not enabled; the panel says so.
+  }
+  let subscribed = false;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    subscribed = Boolean(await registration?.pushManager.getSubscription());
+  } catch {
+    subscribed = false;
+  }
+  return { supported: true, permission: Notification.permission, subscribed, serverEnabled, lastCheckAt };
+}
+
+/** Asks the server for a test notification in a few seconds. Returns an error to show, or null. */
+export async function sendTestPush(): Promise<string | null> {
+  if (!supported()) return 'This browser cannot receive push notifications.';
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return 'This phone is not signed up yet. Allow notifications first.';
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: subscription.toJSON() }),
+    });
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    return res.ok ? null : data?.error ?? `The test failed (HTTP ${res.status}).`;
+  } catch {
+    return 'The test could not be requested.';
+  }
+}

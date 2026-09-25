@@ -10,6 +10,7 @@
 import { Candle, round2 } from './candles';
 import { tradingCandles } from './market-hours';
 import { budgetState, takeRequest } from './request-budget';
+import { requestTwelveData, twelveDataBase, twelveDataConfigured } from './twelve-data-keys';
 
 export type FeedStatus = 'live' | 'stale' | 'unavailable';
 
@@ -267,7 +268,6 @@ export function mapTwelveDataCandles(payload: unknown): Candle[] {
  */
 async function twelveDataPrice(
   base: string,
-  key: string,
   live: boolean,
   now: number
 ): Promise<number | null> {
@@ -282,11 +282,12 @@ async function twelveDataPrice(
   if (!takeRequest(false, now)) return cachedTick?.price ?? null;
 
   try {
-    const res = await fetchWithTimeout(
-      `${base}/price?symbol=XAU/USD&format=JSON&apikey=${encodeURIComponent(key)}`
+    const reply = await requestTwelveData(
+      (key) => `${base}/price?symbol=XAU/USD&format=JSON&apikey=${encodeURIComponent(key)}`,
+      fetchWithTimeout
     );
-    if (!res.ok) return null;
-    const payload = await res.json();
+    if (!reply?.ok) return cachedTick?.price ?? null;
+    const payload = reply.payload;
     const price = toFiniteNumber((payload as { price?: unknown })?.price);
     if (price === null || price <= 0) return cachedTick?.price ?? null;
     cachedTick = { at: Date.now(), price };
@@ -305,7 +306,7 @@ async function twelveDataPrice(
  * resampling the execution feed and saying so. A missing daily read is a
  * weaker analysis, not a broken one.
  */
-async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
+async function twelveDataDaily(base: string): Promise<Candle[]> {
   const now = Date.now();
   if (cachedDaily && now - cachedDaily.at < DAILY_CACHE_MS) return cachedDaily.candles;
   // Twenty four of these a day, and the daily trend is the heaviest input the
@@ -313,12 +314,14 @@ async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
   if (!takeRequest(true, now)) return cachedDaily?.candles ?? [];
 
   try {
-    const res = await fetchWithTimeout(
-      `${base}/time_series?symbol=XAU/USD&interval=1day&timezone=UTC&outputsize=${DAILY_CANDLES}&format=JSON&apikey=` +
-        encodeURIComponent(key)
+    const reply = await requestTwelveData(
+      (key) =>
+        `${base}/time_series?symbol=XAU/USD&interval=1day&timezone=UTC&outputsize=${DAILY_CANDLES}&format=JSON&apikey=` +
+        encodeURIComponent(key),
+      fetchWithTimeout
     );
-    if (!res.ok) return cachedDaily?.candles ?? [];
-    const payload = await res.json();
+    if (!reply?.ok) return cachedDaily?.candles ?? [];
+    const payload = reply.payload;
     if ((payload as { status?: string })?.status === 'error') return cachedDaily?.candles ?? [];
     const candles = mapTwelveDataCandles(payload);
     if (candles.length === 0) return cachedDaily?.candles ?? [];
@@ -332,12 +335,11 @@ async function twelveDataDaily(base: string, key: string): Promise<Candle[]> {
 }
 
 async function fromTwelveData(live: boolean): Promise<ProviderResult | null> {
-  const key = process.env.TWELVE_DATA_API_KEY;
-  if (!key || key.trim().length === 0) return null;
+  if (!twelveDataConfigured()) return null;
 
   // Overridable so a self hosted proxy, or a fixture server in tests, can stand
   // in for the public endpoint.
-  const base = (process.env.TWELVE_DATA_BASE_URL || 'https://api.twelvedata.com').replace(/\/$/, '');
+  const base = twelveDataBase();
   // A thousand fifteen minute candles is about ten days: two hundred and fifty
   // hourly bars, which is the first length at which the hourly EMA 200 is an
   // EMA 200 rather than the longest average the feed happened to support.
@@ -348,15 +350,16 @@ async function fromTwelveData(live: boolean): Promise<ProviderResult | null> {
   // Then the analysis runs on the candles already held, which are at most a few
   // minutes old, rather than on nothing.
   if (candlesAreStale(now) && takeRequest(true, now)) {
-    const url =
-      `${base}/time_series?symbol=XAU/USD&interval=15min&timezone=UTC&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
-      encodeURIComponent(key.trim());
-
-    const res = await fetchWithTimeout(url);
-    if (!res.ok) {
-      if (candles.length === 0) throw new Error(`Twelve Data HTTP ${res.status}`);
+    const reply = (await requestTwelveData(
+      (key) =>
+        `${base}/time_series?symbol=XAU/USD&interval=15min&timezone=UTC&outputsize=${EXECUTION_CANDLES}&format=JSON&apikey=` +
+        encodeURIComponent(key),
+      fetchWithTimeout
+    ))!;
+    if (!reply.ok && reply.status !== 200) {
+      if (candles.length === 0) throw new Error(`Twelve Data HTTP ${reply.status}`);
     } else {
-      const payload = await res.json();
+      const payload = reply.payload as { status?: string; message?: string } | null;
       if (payload?.status === 'error') {
         if (candles.length === 0) {
           throw new Error(`Twelve Data: ${payload?.message ?? 'unknown error'}`);
@@ -380,8 +383,8 @@ async function fromTwelveData(live: boolean): Promise<ProviderResult | null> {
   // openly older, and the snapshot says by how much. The daily series is
   // fetched alongside it and is usually served from its own hourly cache.
   const [livePrice, daily] = await Promise.all([
-    twelveDataPrice(base, key.trim(), live, now),
-    twelveDataDaily(base, key.trim()),
+    twelveDataPrice(base, live, now),
+    twelveDataDaily(base),
   ]);
 
   return {
@@ -660,8 +663,7 @@ export async function fetchHistoricalCandles(
   startMs: number,
   endMs: number
 ): Promise<{ candles: Candle[]; message: string }> {
-  const key = process.env.TWELVE_DATA_API_KEY;
-  if (!key || key.trim().length === 0) {
+  if (!twelveDataConfigured()) {
     return {
       candles: [],
       message: 'No market data key is configured, so past prices cannot be fetched.',
@@ -680,22 +682,22 @@ export async function fetchHistoricalCandles(
     };
   }
 
-  const base = (process.env.TWELVE_DATA_BASE_URL || 'https://api.twelvedata.com').replace(/\/$/, '');
+  const base = twelveDataBase();
   // Twelve Data takes these as UTC 'YYYY-MM-DD HH:MM:SS'.
   const stamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
-  const url =
+  const url = (key: string) =>
     `${base}/time_series?symbol=XAU/USD&interval=15min&timezone=UTC` +
     `&start_date=${encodeURIComponent(stamp(startMs))}` +
     `&end_date=${encodeURIComponent(stamp(endMs))}` +
-    `&outputsize=5000&format=JSON&apikey=${encodeURIComponent(key.trim())}`;
+    `&outputsize=5000&format=JSON&apikey=${encodeURIComponent(key)}`;
 
   try {
-    const res = await fetchWithTimeout(url);
-    if (!res.ok) {
-      return { candles: [], message: `The market data provider returned HTTP ${res.status}.` };
+    const reply = (await requestTwelveData(url, fetchWithTimeout))!;
+    if (!reply.ok) {
+      return { candles: [], message: `The market data provider returned HTTP ${reply.status}.` };
     }
-    const payload = await res.json();
+    const payload = reply.payload;
     if ((payload as { status?: string })?.status === 'error') {
       return { candles: [], message: 'The market data provider declined the request for this period.' };
     }

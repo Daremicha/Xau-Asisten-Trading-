@@ -36,6 +36,8 @@ interface EquityManagerProps {
   /** Lowest conviction worth trading. Zero takes every setup. */
   minConviction: number;
   onLockEquity: (initialAmount: number) => void;
+  /** Replaces the balance with one the user typed, in USD. Saved to the account. */
+  onSetEquity: (amount: number) => void;
   onChangeRiskPct: (pct: number) => void;
   onChangeMinConviction: (score: number) => void;
   /** Percent of the day's starting balance that may be lost; zero is off. */
@@ -59,6 +61,7 @@ export default function EquityManager({
   selectedBroker = 'EXNESS',
   minConviction,
   onLockEquity,
+  onSetEquity,
   onChangeRiskPct,
   onChangeMinConviction,
   dailyLossLimit,
@@ -85,6 +88,31 @@ export default function EquityManager({
     }
     setErrorMsg('');
     onLockEquity(val);
+  };
+
+  // Editing the balance later, to match the broker after a deposit, a
+  // withdrawal or a trade taken outside the app. Typed in the account's own
+  // units: cents on a cent account, as the terminal shows them.
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState('');
+  const [editError, setEditError] = useState('');
+  const unitsPerUsd = isCentAccount(accountType) ? 100 : 1;
+
+  const startEdit = () => {
+    setEditVal(String(parseFloat((equity * unitsPerUsd).toFixed(2))));
+    setEditError('');
+    setEditing(true);
+  };
+
+  const saveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const typed = parseFloat(editVal.replace(',', '.'));
+    if (!Number.isFinite(typed) || typed <= 0) {
+      setEditError('Enter a balance greater than zero.');
+      return;
+    }
+    onSetEquity(typed / unitsPerUsd);
+    setEditing(false);
   };
 
   const isBroke = isLocked && equity <= 0;
@@ -585,9 +613,53 @@ export default function EquityManager({
                 <span>Locked Account Equity</span>
                 <Lock className="w-3.5 h-3.5 text-amber-500" />
               </div>
-              <div id="locked-equity-display" className="text-2xl font-black font-mono text-emerald-500">
-                {balanceDisplay}
-              </div>
+              {editing ? (
+                <form onSubmit={saveEdit} className="flex items-center gap-1.5 mt-1">
+                  <input
+                    id="equity-edit-input"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    autoFocus
+                    value={editVal}
+                    onChange={(e) => setEditVal(e.target.value)}
+                    className={`w-full min-w-0 border rounded-lg px-2 py-1 text-base font-mono font-bold outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                  <span className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {isCentAccount(accountType) ? 'USC' : 'USD'}
+                  </span>
+                  <button type="submit" id="equity-edit-save" className="px-2 py-1 rounded-lg bg-emerald-500 text-slate-950 text-xs font-bold cursor-pointer">
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold cursor-pointer ${isDark ? 'text-slate-400' : 'text-slate-600'}`}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div id="locked-equity-display" className="text-2xl font-black font-mono text-emerald-500">
+                    {balanceDisplay}
+                  </div>
+                  <button
+                    type="button"
+                    id="equity-edit-btn"
+                    onClick={startEdit}
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-md border cursor-pointer ${
+                      isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
+              {editError && <p className="text-[11px] text-rose-500 mt-1">{editError}</p>}
               <div className={`text-[11px] mt-1 flex items-center gap-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {isCent ? (
                   <span className="text-sky-500 font-medium">

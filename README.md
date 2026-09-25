@@ -39,6 +39,7 @@ Before clicking Deploy, open **Environment Variables** and add:
 | Name | Value |
 | --- | --- |
 | `TWELVE_DATA_API_KEY` | your key |
+| `TWELVE_DATA_API_KEY_2`, `TWELVE_DATA_API_KEY_3` | optional extra keys, used in turn when one runs out of credits |
 
 Then deploy. This is the step that replaces editing a file.
 

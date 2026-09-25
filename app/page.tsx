@@ -92,6 +92,8 @@ import {
   NotificationPermissionState,
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
+import { closedAlert, filledAlert, missedAlert } from '@/lib/trade-alerts';
+import AlertsStatus from '@/components/AlertsStatus';
 import { TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
 import { DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
@@ -422,6 +424,13 @@ export default function Home() {
       setFilledSetupId(activeSetup.id);
       // The resting order became a live position, so the status follows.
       if (activeSetup.status === 'PENDING') {
+        // Said out loud, in the same words and under the same tag as the
+        // server's alert, so the phone shows it once whichever arrives first.
+        const fill = filledAlert(
+          activeSetup,
+          replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : activeSetup.entryPrice
+        );
+        void triggerBrowserNotification(fill.title, { body: fill.body, tag: fill.tag });
         setActiveSetup((prev) =>
           prev && prev.id === activeSetup.id
             ? { ...prev, status: 'ACTIVE', filledAt: new Date().toISOString() }
@@ -429,7 +438,7 @@ export default function Home() {
         );
       }
     }
-  }, [activeSetup, livePosition, filledSetupId]);
+  }, [activeSetup, livePosition, filledSetupId, replay]);
 
   // Only an order that has not filled can be missed. Once it fills, the miss
   // rules no longer apply: the trade is running and will end at a level.
@@ -928,6 +937,21 @@ export default function Home() {
             : activeSetup.takeProfit1
           ).toFixed(2)}${when}. The engine closed the trade and recorded it.`
     );
+    const exit =
+      hit === 'SL'
+        ? activeSetup.stopLoss
+        : hit === 'TP3'
+          ? activeSetup.takeProfit3
+          : hit === 'TP2'
+            ? activeSetup.takeProfit2
+            : activeSetup.takeProfit1;
+    const closedNote = closedAlert(
+      activeSetup,
+      hit,
+      exit,
+      replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : activeSetup.entryPrice
+    );
+    void triggerBrowserNotification(closedNote.title, { body: closedNote.body, tag: closedNote.tag });
     void handleSimulateOutcome(hit === 'SL' ? 'SL' : 'TP', level as 1 | 2 | 3);
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
@@ -950,6 +974,8 @@ export default function Home() {
 
     resolvedRef.current = activeSetup.id;
     setAutoResolveNotice(`${miss.reason} The engine recorded it as a missed entry.`);
+    const missNote = missedAlert(activeSetup, miss.reason);
+    void triggerBrowserNotification(missNote.title, { body: missNote.body, tag: missNote.tag });
     void handleSimulateOutcome('MISSED', 1, missCause(miss.cause));
     // handleSimulateOutcome is recreated each render but closes over the same
     // setup, so listing it would re-fire this effect without changing anything.
@@ -983,6 +1009,19 @@ export default function Home() {
       accountType,
       selectedBroker,
     });
+  };
+
+  /**
+   * Replaces the balance with the one the user typed, to match the broker. It
+   * is saved to the account like every other setting, and the next setup's lot
+   * is sized from it.
+   */
+  const handleSetEquity = async (amount: number) => {
+    const next = roundMoney(amount);
+    setEquity(next);
+    setIsEquityLocked(true);
+    setSkippedSetup(null);
+    await persistSettings({ equity: next, isEquityLocked: true });
   };
 
   /**
@@ -1828,6 +1867,13 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Whether trade alerts reach this phone with the app closed. */}
+        <AlertsStatus
+          permission={notificationPermission}
+          onRequestNotification={handleRequestNotification}
+          theme={theme}
+        />
+
         {/* Equity & Risk Allocation (Lock Enforcement) */}
         <EquityManager
           equity={equity}
@@ -1840,6 +1886,7 @@ export default function Home() {
           dailyLossLimit={dailyLossLimit}
           onChangeDailyLossLimit={handleChangeDailyLossLimit}
           onLockEquity={handleLockEquity}
+          onSetEquity={handleSetEquity}
           onChangeRiskPct={handleChangeRiskPercentage}
           onChangeMinConviction={handleChangeMinConviction}
           onChangeTradingStyle={handleChangeTradingStyle}
