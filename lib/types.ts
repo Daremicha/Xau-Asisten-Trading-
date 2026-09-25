@@ -393,6 +393,11 @@ export interface SkippedSetup {
   convictionScore: number;
   band: 'Low' | 'Moderate' | 'High';
   threshold: number;
+  /**
+   * Which rule declined a below-conviction setup: the user's own floor, the
+   * Asian session's, or the rule that setups under 40 need the pivot bias.
+   */
+  declinedBy?: 'floor' | 'session' | 'weak-setup';
   /** The refused band, when that is what happened. */
   deadBand?: { label: string; min: number; max: number } | null;
   /**
