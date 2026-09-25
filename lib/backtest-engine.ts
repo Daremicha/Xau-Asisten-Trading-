@@ -30,6 +30,7 @@
 import { Candle } from './candles';
 import { filterUpcoming, minutesToNextHighImpact, usdOnly } from './economic-calendar';
 import { effectiveConvictionFloor, weakSetupDecline } from './session-rules';
+import { dailyLossLimitReached, netToday, nextTradingDayStart } from './daily-loss';
 import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal } from './signal-engine';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
@@ -97,6 +98,12 @@ export interface BacktestConfig {
    * control. See `OrderPlan.breakEvenAtR`.
    */
   breakEvenAtR?: number | null;
+  /**
+   * Stop taking new setups for the rest of the trading day once the day's
+   * closed trades have lost this percentage of the balance it started with.
+   * Null or zero leaves the rule off. See daily-loss.ts.
+   */
+  dailyLossLimitPercent?: number | null;
   /**
    * Dollars an order filled at market loses to slippage: instant entries,
    * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
@@ -194,6 +201,8 @@ export interface BacktestRunSummary {
   minConviction: number;
   /** Setups the conviction floor rejected. */
   belowConviction: number;
+  /** Decisions passed over because the daily loss limit had been reached. */
+  dailyLimitSkips?: number;
 }
 
 export interface BacktestResult {
@@ -531,6 +540,8 @@ export function createBacktest(config: BacktestConfig): Runner {
   let decisions = 0;
   let skipped = 0;
   let belowConviction = 0;
+  let dailyLimitSkips = 0;
+  const dailyLossLimit = config.dailyLossLimitPercent ?? null;
   const minConviction = Math.max(0, Math.min(100, config.minConviction ?? 0));
   const deadBand = config.skipConvictionBand ?? null;
 
@@ -559,6 +570,23 @@ export function createBacktest(config: BacktestConfig): Runner {
     const i = cursor;
     const bar = candles[i];
     const window = candles.slice(Math.max(0, i + 1 - windowBars), i + 1);
+
+    // The daily loss limit, from the trades already closed today. Nothing is
+    // read or decided until the next trading day begins.
+    if (dailyLossLimit) {
+      const today = netToday(
+        trades.filter((t) => t.filled).map((t) => ({ closedAt: t.closedAt, net: t.netDollars })),
+        bar.time
+      );
+      if (dailyLossLimitReached(today, equity, dailyLossLimit)) {
+        dailyLimitSkips += 1;
+        const resume = nextTradingDayStart(bar.time);
+        let next = i + 1;
+        while (next < candles.length && candles[next].time < resume) next += 1;
+        cursor = next;
+        return;
+      }
+    }
 
     const read = buildInstitutionalRead(snapshotFor(window));
     if (!read) {
@@ -826,6 +854,7 @@ export function createBacktest(config: BacktestConfig): Runner {
           skipped,
           minConviction,
           belowConviction,
+          dailyLimitSkips,
         },
         trades,
         equityCurve,

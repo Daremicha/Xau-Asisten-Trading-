@@ -218,6 +218,24 @@ describe('the conviction floor', () => {
   });
 });
 
+describe('the daily loss limit', () => {
+  test('is read back, including a limit the user turned off', () => {
+    installStorage({ [LOCAL_KEYS.dailyLossLimit]: '3' });
+    expect(readLocalProfile().dailyLossLimit).toBe(3);
+    installStorage({ [LOCAL_KEYS.dailyLossLimit]: '0' });
+    expect(readLocalProfile().dailyLossLimit).toBe(0);
+  });
+
+  test('nothing stored, or nonsense, leaves the default to apply', () => {
+    installStorage({});
+    expect(readLocalProfile().dailyLossLimit).toBeNull();
+    installStorage({ [LOCAL_KEYS.dailyLossLimit]: '-1' });
+    expect(readLocalProfile().dailyLossLimit).toBeNull();
+    installStorage({ [LOCAL_KEYS.dailyLossLimit]: 'lots' });
+    expect(readLocalProfile().dailyLossLimit).toBeNull();
+  });
+});
+
 describe('the break-even rule', () => {
   test('is read back when the user turned it on', () => {
     installStorage({ [LOCAL_KEYS.protectStopAtR]: '1' });

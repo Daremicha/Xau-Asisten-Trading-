@@ -63,6 +63,8 @@ interface BacktestLabProps {
   onProtectStop: (atR: number | null) => void;
   /** A conviction band live analysis refuses outright, or null when none is. */
   skipConvictionBand: { min: number; max: number } | null;
+  /** The daily loss limit live analysis applies, in percent; zero is off. */
+  dailyLossLimit: number;
   onSkipBand: (band: { min: number; max: number } | null) => void;
   theme?: 'dark' | 'light';
 }
@@ -87,6 +89,7 @@ export default function BacktestLab({
   protectStopAtR,
   onProtectStop,
   skipConvictionBand,
+  dailyLossLimit,
   onSkipBand,
   theme = 'dark',
 }: BacktestLabProps) {
@@ -120,6 +123,7 @@ export default function BacktestLab({
         riskPercentage,
         minConviction,
         skipConvictionBand,
+        dailyLossLimitPercent: dailyLossLimit,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -508,6 +512,8 @@ export default function BacktestLab({
               {!result.coverage.complete &&
                 result.coverage.interval === '15min' &&
                 ' Yahoo only serves sixty days of fifteen minute candles. For a longer replay, set a Twelve Data key or switch to the H1 base.'}
+              {(result.control.summary.dailyLimitSkips ?? 0) > 0 &&
+                ` The daily loss limit stopped trading for the rest of the day ${result.control.summary.dailyLimitSkips} times.`}
               {result.news &&
                 ` News: ${result.news.releases} high impact dollar releases in this period${
                   result.news.archived > 0 ? `, ${result.news.archived} of them from the archived live calendar` : ''

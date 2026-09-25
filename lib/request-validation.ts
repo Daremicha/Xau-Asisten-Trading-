@@ -44,6 +44,8 @@ export interface ValidatedAnalyzeRequest {
    * losing money in both halves of the period. Null when no band is refused.
    */
   skipConvictionBand: { min: number; max: number } | null;
+  /** Daily loss limit in percent, or null when off. */
+  dailyLossLimitPercent: number | null;
   /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
@@ -116,6 +118,16 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       ? normalisePrior(b.priorWeights as Partial<PriorWeights>)
       : null;
 
+  // Absent means an older client that never offered the limit: off.
+  let dailyLossLimitPercent: number | null = null;
+  if (b.dailyLossLimitPercent !== undefined && b.dailyLossLimitPercent !== null) {
+    if (!isFiniteNumber(b.dailyLossLimitPercent) || b.dailyLossLimitPercent < 0 || b.dailyLossLimitPercent > 50) {
+      errors.push('dailyLossLimitPercent must be between 0 and 50.');
+    } else if (b.dailyLossLimitPercent > 0) {
+      dailyLossLimitPercent = b.dailyLossLimitPercent;
+    }
+  }
+
   if (errors.length > 0) return { value: null, errors };
 
   return {
@@ -129,6 +141,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       pastLearningRecords: (b.pastLearningRecords as SelfLearningMemoryRecord[]) ?? [],
       minConviction,
       skipConvictionBand,
+      dailyLossLimitPercent,
       priorWeights,
     },
     errors: [],
