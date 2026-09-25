@@ -389,7 +389,7 @@ export interface SkippedSetup {
    * recorded as a missed entry the moment it was placed, or the only feed
    * available quotes a different instrument from the one being traded.
    */
-  reason: 'below-conviction' | 'dead-band' | 'unfillable' | 'feed-mismatch';
+  reason: 'below-conviction' | 'dead-band' | 'unfillable' | 'feed-mismatch' | 'daily-limit';
   convictionScore: number;
   band: 'Low' | 'Moderate' | 'High';
   threshold: number;

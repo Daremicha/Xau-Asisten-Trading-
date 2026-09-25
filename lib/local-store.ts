@@ -27,6 +27,8 @@ export const LOCAL_KEYS = {
   protectStopAtR: 'xauusd_protect_stop_at_r',
   /** A conviction band live analysis refuses outright. */
   skipConvictionBand: 'xauusd_skip_conviction_band',
+  /** Daily loss limit in percent; zero when the user turned it off. */
+  dailyLossLimit: 'xauusd_daily_loss_limit',
   /** Dark or light, so the app opens looking the way it was left. */
   theme: 'xauusd_theme',
   /**
@@ -61,6 +63,11 @@ export interface LocalProfile {
    * A conviction band refused outright, or null when every band is taken.
    */
   skipConvictionBand: { min: number; max: number } | null;
+  /**
+   * Daily loss limit in percent, zero when turned off, or null when the user
+   * has never chosen and the default applies.
+   */
+  dailyLossLimit: number | null;
   /** Dark or light, or null when the user has never chosen. */
   theme: 'dark' | 'light' | null;
 }
@@ -145,6 +152,10 @@ export function readLocalProfile(): LocalProfile {
       const value = readNumber(LOCAL_KEYS.protectStopAtR);
       return value !== null && value >= 0.5 && value <= 3 ? value : null;
     })(),
+    dailyLossLimit: (() => {
+      const value = readNumber(LOCAL_KEYS.dailyLossLimit);
+      return value !== null && value >= 0 && value <= 50 ? value : null;
+    })(),
     theme: (() => {
       const raw = readRaw(LOCAL_KEYS.theme);
       return raw === 'dark' || raw === 'light' ? raw : null;
@@ -212,6 +223,7 @@ export interface ProfileSettings {
   minConviction: number;
   protectStopAtR: number | null;
   skipConvictionBand: { min: number; max: number } | null;
+  dailyLossLimit: number;
   backtestPrior: PriorWeights | null;
   theme: 'dark' | 'light';
 }
@@ -228,6 +240,7 @@ export const CLOUD_FIELDS: Record<keyof ProfileSettings, string> = {
   minConviction: 'minConviction',
   protectStopAtR: 'protectStopAtR',
   skipConvictionBand: 'skipConvictionBand',
+  dailyLossLimit: 'dailyLossLimit',
   backtestPrior: 'backtestPrior',
   theme: 'theme',
 };
@@ -261,6 +274,7 @@ export function writeLocalSettings(patch: Partial<ProfileSettings>): void {
       patch.skipConvictionBand === null ? null : JSON.stringify(patch.skipConvictionBand)
     );
   }
+  if (patch.dailyLossLimit !== undefined) writeRaw(LOCAL_KEYS.dailyLossLimit, String(patch.dailyLossLimit));
   if (patch.backtestPrior !== undefined) {
     writeRaw(LOCAL_KEYS.backtestPrior, patch.backtestPrior === null ? null : JSON.stringify(patch.backtestPrior));
   }
@@ -318,6 +332,9 @@ export function settingsMissingFromCloud(
   }
   if (absent(CLOUD_FIELDS.skipConvictionBand) && local.skipConvictionBand !== null) {
     missing.skipConvictionBand = local.skipConvictionBand;
+  }
+  if (absent(CLOUD_FIELDS.dailyLossLimit) && local.dailyLossLimit !== null) {
+    missing.dailyLossLimit = local.dailyLossLimit;
   }
   if (absent(CLOUD_FIELDS.backtestPrior) && local.backtestPrior !== null) {
     missing.backtestPrior = local.backtestPrior;

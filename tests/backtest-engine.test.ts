@@ -625,14 +625,26 @@ describe('news in a replay', () => {
 
   test('decisions within an hour of a dollar release are recorded as near news', () => {
     const withNews = runBacktest(config(candles, { economicEvents: hourly }));
-    expect(withNews.records.some((r) => r.context.newsNearby)).toBe(true);
+    expect(withNews.records.some((r) => r.context?.newsNearby)).toBe(true);
   });
 
   test('no calendar, or only foreign releases, means no news at all', () => {
     const none = runBacktest(config(candles));
     const foreign = runBacktest(config(candles, { economicEvents: hourly.map((e) => release(Date.parse(e.scheduledTimestamp), 'EUR')) }));
-    expect(none.records.every((r) => !r.context.newsNearby)).toBe(true);
-    expect(foreign.records.every((r) => !r.context.newsNearby)).toBe(true);
+    expect(none.records.every((r) => !r.context?.newsNearby)).toBe(true);
+    expect(foreign.records.every((r) => !r.context?.newsNearby)).toBe(true);
     expect(foreign.trades.map((t) => t.stopLoss)).toEqual(none.trades.map((t) => t.stopLoss));
+  });
+});
+
+describe('the daily loss limit in a replay', () => {
+  const candles = walk(3000, 12);
+
+  test('a tight limit stops trading for the rest of the day, and trades less', () => {
+    const free = runBacktest(config(candles));
+    const limited = runBacktest(config(candles, { dailyLossLimitPercent: 0.5 }));
+    expect(free.summary.dailyLimitSkips).toBe(0);
+    expect(limited.summary.dailyLimitSkips).toBeGreaterThan(0);
+    expect(limited.trades.length).toBeLessThan(free.trades.length);
   });
 });

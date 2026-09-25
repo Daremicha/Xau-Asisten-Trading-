@@ -87,6 +87,8 @@ export interface BacktestJobOptions {
   minConviction?: number;
   /** A conviction band refused outright, when the user has turned one on. */
   skipConvictionBand?: { min: number; max: number } | null;
+  /** The user's daily loss limit in percent, applied to every pass. Zero or null is off. */
+  dailyLossLimitPercent?: number | null;
   /** Releases the replay reacts to. Fetched by the job when left out. */
   economicEvents?: ForexFactoryEvent[];
   onProgress?: (update: BacktestProgressUpdate) => void;
@@ -309,6 +311,7 @@ async function replay(
     startingPrior,
     breakEvenAtR,
     economicEvents: options.economicEvents,
+    dailyLossLimitPercent: options.dailyLossLimitPercent ?? null,
   });
 
   let guard = 0;

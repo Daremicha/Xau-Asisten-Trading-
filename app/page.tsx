@@ -93,6 +93,7 @@ import {
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
 import { TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
+import { DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
@@ -259,6 +260,11 @@ export default function Home() {
    */
   const [protectStopAtR, setProtectStopAtR] = useState<number | null>(null);
   /**
+   * Percent of the day's starting balance that may be lost before no new setup
+   * is offered until the next trading day. Zero turns it off.
+   */
+  const [dailyLossLimit, setDailyLossLimit] = useState<number>(DEFAULT_DAILY_LOSS_LIMIT);
+  /**
    * A conviction band live analysis refuses outright, when a backtest showed it
    * losing money in both halves of the period. Null when every band is taken.
    */
@@ -344,6 +350,7 @@ export default function Home() {
     if (profile.backtestPrior) setBacktestPrior(profile.backtestPrior);
     if (profile.minConviction !== null) setMinConviction(profile.minConviction);
     if (profile.protectStopAtR !== null) setProtectStopAtR(profile.protectStopAtR);
+    if (profile.dailyLossLimit !== null) setDailyLossLimit(profile.dailyLossLimit);
     if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
@@ -568,6 +575,9 @@ export default function Home() {
             } else if (data.protectStopAtR === null) {
               setProtectStopAtR(null);
             }
+            if (typeof data.dailyLossLimit === 'number' && data.dailyLossLimit >= 0 && data.dailyLossLimit <= 50) {
+              setDailyLossLimit(data.dailyLossLimit);
+            }
             const band = data.skipConvictionBand as { min?: unknown; max?: unknown } | null;
             if (
               band &&
@@ -604,6 +614,7 @@ export default function Home() {
               ...(data.accountType ? { accountType: data.accountType as AccountType } : {}),
               ...(data.selectedBroker ? { selectedBroker: data.selectedBroker as BrokerId } : {}),
               ...(typeof data.minConviction === 'number' ? { minConviction: data.minConviction } : {}),
+              ...(typeof data.dailyLossLimit === 'number' ? { dailyLossLimit: data.dailyLossLimit } : {}),
               ...(data.theme === 'dark' || data.theme === 'light' ? { theme: data.theme } : {}),
             });
             markMirrorOwner(user.uid);
@@ -985,6 +996,13 @@ export default function Home() {
     void persistSettings({ minConviction: score });
   };
 
+  /** Sets the daily loss limit, or turns it off with zero. */
+  const handleChangeDailyLossLimit = (percent: number) => {
+    setDailyLossLimit(percent);
+    setSkippedSetup(null);
+    void persistSettings({ dailyLossLimit: percent });
+  };
+
   /**
    * Turns the break-even rule on or off for live setups. The backtest lab only
    * offers it when a run over real history says it was the better way to hold
@@ -1089,6 +1107,7 @@ export default function Home() {
           userId: currentUser?.uid || 'guest',
           pastLearningRecords: learningRecords.slice(-RECENT_RECORD_LIMIT),
           minConviction,
+          dailyLossLimitPercent: dailyLossLimit,
           // What the engine shrinks toward. Null keeps its own defaults.
           priorWeights: backtestPrior,
         }),
@@ -1110,6 +1129,8 @@ export default function Home() {
           setFeedMessage(
             skip.reason === 'unfillable'
               ? 'No new setup: price has run too far from its level for an order to rest there. Your current order is unchanged.'
+              : skip.reason === 'daily-limit'
+              ? 'No new setup: today has reached your daily loss limit. Your current order is unchanged.'
               : 'No new setup met the engine quality rules. Your current order is unchanged.'
           );
         }
@@ -1816,6 +1837,8 @@ export default function Home() {
           accountType={accountType}
           selectedBroker={selectedBroker}
           minConviction={minConviction}
+          dailyLossLimit={dailyLossLimit}
+          onChangeDailyLossLimit={handleChangeDailyLossLimit}
           onLockEquity={handleLockEquity}
           onChangeRiskPct={handleChangeRiskPercentage}
           onChangeMinConviction={handleChangeMinConviction}
@@ -1897,6 +1920,7 @@ export default function Home() {
           protectStopAtR={protectStopAtR}
           onProtectStop={handleProtectStop}
           skipConvictionBand={skipConvictionBand}
+          dailyLossLimit={dailyLossLimit}
           onSkipBand={handleSkipBand}
           theme={theme}
         />

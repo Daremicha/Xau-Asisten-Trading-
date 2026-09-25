@@ -31,6 +31,7 @@ import { priceToPips, round2 } from '@/lib/candles';
 const priceToPipsDistance = (price: number, entry: number) => priceToPips(price - entry);
 import { InstitutionalTradingSetup, EngineGenerationMetadata, EngineInputUsed } from '@/lib/types';
 import { validateAnalyzeBody } from '@/lib/request-validation';
+import { closedResults, dailyLossLimitReached, dailyLossNote, netToday, nextTradingDayStart } from '@/lib/daily-loss';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,33 @@ export async function POST(request: Request) {
   const { value: input, errors } = validateAnalyzeBody(body);
   if (!input) {
     return NextResponse.json({ success: false, error: errors.join(' ') }, { status: 400 });
+  }
+
+  // The daily loss limit comes first: once it is reached there is nothing to
+  // analyse today, and asking the data provider anyway only spends quota.
+  const now = Date.now();
+  const netSoFar = netToday(closedResults(input.pastLearningRecords), now);
+  if (input.dailyLossLimitPercent && dailyLossLimitReached(netSoFar, input.equity, input.dailyLossLimitPercent)) {
+    const resumesAt = nextTradingDayStart(now);
+    return NextResponse.json({
+      success: true,
+      setup: null,
+      skipped: {
+        reason: 'daily-limit',
+        convictionScore: 0,
+        band: 'Low',
+        threshold: input.minConviction,
+        direction: 'long',
+        notes: [dailyLossNote(netSoFar, input.equity, input.dailyLossLimitPercent, resumesAt)],
+        rationale: '',
+        nextCheck: {
+          at: new Date(resumesAt).toISOString(),
+          reason: 'The daily loss limit resets when the next trading day starts, at the daily open of gold.',
+          marketClosed: false,
+          session: null,
+        },
+      },
+    });
   }
 
   try {

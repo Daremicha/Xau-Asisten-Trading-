@@ -24,6 +24,7 @@ import {
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
 import { stopBandLabel, stopBandPips } from '@/lib/style-profiles';
+import { DAILY_LOSS_LIMIT_CHOICES, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 
 interface EquityManagerProps {
   equity: number;
@@ -37,6 +38,9 @@ interface EquityManagerProps {
   onLockEquity: (initialAmount: number) => void;
   onChangeRiskPct: (pct: number) => void;
   onChangeMinConviction: (score: number) => void;
+  /** Percent of the day's starting balance that may be lost; zero is off. */
+  dailyLossLimit: number;
+  onChangeDailyLossLimit: (percent: number) => void;
   /** Switches to the style and floor that held up in the 24 month replay. */
   onApplyTestedConfiguration?: () => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
@@ -57,6 +61,8 @@ export default function EquityManager({
   onLockEquity,
   onChangeRiskPct,
   onChangeMinConviction,
+  dailyLossLimit,
+  onChangeDailyLossLimit,
   onApplyTestedConfiguration,
   onChangeTradingStyle,
   onChangeAccountType,
@@ -234,6 +240,48 @@ export default function EquityManager({
           {minConviction === 0
             ? 'Every setup the engine produces is offered.'
             : `Setups scoring under ${minConviction} are declined instead of traded. Test a floor in the Backtest Lab first.`}
+        </span>
+      </div>
+
+      {/* Daily loss limit: a brake on a bad day, which a run of stop outs makes
+          hard to apply by hand. */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-2.5 rounded-xl border ${
+          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}
+      >
+        <span
+          className={`text-[11px] px-1 font-medium flex items-center gap-1.5 shrink-0 ${
+            isDark ? 'text-slate-400' : 'text-slate-600'
+          }`}
+        >
+          <Shield className="w-3 h-3" /> Stop for the day after losing:
+        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {DAILY_LOSS_LIMIT_CHOICES.map((percent) => (
+            <button
+              key={percent}
+              type="button"
+              id={`daily-limit-btn-${percent}`}
+              onClick={() => onChangeDailyLossLimit(percent)}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                dailyLossLimit === percent
+                  ? 'bg-sky-500 text-slate-950 shadow-sm'
+                  : isDark
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+              }`}
+            >
+              {percent === 0 ? 'Off' : `${percent}%`}
+            </button>
+          ))}
+        </div>
+        <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          {dailyLossLimit === 0
+            ? 'No daily limit: setups are offered however the day has gone.'
+            : `Once today's closed trades lose ${dailyLossLimit}% of the day's starting balance, no new setup until the next trading day (04:00/05:00 WIB).${
+                dailyLossLimit === DEFAULT_DAILY_LOSS_LIMIT ? ' 3% held up best in the 24 month replay.' : ''
+              }`}
         </span>
       </div>
 
