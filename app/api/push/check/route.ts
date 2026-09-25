@@ -2,18 +2,27 @@ import { NextResponse } from 'next/server';
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { replayOrder } from '@/lib/order-replay';
 import { messagesFor } from '@/lib/push-watch';
+import { isGoldMarketClosed } from '@/lib/market-hours';
+import { runAnalysis } from '@/lib/run-analysis';
+import { isRepeat, OFFER_TTL_MS, offerKey, SCAN_EVERY_SECONDS, scanRequest } from '@/lib/setup-scan';
+import { newSetupAlert } from '@/lib/trade-alerts';
+import type { InstitutionalTradingSetup } from '@/lib/types';
 import { sendPush, vapidPublicKey } from '@/lib/push-send';
 import {
   claimCheck,
+  claimScan,
   deleteRecord,
   loadRecord,
   recordCheck,
   saveRecord,
+  scanningIds,
   storeConfigured,
   watchingIds,
 } from '@/lib/push-store';
 
 export const dynamic = 'force-dynamic';
+// A scan runs a full analysis per phone, which takes a few seconds.
+export const maxDuration = 60;
 
 /** Minimum gap between checks, whoever triggers them. */
 const CHECK_GAP_SECONDS = 45;
@@ -50,11 +59,14 @@ async function run(request: Request) {
     }
 
     const ids = await watchingIds();
+    // Every fifteen minutes, whether or not a trade is open, look for a new
+    // setup for the phones that asked. Its own lock keeps it to that pace.
+    const scanned = await scanForSetups();
     // Nothing to watch means nothing to spend a quote on. The run is still
     // noted, so the app can show that the scheduler is alive.
     if (ids.length === 0) {
-      await recordCheck({ at: new Date().toISOString(), watching: 0, sent: 0 });
-      return NextResponse.json({ success: true, watching: 0, sent: 0 });
+      await recordCheck({ at: new Date().toISOString(), watching: 0, sent: scanned });
+      return NextResponse.json({ success: true, watching: 0, sent: 0, offered: scanned });
     }
 
     const snapshot = await getMarketSnapshot(true);
@@ -104,12 +116,64 @@ async function run(request: Request) {
       }
     }
 
-    await recordCheck({ at: new Date().toISOString(), watching: ids.length, sent });
-    return NextResponse.json({ success: true, watching: ids.length, sent, price });
+    await recordCheck({ at: new Date().toISOString(), watching: ids.length, sent: sent + scanned });
+    return NextResponse.json({ success: true, watching: ids.length, sent, offered: scanned, price });
   } catch (err) {
     console.warn('Push check failed:', err);
     return NextResponse.json({ success: false, error: 'The check could not complete.' }, { status: 502 });
   }
+}
+
+/**
+ * Runs the user's analysis for every phone that asked for new-setup alerts and
+ * has no trade in play, and pushes any setup that passes. Returns how many
+ * were announced.
+ */
+async function scanForSetups(): Promise<number> {
+  const now = Date.now();
+  if (isGoldMarketClosed(now)) return 0;
+  const ids = await scanningIds();
+  if (ids.length === 0 || !(await claimScan(SCAN_EVERY_SECONDS))) return 0;
+
+  let offered = 0;
+  for (const id of ids) {
+    const record = await loadRecord(id);
+    if (!record?.scan) continue;
+    // A trade in play, or a setup already announced and not yet loaded, is
+    // enough to be getting on with.
+    if (record.setup && !record.finished) continue;
+    if (record.offer && now - Date.parse(record.offer.at) < OFFER_TTL_MS) continue;
+
+    const input = scanRequest(record.scan);
+    if (!input) continue;
+    const result = await runAnalysis(input);
+    const setup = (result.body as { setup?: InstitutionalTradingSetup | null }).setup;
+    if (!setup) continue;
+
+    const key = offerKey(setup);
+    if (isRepeat(key, record.lastOffer, now)) continue;
+
+    const stored = { ...setup, protectAtR: record.scan.protectAtR };
+    const alert = newSetupAlert(stored, setup.id);
+    const outcome = await sendPush(record.subscription, {
+      key: `${setup.id}:new`,
+      ...alert,
+      final: false,
+    });
+    if (outcome === 'gone') {
+      await deleteRecord(id);
+      continue;
+    }
+    if (outcome === 'sent') offered += 1;
+    const at = new Date(now).toISOString();
+    await saveRecord(id, {
+      ...record,
+      offer: { setup: stored, at },
+      lastOffer: { key, at },
+      updatedAt: at,
+    });
+  }
+  return offered;
 }
 
 export const GET = run;

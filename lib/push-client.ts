@@ -45,8 +45,18 @@ function watchedFields(setup: InstitutionalTradingSetup | null) {
 
 let lastSynced: string | null = null;
 
-async function post(subscription: PushSubscription, setup: InstitutionalTradingSetup | null): Promise<boolean> {
-  const body = JSON.stringify({ subscription: subscription.toJSON(), setup: watchedFields(setup) });
+/**
+ * What the server's scan for new setups needs: the settings an analysis reads.
+ * Null asks the server not to scan for this phone.
+ */
+export type ScanSettingsInput = Record<string, unknown> | null;
+
+async function post(
+  subscription: PushSubscription,
+  setup: InstitutionalTradingSetup | null,
+  scan: ScanSettingsInput
+): Promise<boolean> {
+  const body = JSON.stringify({ subscription: subscription.toJSON(), setup: watchedFields(setup), scan });
   const res = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -61,7 +71,10 @@ async function post(subscription: PushSubscription, setup: InstitutionalTradingS
  * sends the current setup along. Safe to call again: an existing subscription
  * is reused.
  */
-export async function enableClosedAppAlerts(setup: InstitutionalTradingSetup | null): Promise<PushSetupState> {
+export async function enableClosedAppAlerts(
+  setup: InstitutionalTradingSetup | null,
+  scan: ScanSettingsInput = null
+): Promise<PushSetupState> {
   if (!supported()) return 'unsupported';
   if (Notification.permission !== 'granted') return 'denied';
   try {
@@ -76,7 +89,7 @@ export async function enableClosedAppAlerts(setup: InstitutionalTradingSetup | n
         applicationServerKey: urlBase64ToUint8Array(config.publicKey),
       });
     }
-    return (await post(subscription, setup)) ? 'on' : 'failed';
+    return (await post(subscription, setup, scan)) ? 'on' : 'failed';
   } catch (err) {
     console.warn('Closed-app alerts could not be enabled:', err);
     return 'failed';
@@ -88,15 +101,18 @@ export async function enableClosedAppAlerts(setup: InstitutionalTradingSetup | n
  * device that never subscribed, and nothing when the watched fields have not
  * changed since the last successful sync.
  */
-export async function syncWatchedSetup(setup: InstitutionalTradingSetup | null): Promise<void> {
+export async function syncWatchedSetup(
+  setup: InstitutionalTradingSetup | null,
+  scan: ScanSettingsInput = null
+): Promise<void> {
   if (!supported() || Notification.permission !== 'granted') return;
   try {
     const registration = await navigator.serviceWorker.getRegistration();
     const subscription = await registration?.pushManager.getSubscription();
     if (!subscription) return;
-    const body = JSON.stringify({ subscription: subscription.toJSON(), setup: watchedFields(setup) });
+    const body = JSON.stringify({ subscription: subscription.toJSON(), setup: watchedFields(setup), scan });
     if (body === lastSynced) return;
-    await post(subscription, setup);
+    await post(subscription, setup, scan);
   } catch (err) {
     console.warn('Could not sync the watched setup:', err);
   }
@@ -157,5 +173,30 @@ export async function sendTestPush(): Promise<string | null> {
     return res.ok ? null : data?.error ?? `The test failed (HTTP ${res.status}).`;
   } catch {
     return 'The test could not be requested.';
+  }
+}
+
+/**
+ * The setup the server's scan announced, if one is waiting for this phone.
+ * Handed out once; null when there is none or it has gone stale.
+ */
+export async function fetchAnnouncedSetup(): Promise<{ setup: InstitutionalTradingSetup; announcedAt: string } | null> {
+  if (!supported() || Notification.permission !== 'granted') return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return null;
+    const res = await fetch('/api/push/offer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: subscription.toJSON() }),
+    });
+    const data = (await res.json().catch(() => null)) as {
+      setup?: InstitutionalTradingSetup | null;
+      announcedAt?: string;
+    } | null;
+    return data?.setup ? { setup: data.setup, announcedAt: data.announcedAt ?? '' } : null;
+  } catch {
+    return null;
   }
 }

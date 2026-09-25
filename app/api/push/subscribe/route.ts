@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sanitiseSubscription, sanitiseWatchedSetup } from '@/lib/push-watch';
+import { sanitiseScanSettings } from '@/lib/setup-scan';
 import { deleteRecord, loadRecord, recordId, saveRecord, storeConfigured } from '@/lib/push-store';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,11 @@ export async function POST(request: Request) {
   if (!storeConfigured()) {
     return NextResponse.json({ success: false, error: 'Push storage is not configured.' }, { status: 503 });
   }
-  const body = (await request.json().catch(() => null)) as { subscription?: unknown; setup?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    subscription?: unknown;
+    setup?: unknown;
+    scan?: unknown;
+  } | null;
   const subscription = sanitiseSubscription(body?.subscription);
   if (!subscription) {
     return NextResponse.json({ success: false, error: 'Invalid push subscription.' }, { status: 400 });
@@ -33,7 +38,21 @@ export async function POST(request: Request) {
     // The open app already showed the fill, so the server should not repeat it.
     if (setup?.status === 'ACTIVE' && !sent.includes(`${setup.id}:filled`)) sent.push(`${setup.id}:filled`);
 
-    await saveRecord(id, { subscription, setup, sent, finished, updatedAt: new Date().toISOString() });
+    // A phone that sends no scan settings keeps whatever it had; one that
+    // sends them replaces them. An open trade does not stop the settings being
+    // kept, only the scan itself from running.
+    const scan = body?.scan === undefined ? existing?.scan ?? null : sanitiseScanSettings(body.scan);
+    await saveRecord(id, {
+      subscription,
+      setup,
+      sent,
+      finished,
+      scan,
+      // Once the app holds a setup, the announced one has been taken up.
+      offer: setup ? null : existing?.offer ?? null,
+      lastOffer: existing?.lastOffer ?? null,
+      updatedAt: new Date().toISOString(),
+    });
     return NextResponse.json({ success: true, watching: setup !== null && !finished });
   } catch (err) {
     console.warn('Push subscribe failed:', err);

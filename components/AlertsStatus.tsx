@@ -119,6 +119,13 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
         </span>
       </div>
 
+      {allGood && (
+        <p className={muted}>
+          <strong>New setups:</strong> the server runs your analysis every 15 minutes while the market is open and
+          no trade is in play, and sends a 📊 NEW SETUP alert when one passes. Opening the app loads that setup.
+        </p>
+      )}
+
       {phoneReady && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button

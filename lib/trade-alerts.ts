@@ -98,3 +98,16 @@ export function nearLevelAlert(setup: AlertSetup, level: 'SL' | 'TP1', marketPri
         tag: `${setup.id}_TP1`,
       };
 }
+
+/** A setup the server's scan found while the app was closed. */
+export function newSetupAlert(
+  setup: AlertSetup & { recommendedLotSize?: number },
+  scanId: string
+): TradeAlert {
+  const lot = typeof setup.recommendedLotSize === 'number' ? ` · lot ${setup.recommendedLotSize.toFixed(2)}` : '';
+  return {
+    title: `📊 NEW SETUP: ${setup.orderType} @ ${price(setup.entryPrice)}`,
+    body: `SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}${lot}. Open the app to load it, then place the order in MT5.`,
+    tag: `${scanId}_new`,
+  };
+}
