@@ -528,6 +528,11 @@ export interface InstitutionalTradingSetup {
   learningOutcome?: SelfLearningMemoryRecord;
   engineMetadata?: EngineGenerationMetadata;
   modelProposal?: ModelProposalOutcome;
+  /**
+   * Multiple of risk at which the stop moves to the entry, copied from the
+   * user's setting when the setup was issued. Absent means the stop stays put.
+   */
+  protectAtR?: number | null;
 }
 
 export interface AdaptiveStrategyEngineWeights {

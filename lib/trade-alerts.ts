@@ -36,13 +36,30 @@ export function filledAlert(setup: AlertSetup, fillPrice: number): TradeAlert {
   };
 }
 
-/** The trade ended, at a target or at the stop. */
+/** Price reached the break-even trigger: the stop should now go to the entry. */
+export function protectAlert(setup: AlertSetup, atR: number, fillPrice: number = setup.entryPrice): TradeAlert {
+  return {
+    title: `🔒 MOVE SL TO ENTRY: ${side(setup)} is ${atR}R in profit`,
+    body: `Move the stop of your ${setup.orderType} to ${price(fillPrice)} in MT5 now, so the trade can no longer turn into a full loss.`,
+    tag: `${setup.id}_protect`,
+  };
+}
+
+/** The trade ended, at a target, at the stop, or at the entry after the break-even move. */
 export function closedAlert(
   setup: AlertSetup,
   trigger: 'SL' | 'TP1' | 'TP2' | 'TP3',
   exitPrice: number,
-  fillPrice: number = setup.entryPrice
+  fillPrice: number = setup.entryPrice,
+  breakEven = false
 ): TradeAlert {
+  if (breakEven) {
+    return {
+      title: `⚖️ BREAK-EVEN: ${side(setup)} closed at entry`,
+      body: `${setup.orderType} from ${price(fillPrice)} came back to its entry after the stop was moved there. No loss; only the spread is paid. The result is recorded when you open the app.`,
+      tag: `${setup.id}_closed`,
+    };
+  }
   const won = trigger !== 'SL';
   const moved = pips(exitPrice - fillPrice);
   return {

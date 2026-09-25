@@ -92,9 +92,9 @@ import {
   NotificationPermissionState,
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
-import { closedAlert, filledAlert, missedAlert } from '@/lib/trade-alerts';
+import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
-import { TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
+import { learningInput, TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
 import { DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
@@ -141,7 +141,7 @@ export default function Home() {
     setNotificationPermission(perm);
     if (perm === 'granted') {
       playProximityChime('TP');
-      const push = await enableClosedAppAlerts(activeSetup);
+      const push = await enableClosedAppAlerts(trackedSetup);
       // Proof on the spot that alerts reach this device's notification shade,
       // and an honest word on whether they also arrive with the app closed.
       void triggerBrowserNotification('XAU Assistant notifications are on', {
@@ -356,7 +356,7 @@ export default function Home() {
     if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
-      setEngineWeights(recalculateEngineWeights(profile.learningRecords, tradingStyleRef.current));
+      setEngineWeights(recalculateEngineWeights(learningInput(profile.learningRecords), tradingStyleRef.current));
     }
   }, []);
 
@@ -389,13 +389,24 @@ export default function Home() {
    * an order that never filled while the move ran away from it — and it was
    * recorded as a missed entry on that reading.
    */
+  /**
+   * The open setup with the break-even rule it is traded under. A setup
+   * carries the rule it was issued with; one from before the rule was stored
+   * takes the current setting.
+   */
+  const trackedSetup = useMemo(
+    () =>
+      activeSetup && activeSetup.protectAtR === undefined ? { ...activeSetup, protectAtR: protectStopAtR } : activeSetup,
+    [activeSetup, protectStopAtR]
+  );
+
   const replay = useMemo(() => {
-    if (!activeSetup || !isUnresolved(activeSetup) || candles.length === 0) return null;
+    if (!trackedSetup || !isUnresolved(trackedSetup) || candles.length === 0) return null;
     // A futures quote carries a futures path, tens of dollars from the market
     // the user trades. The same rule the live reads follow.
     if (!quoteIsSpot) return null;
-    return replayOrder(activeSetup, candles);
-  }, [activeSetup, candles, quoteIsSpot]);
+    return replayOrder(trackedSetup, candles);
+  }, [trackedSetup, candles, quoteIsSpot]);
 
   /**
    * True once the order has opened.
@@ -413,10 +424,40 @@ export default function Home() {
   );
 
   /** Live state of the order: pending, filled and floating, or closed. */
+  /**
+   * The break-even rule having armed: price has been the chosen multiple of
+   * risk in profit, so the stop now belongs at the entry. Latched like the
+   * fill, from the candles or from a tick, so a pullback cannot disarm it.
+   */
+  const [protectedSetupId, setProtectedSetupId] = useState<string | null>(null);
+  const tickArmed = useMemo(() => {
+    if (!trackedSetup?.protectAtR || !isFilled || marketPrice === null) return false;
+    const isLong = trackedSetup.orderType.includes('BUY');
+    const risk = Math.abs(trackedSetup.entryPrice - trackedSetup.stopLoss);
+    const travelled = isLong ? marketPrice - trackedSetup.entryPrice : trackedSetup.entryPrice - marketPrice;
+    return risk > 0 && travelled >= risk * trackedSetup.protectAtR;
+  }, [trackedSetup, isFilled, marketPrice]);
+  const stopAtEntry = Boolean(
+    activeSetup &&
+      (protectedSetupId === activeSetup.id || (replay?.kind === 'running' && replay.protectedAt) || tickArmed)
+  );
+
+  useEffect(() => {
+    if (!trackedSetup?.protectAtR || !stopAtEntry || protectedSetupId === trackedSetup.id) return;
+    setProtectedSetupId(trackedSetup.id);
+    // The one instruction the rule needs from the user, said when it is due.
+    const note = protectAlert(
+      trackedSetup,
+      trackedSetup.protectAtR,
+      replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : trackedSetup.entryPrice
+    );
+    void triggerBrowserNotification(note.title, { body: note.body, tag: note.tag });
+  }, [trackedSetup, stopAtEntry, protectedSetupId, replay]);
+
   const livePosition = useMemo(() => {
     if (!activeSetup || marketPrice === null) return null;
-    return trackPosition(activeSetup, marketPrice, isFilled);
-  }, [activeSetup, marketPrice, isFilled]);
+    return trackPosition(activeSetup, marketPrice, isFilled, stopAtEntry);
+  }, [activeSetup, marketPrice, isFilled, stopAtEntry]);
 
   useEffect(() => {
     if (!activeSetup || !livePosition) return;
@@ -474,12 +515,12 @@ export default function Home() {
     if (!pushEnabledRef.current) {
       pushEnabledRef.current = true;
       if (getNotificationPermission() === 'granted') {
-        void enableClosedAppAlerts(activeSetup);
+        void enableClosedAppAlerts(trackedSetup);
         return;
       }
     }
-    void syncWatchedSetup(activeSetup);
-  }, [activeSetup, setupHydrated]);
+    void syncWatchedSetup(trackedSetup);
+  }, [trackedSetup, setupHydrated]);
 
   // Mirror it to the cloud so the same order follows the user to another device.
   useEffect(() => {
@@ -642,7 +683,7 @@ export default function Home() {
             // is put back into the order a history is written in.
             const ordered = chronological(loadedRecords);
             setLearningRecords(ordered);
-            setEngineWeights(recalculateEngineWeights(ordered, tradingStyleRef.current));
+            setEngineWeights(recalculateEngineWeights(learningInput(ordered), tradingStyleRef.current));
           }
         } catch (err) {
           console.warn('Notice loading user cloud document:', err);
@@ -918,15 +959,20 @@ export default function Home() {
 
     const close = resolveClose(
       replay,
-      tickTrust.ok && livePosition?.state === 'closed' ? livePosition.closedBy : null
+      tickTrust.ok && livePosition?.state === 'closed' ? livePosition.closedBy : null,
+      stopAtEntry
     );
     if (!close) return;
 
     resolvedRef.current = activeSetup.id;
     const { trigger: hit, level } = close;
     const when = close.at ? ` at ${new Date(close.at).toLocaleString()}` : '';
+    const fillPrice =
+      replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : activeSetup.entryPrice;
     setAutoResolveNotice(
-      hit === 'SL'
+      close.breakEven
+        ? `Price came back to the entry at ${fillPrice.toFixed(2)}${when} after the stop had moved there. The engine recorded it as a break-even.`
+        : hit === 'SL'
         ? `Price reached the stop at ${activeSetup.stopLoss.toFixed(
             2
           )}${when}. The engine closed the trade and recorded it.`
@@ -937,26 +983,24 @@ export default function Home() {
             : activeSetup.takeProfit1
           ).toFixed(2)}${when}. The engine closed the trade and recorded it.`
     );
-    const exit =
-      hit === 'SL'
+    const exit = close.breakEven
+      ? fillPrice
+      : hit === 'SL'
         ? activeSetup.stopLoss
         : hit === 'TP3'
           ? activeSetup.takeProfit3
           : hit === 'TP2'
             ? activeSetup.takeProfit2
             : activeSetup.takeProfit1;
-    const closedNote = closedAlert(
-      activeSetup,
-      hit,
-      exit,
-      replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : activeSetup.entryPrice
-    );
+    const closedNote = closedAlert(activeSetup, hit, exit, fillPrice, close.breakEven);
     void triggerBrowserNotification(closedNote.title, { body: closedNote.body, tag: closedNote.tag });
-    void handleSimulateOutcome(hit === 'SL' ? 'SL' : 'TP', level as 1 | 2 | 3);
+    // A break-even is recorded at the price it actually closed at, the entry,
+    // rather than at the stop the setup was quoted with.
+    void handleSimulateOutcome(hit === 'SL' ? 'SL' : 'TP', level as 1 | 2 | 3, undefined, close.breakEven ? exit : undefined);
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot, stopAtEntry]);
 
   useEffect(() => {
     if (!activeSetup) return;
@@ -1177,7 +1221,9 @@ export default function Home() {
       }
 
       if (data.setup) {
-        setActiveSetup(data.setup);
+        // The break-even rule in force now travels with the setup, so the
+        // tracker and the server hold it to the rule it was traded under.
+        setActiveSetup({ ...data.setup, protectAtR: protectStopAtR });
         // A new setup replaces the previous trade's receipt.
         setLastOutcome(null);
         setSkippedSetup(null);
@@ -1258,7 +1304,9 @@ export default function Home() {
   const handleSimulateOutcome = async (
     outcome: 'TP' | 'SL' | 'MISSED',
     tpLevel: 1 | 2 | 3 = 1,
-    autoReason?: string
+    autoReason?: string,
+    /** Where the trade actually closed, when that is not the quoted level: a break-even. */
+    exitOverride?: number
   ) => {
     if (!activeSetup) return;
     setIsEvaluatingOutcome(true);
@@ -1272,7 +1320,9 @@ export default function Home() {
       }
 
       const targetExit =
-        outcome === 'TP'
+        exitOverride !== undefined
+          ? exitOverride
+          : outcome === 'TP'
           ? tpLevel === 3
             ? activeSetup.takeProfit3
             : tpLevel === 2
@@ -1304,7 +1354,7 @@ export default function Home() {
           setLearningRecords(updatedRecords);
 
           // Recalculate weights with the newly acquired experience
-          const newWeights = recalculateEngineWeights(updatedRecords, tradingStyle);
+          const newWeights = recalculateEngineWeights(learningInput(updatedRecords), tradingStyle);
           setEngineWeights(newWeights);
 
           // Update active balance according to trade outcome (0 change for MISSED)
@@ -1382,7 +1432,7 @@ export default function Home() {
   const persistRecords = useCallback(
     async (records: SelfLearningMemoryRecord[], nextEquity?: number) => {
       setLearningRecords(records);
-      setEngineWeights(recalculateEngineWeights(records, tradingStyle));
+      setEngineWeights(recalculateEngineWeights(learningInput(records), tradingStyle));
       if (typeof nextEquity === 'number') setEquity(nextEquity);
 
       const changed = records.filter((r) => r.audit);

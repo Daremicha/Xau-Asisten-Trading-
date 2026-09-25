@@ -31,6 +31,7 @@ import { priceToPips, round2 } from '@/lib/candles';
 const priceToPipsDistance = (price: number, entry: number) => priceToPips(price - entry);
 import { InstitutionalTradingSetup, EngineGenerationMetadata, EngineInputUsed } from '@/lib/types';
 import { validateAnalyzeBody } from '@/lib/request-validation';
+import { learningInput } from '@/lib/tested-configuration';
 import { closedResults, dailyLossLimitReached, dailyLossNote, netToday, nextTradingDayStart } from '@/lib/daily-loss';
 
 export const dynamic = 'force-dynamic';
@@ -103,8 +104,9 @@ export async function POST(request: Request) {
     const marketPrice = snapshot.price;
     // A backtested prior, when the user has adopted one, replaces the engine's
     // own defaults as the point the live evidence shrinks toward.
+    // Live trades no longer re-tune the weights; see LIVE_LEARNING.
     const engineWeights = recalculateEngineWeights(
-      input.pastLearningRecords,
+      learningInput(input.pastLearningRecords),
       input.tradingStyle,
       input.priorWeights
     );
@@ -372,7 +374,7 @@ Reply with JSON only:
     // The account's own state, and what this kind of setup has actually
     // returned. Both were on the screen already; neither reached the decision.
     const drawdownPercent = drawdownFromHistory(input.equity, input.pastLearningRecords);
-    const anchorBucket = conditionalPerformance(input.pastLearningRecords).byAnchor.find(
+    const anchorBucket = conditionalPerformance(learningInput(input.pastLearningRecords)).byAnchor.find(
       (bucket) => bucket.label === decision.anchor
     );
     const measuredEdgeR =

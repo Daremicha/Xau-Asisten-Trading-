@@ -86,10 +86,40 @@ describe('what the phone is told', () => {
   });
 });
 
+describe('the stop moved to entry at 1R', () => {
+  const guarded: WatchedSetup = { ...buyLimit, protectAtR: 1 };
+  const runGuarded = (candles: Candle[], price: number | null, sent: string[] = []) => {
+    const now = candles[candles.length - 1].time + 60_000;
+    return messagesFor(guarded, replayOrder(guarded, candles, now), price, new Set(sent));
+  };
+
+  test('reaching 1R tells the phone to move the stop', () => {
+    const messages = runGuarded(bars([4302, 4306], [4299, 4306], [4305, 4311]), 4309, ['setup-1:filled']);
+    expect(messages.map((m) => m.key)).toEqual(['setup-1:protect']);
+    expect(messages[0].title).toBe('🔒 MOVE SL TO ENTRY: BUY is 1R in profit');
+  });
+
+  test('coming back to the entry afterwards is a break-even, not a stop loss', () => {
+    const messages = runGuarded(
+      bars([4302, 4306], [4299, 4306], [4305, 4311], [4299.5, 4304]),
+      4301,
+      ['setup-1:filled', 'setup-1:protect']
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0].title).toBe('⚖️ BREAK-EVEN: BUY closed at entry');
+    expect(messages[0].final).toBe(true);
+  });
+
+  test('the setting survives the trip to the server, within sensible bounds', () => {
+    expect(sanitiseWatchedSetup({ ...buyLimit, protectAtR: 1 })?.protectAtR).toBe(1);
+    expect(sanitiseWatchedSetup({ ...buyLimit, protectAtR: 40 })?.protectAtR).toBeNull();
+  });
+});
+
 describe('what the server accepts', () => {
   test('a setup keeps only the watched fields', () => {
     const cleaned = sanitiseWatchedSetup({ ...buyLimit, recommendedLotSize: 0.01, riskDollarAmount: 5 });
-    expect(cleaned).toEqual(buyLimit);
+    expect(cleaned).toEqual({ ...buyLimit, protectAtR: null });
   });
 
   test('a resolved setup means stop watching', () => {
