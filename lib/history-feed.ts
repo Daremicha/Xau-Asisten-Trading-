@@ -23,6 +23,14 @@ const REQUEST_TIMEOUT_MS = 20_000;
 
 export type HistoryInterval = '15min' | '1h';
 
+/**
+ * Instruments the history can be downloaded for. Gold is what the app trades;
+ * Bitcoin is here so a weekend strategy can be tested on real history before
+ * anything is built on it. It trades around the clock, so its weekends are kept.
+ */
+export type HistorySymbol = 'XAU/USD' | 'BTC/USD';
+export const HISTORY_SYMBOLS: HistorySymbol[] = ['XAU/USD', 'BTC/USD'];
+
 export const INTERVAL_MS: Record<HistoryInterval, number> = {
   '15min': 15 * 60_000,
   '1h': 60 * 60_000,
@@ -73,13 +81,14 @@ function rateLimited(payload: unknown, status: number): boolean {
 
 async function twelveDataPage(
   interval: HistoryInterval,
-  beforeMs: number | null
+  beforeMs: number | null,
+  symbol: HistorySymbol = 'XAU/USD'
 ): Promise<HistoryPage | null> {
   if (!twelveDataConfigured()) return null;
 
   const base = twelveDataBase();
   const params = new URLSearchParams({
-    symbol: 'XAU/USD',
+    symbol,
     interval,
     outputsize: String(TWELVE_DATA_PAGE),
     format: 'JSON',
@@ -120,8 +129,8 @@ async function twelveDataPage(
   return {
     // Paging reads the raw page below; only what is handed on is filtered, so
     // a page thinned by a weekend is not mistaken for the end of the history.
-    candles: tradingCandles(candles),
-    provider: 'Twelve Data (XAU/USD spot)',
+    candles: symbol === 'XAU/USD' ? tradingCandles(candles) : candles,
+    provider: `Twelve Data (${symbol} spot)`,
     interval,
     oldestMs: candles.length ? candles[0].time : null,
     newestMs: candles.length ? candles[candles.length - 1].time : null,
@@ -177,8 +186,24 @@ async function yahooRange(interval: HistoryInterval, beforeMs: number | null): P
  */
 export async function fetchHistoryPage(
   interval: HistoryInterval,
-  beforeMs: number | null
+  beforeMs: number | null,
+  symbol: HistorySymbol = 'XAU/USD'
 ): Promise<HistoryPage> {
+  // The Yahoo fallback serves gold futures, which says nothing about Bitcoin.
+  if (symbol !== 'XAU/USD') {
+    const page = await twelveDataPage(interval, beforeMs, symbol);
+    if (page) return page;
+    return {
+      candles: [],
+      provider: null,
+      interval,
+      oldestMs: null,
+      newestMs: null,
+      exhausted: true,
+      retryAfterMs: null,
+      message: `No market data key is configured, so ${symbol} history cannot be fetched.`,
+    };
+  }
   try {
     const page = await twelveDataPage(interval, beforeMs);
     if (page) return page;

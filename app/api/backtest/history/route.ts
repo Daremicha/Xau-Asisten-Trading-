@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
-import { fetchHistoryPage, toWire, type HistoryInterval, type HistoryPage } from '@/lib/history-feed';
+import {
+  fetchHistoryPage,
+  HISTORY_SYMBOLS,
+  toWire,
+  type HistoryInterval,
+  type HistoryPage,
+  type HistorySymbol,
+} from '@/lib/history-feed';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +26,8 @@ export const dynamic = 'force-dynamic';
 const CACHE_LIMIT = 16;
 const pageCache = new Map<string, HistoryPage>();
 
-function cacheKey(interval: HistoryInterval, before: number | null): string {
-  return `${interval}:${before ?? 'latest'}`;
+function cacheKey(interval: HistoryInterval, before: number | null, symbol: HistorySymbol): string {
+  return `${symbol}:${interval}:${before ?? 'latest'}`;
 }
 
 function remember(key: string, page: HistoryPage) {
@@ -45,6 +52,15 @@ export async function GET(request: Request) {
   }
   const interval: HistoryInterval = rawInterval;
 
+  const rawSymbol = url.searchParams.get('symbol') ?? 'XAU/USD';
+  if (!HISTORY_SYMBOLS.includes(rawSymbol as HistorySymbol)) {
+    return NextResponse.json(
+      { success: false, error: `symbol must be one of ${HISTORY_SYMBOLS.join(', ')}.` },
+      { status: 400 }
+    );
+  }
+  const symbol = rawSymbol as HistorySymbol;
+
   const rawBefore = url.searchParams.get('before');
   let before: number | null = null;
   if (rawBefore !== null && rawBefore !== '') {
@@ -58,14 +74,14 @@ export async function GET(request: Request) {
     before = Math.floor(parsed);
   }
 
-  const key = cacheKey(interval, before);
+  const key = cacheKey(interval, before, symbol);
   const cached = pageCache.get(key);
   if (cached) {
     return NextResponse.json({ success: true, cached: true, ...cached, candles: toWire(cached.candles) });
   }
 
   try {
-    const page = await fetchHistoryPage(interval, before);
+    const page = await fetchHistoryPage(interval, before, symbol);
     remember(key, page);
 
     // A rate limit is not an error the caller should give up on, so it comes
