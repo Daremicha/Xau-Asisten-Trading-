@@ -15,6 +15,7 @@
 import { Candle } from './candles';
 import { tradingCandles } from './market-hours';
 import { mapTwelveDataCandles, mapYahooCandles } from './price-feed';
+import { requestTwelveData, twelveDataBase, twelveDataConfigured } from './twelve-data-keys';
 
 /** Largest page Twelve Data returns in a single request. */
 const TWELVE_DATA_PAGE = 5000;
@@ -74,25 +75,29 @@ async function twelveDataPage(
   interval: HistoryInterval,
   beforeMs: number | null
 ): Promise<HistoryPage | null> {
-  const key = process.env.TWELVE_DATA_API_KEY;
-  if (!key || key.trim().length === 0) return null;
+  if (!twelveDataConfigured()) return null;
 
-  const base = (process.env.TWELVE_DATA_BASE_URL || 'https://api.twelvedata.com').replace(/\/$/, '');
+  const base = twelveDataBase();
   const params = new URLSearchParams({
     symbol: 'XAU/USD',
     interval,
     outputsize: String(TWELVE_DATA_PAGE),
     format: 'JSON',
     timezone: 'UTC',
-    apikey: key.trim(),
   });
   // Walk backwards: each page ends one candle before the previous page started.
   if (beforeMs !== null) params.set('end_date', toTwelveDataStamp(beforeMs - 1));
 
-  const res = await fetchWithTimeout(`${base}/time_series?${params.toString()}`);
-  const payload = await res.json().catch(() => null);
+  // Each configured key is tried in turn; only when all are out of credits is
+  // the caller told to wait.
+  const reply = (await requestTwelveData(
+    (key) => `${base}/time_series?${params.toString()}&apikey=${encodeURIComponent(key)}`,
+    fetchWithTimeout
+  ))!;
+  const payload = reply.payload;
+  const res = { ok: reply.ok, status: reply.status };
 
-  if (rateLimited(payload, res.status)) {
+  if (reply.allKeysSpent || rateLimited(payload, res.status)) {
     return {
       candles: [],
       provider: 'Twelve Data',

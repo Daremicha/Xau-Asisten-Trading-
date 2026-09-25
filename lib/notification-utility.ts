@@ -4,6 +4,7 @@
  * when marketPrice approaches active setup Take Profit or Stop Loss levels.
  */
 
+import { nearLevelAlert } from './trade-alerts';
 import { InstitutionalTradingSetup } from './types';
 
 export type NotificationPermissionState = 'granted' | 'denied' | 'default' | 'unsupported';
@@ -264,11 +265,13 @@ export function evaluatePriceProximity(
           playProximityChime(t.type);
         }
 
-        if (options.enableBrowserNotification !== false) {
-          void triggerBrowserNotification(title, {
-            body: message,
-            tag: alertKey,
-          });
+        // The phone is told only about the stop and the first target coming
+        // near, in the same words and under the same tag as the server's
+        // alert. A level already reached is a close, which has its own
+        // notification; repeating "reached" every few minutes only confused.
+        if (options.enableBrowserNotification !== false && isApproaching && (t.key === 'SL' || t.key === 'TP1')) {
+          const alert = nearLevelAlert(setup, t.key, currentPrice);
+          void triggerBrowserNotification(alert.title, { body: alert.body, tag: alert.tag });
         }
 
         return {

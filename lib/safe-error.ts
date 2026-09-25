@@ -16,6 +16,9 @@
 /** Environment variables whose values must never appear in a response. */
 const SECRET_ENV_KEYS = [
   'TWELVE_DATA_API_KEY',
+  'TWELVE_DATA_API_KEY_2',
+  'TWELVE_DATA_API_KEY_3',
+  'TWELVE_DATA_API_KEYS',
   'GEMINI_API_KEY',
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
@@ -34,9 +37,10 @@ export function redactSecrets(text: string): string {
   let out = text;
 
   for (const name of SECRET_ENV_KEYS) {
-    const value = process.env[name];
-    if (value && value.trim().length >= 6) {
-      out = out.split(value.trim()).join('[redacted]');
+    // A list variable holds several keys separated by commas; each is a secret.
+    for (const part of (process.env[name] ?? '').split(',')) {
+      const value = part.trim();
+      if (value.length >= 6) out = out.split(value).join('[redacted]');
     }
   }
 

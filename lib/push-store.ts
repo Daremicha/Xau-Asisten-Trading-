@@ -72,3 +72,32 @@ export async function claimCheck(seconds: number): Promise<boolean> {
   const result = await command<string | null>('SET', 'push:check-lock', Date.now(), 'NX', 'EX', seconds);
   return result === 'OK';
 }
+
+export interface CheckHeartbeat {
+  /** When the scheduler last ran a check, ISO. */
+  at: string;
+  watching: number;
+  sent: number;
+}
+
+const HEARTBEAT_KEY = 'push:last-check';
+
+/** Notes that a scheduled check ran, so the app can tell whether anyone is watching. */
+export async function recordCheck(beat: CheckHeartbeat): Promise<void> {
+  await command('SET', HEARTBEAT_KEY, JSON.stringify(beat), 'EX', 60 * 60 * 24 * 7);
+}
+
+export async function lastCheck(): Promise<CheckHeartbeat | null> {
+  const raw = await command<string | null>('GET', HEARTBEAT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as CheckHeartbeat;
+  } catch {
+    return null;
+  }
+}
+
+/** True for the first test request from a phone in a minute; later ones are refused. */
+export async function claimTest(id: string): Promise<boolean> {
+  return (await command<string | null>('SET', `push:test:${id}`, Date.now(), 'NX', 'EX', 60)) === 'OK';
+}

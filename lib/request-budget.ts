@@ -21,6 +21,8 @@
  * about when to spend it.
  */
 
+import { twelveDataKeys } from './twelve-data-keys';
+
 const DAY_MS = 86_400_000;
 
 /**
@@ -70,10 +72,14 @@ export function __resetBudget(now: number = Date.now()): void {
   dayStartedAt = Math.floor(now / DAY_MS) * DAY_MS;
 }
 
+/**
+ * Requests a day across every configured key. TWELVE_DATA_DAILY_LIMIT, when
+ * set, is the allowance of one key; each extra key adds the same again.
+ */
 export function dailyLimit(): number {
   const raw = Number(process.env.TWELVE_DATA_DAILY_LIMIT);
-  if (!Number.isFinite(raw) || raw < 20) return DEFAULT_DAILY_LIMIT;
-  return Math.floor(raw);
+  const perKey = !Number.isFinite(raw) || raw < 20 ? DEFAULT_DAILY_LIMIT : Math.floor(raw);
+  return perKey * Math.max(1, twelveDataKeys().length);
 }
 
 /** Seconds between refills: the sustained rate the plan allows. */

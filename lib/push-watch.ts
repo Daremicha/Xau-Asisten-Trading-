@@ -9,6 +9,7 @@
 
 import type { ReplayVerdict } from './order-replay';
 import type { InstitutionalTradingSetup, SignalStatus } from './types';
+import { closedAlert, filledAlert, missedAlert, nearLevelAlert } from './trade-alerts';
 
 /** Price within this many dollars of a level counts as near it: ten pips. */
 export const NEAR_LEVEL_DOLLARS = 1;
@@ -43,8 +44,6 @@ export interface PushMessage {
 }
 
 const WATCHED_STATUSES: SignalStatus[] = ['PENDING', 'ACTIVE'];
-
-const money = (value: number) => `$${value.toFixed(2)}`;
 
 function isNum(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -90,32 +89,20 @@ export function messagesFor(
   price: number | null,
   alreadySent: ReadonlySet<string>
 ): PushMessage[] {
-  const side = setup.orderType;
   const out: PushMessage[] = [];
   const add = (message: PushMessage) => {
     if (!alreadySent.has(message.key)) out.push(message);
   };
 
   if (verdict.kind === 'missed') {
-    add({
-      key: `${setup.id}:missed`,
-      title: `${side} missed — cancel the order`,
-      body: `${verdict.reason} Delete the pending order at ${money(setup.entryPrice)} in MT5, and do not chase it at market.`,
-      tag: `${setup.id}_missed`,
-      final: true,
-    });
+    add({ key: `${setup.id}:missed`, ...missedAlert(setup, verdict.reason), final: true });
     return out;
   }
 
   if (verdict.kind === 'closed') {
-    const won = verdict.trigger !== 'SL';
     add({
       key: `${setup.id}:closed`,
-      title: won
-        ? `Take Profit ${verdict.level} hit at ${money(verdict.exitPrice)}`
-        : `Stop Loss hit at ${money(verdict.exitPrice)}`,
-      body: `${side} from ${money(verdict.fillPrice)} closed ${won ? 'in profit' : 'at the stop'}. Open the app to record the result.`,
-      tag: `${setup.id}_closed`,
+      ...closedAlert(setup, verdict.trigger, verdict.exitPrice, verdict.fillPrice),
       final: true,
     });
     return out;
@@ -123,13 +110,7 @@ export function messagesFor(
 
   if (verdict.kind !== 'running') return out;
 
-  add({
-    key: `${setup.id}:filled`,
-    title: `${side} filled at ${money(verdict.fillPrice)}`,
-    body: `Stop ${money(setup.stopLoss)}, first target ${money(setup.takeProfit1)}. You will be told when either is near.`,
-    tag: `${setup.id}_filled`,
-    final: false,
-  });
+  add({ key: `${setup.id}:filled`, ...filledAlert(setup, verdict.fillPrice), final: false });
 
   if (price === null) return out;
   const isLong = setup.orderType.startsWith('BUY');
@@ -137,22 +118,10 @@ export function messagesFor(
   const toTarget = isLong ? setup.takeProfit1 - price : price - setup.takeProfit1;
 
   if (toStop > 0 && toStop <= NEAR_LEVEL_DOLLARS) {
-    add({
-      key: `${setup.id}:near-SL`,
-      title: `Warning: price near Stop Loss ${money(setup.stopLoss)}`,
-      body: `XAUUSD ${money(price)} is ${(toStop * 10).toFixed(0)} pips from the stop.`,
-      tag: `${setup.id}_SL`,
-      final: false,
-    });
+    add({ key: `${setup.id}:near-SL`, ...nearLevelAlert(setup, 'SL', price), final: false });
   }
   if (toTarget > 0 && toTarget <= NEAR_LEVEL_DOLLARS) {
-    add({
-      key: `${setup.id}:near-TP1`,
-      title: `Price near Take Profit 1 ${money(setup.takeProfit1)}`,
-      body: `XAUUSD ${money(price)} is ${(toTarget * 10).toFixed(0)} pips from the first target.`,
-      tag: `${setup.id}_TP1`,
-      final: false,
-    });
+    add({ key: `${setup.id}:near-TP1`, ...nearLevelAlert(setup, 'TP1', price), final: false });
   }
   return out;
 }
