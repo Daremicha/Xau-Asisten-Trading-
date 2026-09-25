@@ -102,12 +102,14 @@ export function floatingResult(
  * Full live state.
  *
  * `alreadyFilled` latches: once an order has filled, a later price that drifts
- * back past the entry must not un-fill it.
+ * back past the entry must not un-fill it. `stopAtEntry` is the break-even
+ * rule having armed: the stop that can close the position is then the entry.
  */
 export function trackPosition(
   setup: InstitutionalTradingSetup,
   currentPrice: number,
-  alreadyFilled: boolean
+  alreadyFilled: boolean,
+  stopAtEntry = false
 ): LivePosition {
   const isLong = setup.orderType.includes('BUY');
   const filled = alreadyFilled || hasReachedEntry(setup.orderType, setup.entryPrice, currentPrice);
@@ -127,7 +129,7 @@ export function trackPosition(
   }
 
   const floating = floatingResult(setup, currentPrice);
-  const closedBy = detectClose(setup, currentPrice);
+  const closedBy = detectClose(stopAtEntry ? { ...setup, stopLoss: setup.entryPrice } : setup, currentPrice);
 
   const targetSpan = Math.abs(setup.takeProfit1 - setup.entryPrice);
   const travelled = (currentPrice - setup.entryPrice) * (isLong ? 1 : -1);
@@ -143,7 +145,9 @@ export function trackPosition(
     progressToTarget,
     closedBy,
     summary: closedBy
-      ? `Position closed at ${closedBy}.`
+      ? stopAtEntry && closedBy === 'SL'
+        ? 'Position closed at break-even.'
+        : `Position closed at ${closedBy}.`
       : floating.dollars >= 0
       ? `Filled and floating ${floating.pips} pips in profit.`
       : `Filled and floating ${Math.abs(floating.pips)} pips in drawdown.`,

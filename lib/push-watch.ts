@@ -9,7 +9,7 @@
 
 import type { ReplayVerdict } from './order-replay';
 import type { InstitutionalTradingSetup, SignalStatus } from './types';
-import { closedAlert, filledAlert, missedAlert, nearLevelAlert } from './trade-alerts';
+import { closedAlert, filledAlert, missedAlert, nearLevelAlert, protectAlert } from './trade-alerts';
 
 /** Price within this many dollars of a level counts as near it: ten pips. */
 export const NEAR_LEVEL_DOLLARS = 1;
@@ -27,6 +27,8 @@ export interface WatchedSetup {
   validUntil?: string;
   filledAt?: string;
   status: SignalStatus;
+  /** Multiple of risk at which the user moves the stop to entry. */
+  protectAtR?: number | null;
 }
 
 export interface PushMessage {
@@ -79,6 +81,9 @@ export function sanitiseWatchedSetup(value: unknown): WatchedSetup | null {
     validUntil: isDate(s.validUntil) ? s.validUntil : undefined,
     filledAt: isDate(s.filledAt) ? s.filledAt : undefined,
     status: s.status as SignalStatus,
+    // Outside half an R to three it is not a rule anyone follows; read as off.
+    protectAtR:
+      typeof s.protectAtR === 'number' && s.protectAtR >= 0.5 && s.protectAtR <= 3 ? s.protectAtR : null,
   };
 }
 
@@ -102,7 +107,7 @@ export function messagesFor(
   if (verdict.kind === 'closed') {
     add({
       key: `${setup.id}:closed`,
-      ...closedAlert(setup, verdict.trigger, verdict.exitPrice, verdict.fillPrice),
+      ...closedAlert(setup, verdict.trigger, verdict.exitPrice, verdict.fillPrice, verdict.breakEven),
       final: true,
     });
     return out;
@@ -111,13 +116,18 @@ export function messagesFor(
   if (verdict.kind !== 'running') return out;
 
   add({ key: `${setup.id}:filled`, ...filledAlert(setup, verdict.fillPrice), final: false });
+  const protectedNow = Boolean(verdict.protectedAt && setup.protectAtR);
+  if (protectedNow) {
+    add({ key: `${setup.id}:protect`, ...protectAlert(setup, setup.protectAtR!, verdict.fillPrice), final: false });
+  }
 
   if (price === null) return out;
   const isLong = setup.orderType.startsWith('BUY');
   const toStop = isLong ? price - setup.stopLoss : setup.stopLoss - price;
   const toTarget = isLong ? setup.takeProfit1 - price : price - setup.takeProfit1;
 
-  if (toStop > 0 && toStop <= NEAR_LEVEL_DOLLARS) {
+  // Once the stop is at the entry, "near the stop" is no longer a warning of a loss.
+  if (!protectedNow && toStop > 0 && toStop <= NEAR_LEVEL_DOLLARS) {
     add({ key: `${setup.id}:near-SL`, ...nearLevelAlert(setup, 'SL', price), final: false });
   }
   if (toTarget > 0 && toTarget <= NEAR_LEVEL_DOLLARS) {

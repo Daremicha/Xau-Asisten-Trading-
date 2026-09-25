@@ -257,11 +257,11 @@ describe('which witness decides, when they disagree', () => {
   describe('closing a trade — either may see it', () => {
     test('the tick closes a trade the candles have not recorded yet', () => {
       // The bar still forming is where a live close happens first.
-      expect(resolveClose(running, 'TP2')).toEqual({ trigger: 'TP2', level: 2, at: null });
+      expect(resolveClose(running, 'TP2')).toEqual({ trigger: 'TP2', level: 2, at: null, breakEven: false });
     });
 
     test('with no candles at all the tick still closes', () => {
-      expect(resolveClose(null, 'SL')).toEqual({ trigger: 'SL', level: 1, at: null });
+      expect(resolveClose(null, 'SL')).toEqual({ trigger: 'SL', level: 1, at: null, breakEven: false });
     });
 
     test('the candles win when both saw it, because they know the order of a bar', () => {
@@ -307,5 +307,46 @@ describe('which witness decides, when they disagree', () => {
       expect(resolveMiss(stillPending, tickWaiting)).toBeNull();
       expect(resolveMiss(null, null)).toBeNull();
     });
+  });
+});
+
+describe('the stop moved to entry at 1R', () => {
+  // Buy at 4300, stop 4290: 1R is 4310. Fill, run to 4311, come back to 4300.
+  const path = [bar(1, 4304, 4299), bar(2, 4311, 4303), bar(3, 4306, 4299.5)];
+
+  test('a trade that came back to its entry after 1R closed at break-even, not at the stop', () => {
+    const verdict = replayOrder(buyLimit({ protectAtR: 1 }), path, START + 4 * M15);
+    expect(verdict.kind).toBe('closed');
+    if (verdict.kind !== 'closed') return;
+    expect(verdict.trigger).toBe('SL');
+    expect(verdict.breakEven).toBe(true);
+    expect(verdict.exitPrice).toBe(4300);
+  });
+
+  test('without the rule the same path is still open', () => {
+    expect(replayOrder(buyLimit(), path, START + 4 * M15).kind).toBe('running');
+  });
+
+  test('once armed and still open, the replay says so', () => {
+    const verdict = replayOrder(buyLimit({ protectAtR: 1 }), path.slice(0, 2), START + 3 * M15);
+    expect(verdict.kind).toBe('running');
+    if (verdict.kind === 'running') expect(verdict.protectedAt).toBe(new Date(START + 2 * M15).toISOString());
+  });
+
+  test('the bar that arms it is judged against the old stop first, as the backtest does', () => {
+    // Reaches 1R and the original stop in one bar: taken as the full loss.
+    const verdict = replayOrder(buyLimit({ protectAtR: 1 }), [bar(1, 4304, 4299), bar(2, 4311, 4289)], START + 3 * M15);
+    expect(verdict.kind === 'closed' && verdict.breakEven).toBe(false);
+    expect(verdict.kind === 'closed' && verdict.exitPrice).toBe(4290);
+  });
+
+  test('a short arms and closes the same way', () => {
+    const shortPath = [bar(1, 4301, 4296), bar(2, 4297, 4289), bar(3, 4300.5, 4294)];
+    const verdict = replayOrder(sellLimit({ protectAtR: 1 }), shortPath, START + 4 * M15);
+    expect(verdict.kind === 'closed' && verdict.breakEven).toBe(true);
+  });
+
+  test('the tick sees a break-even close too', () => {
+    expect(resolveClose(null, 'SL', true)).toEqual({ trigger: 'SL', level: 1, at: null, breakEven: true });
   });
 });

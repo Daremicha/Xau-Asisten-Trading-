@@ -1,5 +1,6 @@
 'use client';
 
+import { LIVE_LEARNING } from '@/lib/tested-configuration';
 import React from 'react';
 import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle } from '@/lib/types';
 import { deriveAdaptiveWeights, summariseEvidence } from '@/lib/learning-engine';
@@ -85,11 +86,13 @@ export default function SelfLearningDashboard({
             >
               Adaptive Self-Learning Engine
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
-                Continuous Calibration
+                {LIVE_LEARNING ? 'Continuous Calibration' : 'Weights locked to the tested setup'}
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Autonomously evaluates TP, SL, and Missed pending orders to refine institutional execution parameters.
+              {LIVE_LEARNING
+                ? 'Autonomously evaluates TP, SL, and Missed pending orders to refine institutional execution parameters.'
+                : 'Records and reviews every TP, SL and missed order. The engine keeps the weights that held up in the 24 month replay, because re-tuning them after each live trade did worse there.'}
             </p>
           </div>
         </div>

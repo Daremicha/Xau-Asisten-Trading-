@@ -39,6 +39,7 @@ function watchedFields(setup: InstitutionalTradingSetup | null) {
     validUntil: setup.validUntil,
     filledAt: setup.filledAt,
     status: setup.status,
+    protectAtR: setup.protectAtR ?? null,
   };
 }
 

@@ -48,3 +48,22 @@ export function untestedSettingNote(style: TradingStyle, floor: number): string 
   }
   return `${style} was not part of that test.`;
 }
+
+/**
+ * Whether live trades re-tune the engine as they close.
+ *
+ * Off. The same 24 month replay, Intraday, take-all, stop to entry at 1R, a
+ * 3% daily limit, slippage and news, was traded twice: once re-deriving the
+ * weights after every closed trade as the live app used to, once holding them
+ * where they started. Learning made profit factor 1.28 against 1.31 and +1702
+ * against +1863 Cent, worse in the first half and level in the second. A
+ * handful of live trades is too few to move the weights on, so the engine
+ * trades the configuration that was tested. Trades are still recorded; the
+ * Backtest Lab can adopt parameters learned over a whole period instead.
+ */
+export const LIVE_LEARNING = false;
+
+/** The records the engine may learn from: all of them, or none while learning is off. */
+export function learningInput<T>(records: T[]): T[] {
+  return LIVE_LEARNING ? records : [];
+}

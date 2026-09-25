@@ -34,8 +34,11 @@ export type ReplayVerdict =
   | { kind: 'pending'; reason: string }
   /** Never filled, and it is now too late for it to. */
   | { kind: 'missed'; cause: PendingVerdict['state']; reason: string; at: string }
-  /** Filled, and still open at the end of the history. */
-  | { kind: 'running'; fillPrice: number; filledAt: string; reason: string }
+  /**
+   * Filled, and still open at the end of the history. `protectedAt` is set
+   * once price has run far enough for the stop to belong at the entry.
+   */
+  | { kind: 'running'; fillPrice: number; filledAt: string; reason: string; protectedAt?: string }
   /** Filled, and reached a target or the stop. */
   | {
       kind: 'closed';
@@ -46,12 +49,22 @@ export type ReplayVerdict =
       exitPrice: number;
       at: string;
       reason: string;
+      /** True when the stop that closed it was the entry, after the break-even move. */
+      breakEven?: boolean;
     };
 
 type ReplaySetup = Pick<
   InstitutionalTradingSetup,
   'orderType' | 'entryPrice' | 'stopLoss' | 'takeProfit1' | 'takeProfit2' | 'takeProfit3' | 'timestamp'
-> & { validUntil?: string; filledAt?: string };
+> & {
+  validUntil?: string;
+  filledAt?: string;
+  /**
+   * Multiple of risk at which the stop moves to the entry, the rule the user
+   * follows in the terminal. Null or absent holds the stop where it was quoted.
+   */
+  protectAtR?: number | null;
+};
 
 /**
  * A candle's own span, needed because a candle is stamped at its open. The
@@ -259,22 +272,41 @@ export function replayOrder(
   // a fill may be read from the bar that was already forming, an exit may not.
   const scanFrom = Math.max(instant ? fillIndex + 1 : fillIndex, firstPostIssue);
 
+  // The break-even rule, exactly as the backtest applies it: once a bar has
+  // carried price the chosen multiple of risk into profit, the stop sits at
+  // the fill for every later bar. The bar that arms it is checked against the
+  // old stop first, because the order inside a bar cannot be recovered.
+  const fillRisk = Math.abs(fillPrice - setup.stopLoss);
+  const armAt = setup.protectAtR && setup.protectAtR > 0 && fillRisk > 0 ? fillRisk * setup.protectAtR : null;
+  let stop = setup.stopLoss;
+  let protectedAt: string | undefined;
+
   for (let i = scanFrom; i < candles.length; i++) {
     const c = candles[i];
 
-    if (isLong ? c.low <= setup.stopLoss : c.high >= setup.stopLoss) {
+    if (isLong ? c.low <= stop : c.high >= stop) {
       return {
         kind: 'closed',
         trigger: 'SL',
         level: 1,
         fillPrice,
         filledAt,
-        exitPrice: setup.stopLoss,
+        exitPrice: stop,
         at: iso(c.time),
-        reason: `The position filled at ${fillPrice.toFixed(2)} and price traded through the stop at ${setup.stopLoss.toFixed(
-          2
-        )}.`,
+        breakEven: protectedAt !== undefined,
+        reason:
+          protectedAt !== undefined
+            ? `The position filled at ${fillPrice.toFixed(2)}, the stop moved to the entry once it was ${setup.protectAtR}R up, and price came back to it: closed at break-even.`
+            : `The position filled at ${fillPrice.toFixed(2)} and price traded through the stop at ${setup.stopLoss.toFixed(2)}.`,
       };
+    }
+
+    if (armAt !== null && protectedAt === undefined) {
+      const travelled = isLong ? c.high - fillPrice : fillPrice - c.low;
+      if (travelled >= armAt) {
+        stop = fillPrice;
+        protectedAt = iso(c.time);
+      }
     }
 
     const level = targetHit(setup, c, isLong);
@@ -300,7 +332,11 @@ export function replayOrder(
     kind: 'running',
     fillPrice,
     filledAt,
-    reason: `The position filled at ${fillPrice.toFixed(2)} and is still open.`,
+    reason:
+      protectedAt !== undefined
+        ? `The position filled at ${fillPrice.toFixed(2)} and is open, with the stop now at the entry.`
+        : `The position filled at ${fillPrice.toFixed(2)} and is still open.`,
+    ...(protectedAt !== undefined ? { protectedAt } : {}),
   };
 }
 
@@ -318,14 +354,15 @@ export function replayOrder(
  */
 export function resolveClose(
   replay: ReplayVerdict | null,
-  tickClosedBy: CloseTrigger | null
-): { trigger: CloseTrigger; level: TargetLevel; at: string | null } | null {
+  tickClosedBy: CloseTrigger | null,
+  tickBreakEven = false
+): { trigger: CloseTrigger; level: TargetLevel; at: string | null; breakEven: boolean } | null {
   if (replay?.kind === 'closed') {
-    return { trigger: replay.trigger, level: replay.level, at: replay.at };
+    return { trigger: replay.trigger, level: replay.level, at: replay.at, breakEven: Boolean(replay.breakEven) };
   }
   if (!tickClosedBy) return null;
   const level: TargetLevel = tickClosedBy === 'TP3' ? 3 : tickClosedBy === 'TP2' ? 2 : 1;
-  return { trigger: tickClosedBy, level, at: null };
+  return { trigger: tickClosedBy, level, at: null, breakEven: tickClosedBy === 'SL' && tickBreakEven };
 }
 
 /**
