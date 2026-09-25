@@ -91,11 +91,11 @@ import {
   ProximityAlertEvent,
   NotificationPermissionState,
 } from '@/lib/notification-utility';
-import { enableClosedAppAlerts, syncWatchedSetup } from '@/lib/push-client';
+import { enableClosedAppAlerts, fetchAnnouncedSetup, syncWatchedSetup } from '@/lib/push-client';
 import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
 import { learningInput, TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
-import { DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
+import { closedResults, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
   SmcStructure,
@@ -141,7 +141,7 @@ export default function Home() {
     setNotificationPermission(perm);
     if (perm === 'granted') {
       playProximityChime('TP');
-      const push = await enableClosedAppAlerts(trackedSetup);
+      const push = await enableClosedAppAlerts(trackedSetup, scanSettings);
       // Proof on the spot that alerts reach this device's notification shade,
       // and an honest word on whether they also arrive with the app closed.
       void triggerBrowserNotification('XAU Assistant notifications are on', {
@@ -506,6 +506,37 @@ export default function Home() {
     saveActiveSetup(activeSetup);
   }, [activeSetup, setupHydrated]);
 
+  /**
+   * What the server needs to look for a new setup the way this screen would,
+   * so a setup found while the app is closed can be announced.
+   */
+  const scanSettings = useMemo(() => {
+    const since = Date.now() - 2 * 86_400_000;
+    return {
+      equity,
+      riskPercentage,
+      tradingStyle,
+      accountType,
+      brokerId: selectedBroker,
+      minConviction,
+      dailyLossLimitPercent: dailyLossLimit,
+      protectAtR: protectStopAtR,
+      recentResults: closedResults(learningRecords).filter((r) => r.closedAt >= since),
+      priorWeights: backtestPrior,
+    };
+  }, [
+    equity,
+    riskPercentage,
+    tradingStyle,
+    accountType,
+    selectedBroker,
+    minConviction,
+    dailyLossLimit,
+    protectStopAtR,
+    learningRecords,
+    backtestPrior,
+  ]);
+
   // Keep the server watching the same setup, so alerts still arrive when the
   // app is closed. A device that already allowed notifications is subscribed
   // on first load without asking again.
@@ -515,12 +546,46 @@ export default function Home() {
     if (!pushEnabledRef.current) {
       pushEnabledRef.current = true;
       if (getNotificationPermission() === 'granted') {
-        void enableClosedAppAlerts(trackedSetup);
+        void enableClosedAppAlerts(trackedSetup, scanSettings);
         return;
       }
     }
-    void syncWatchedSetup(trackedSetup);
-  }, [trackedSetup, setupHydrated]);
+    void syncWatchedSetup(trackedSetup, scanSettings);
+  }, [trackedSetup, setupHydrated, scanSettings]);
+
+  // A setup the server found and announced while the app was closed is loaded
+  // as soon as the app is opened or brought back, so the order on screen is
+  // the one in the notification.
+  const activeSetupRef = React.useRef(activeSetup);
+  activeSetupRef.current = activeSetup;
+  const noActiveSetup = !activeSetup;
+  useEffect(() => {
+    if (!setupHydrated) return;
+    const load = async () => {
+      if (activeSetupRef.current) return;
+      const announced = await fetchAnnouncedSetup();
+      if (!announced || activeSetupRef.current) return;
+      setActiveSetup(announced.setup);
+      setLastOutcome(null);
+      setSkippedSetup(null);
+      const at = Date.parse(announced.announcedAt);
+      setFeedMessage(
+        `Loaded the setup announced${
+          Number.isFinite(at)
+            ? ` at ${new Date(at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB`
+            : ''
+        }. Check the price is still near the entry before placing it in MT5.`
+      );
+    };
+    void load();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // Also re-checked the moment the screen's own trade is settled, which is
+    // when the server starts scanning for the next one.
+  }, [setupHydrated, noActiveSetup]);
 
   // Mirror it to the cloud so the same order follows the user to another device.
   useEffect(() => {

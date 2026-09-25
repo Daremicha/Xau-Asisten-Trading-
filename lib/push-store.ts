@@ -6,6 +6,8 @@
 
 import { createHash } from 'node:crypto';
 import type { StoredSubscription, WatchedSetup } from './push-watch';
+import type { ScanSettings } from './setup-scan';
+import type { InstitutionalTradingSetup } from './types';
 import { redis, redisConfigured } from './upstash';
 
 export interface PushRecord {
@@ -19,10 +21,18 @@ export interface PushRecord {
    * the alerts over.
    */
   finished?: boolean;
+  /** Settings for the scheduled scan for new setups; absent means no scan. */
+  scan?: ScanSettings | null;
+  /** A setup the scan announced, waiting for the app to load it. */
+  offer?: { setup: InstitutionalTradingSetup; at: string } | null;
+  /** The last order announced, so the same one is not announced again. */
+  lastOffer?: { key: string; at: string } | null;
   updatedAt: string;
 }
 
 const WATCH_SET = 'push:watching';
+/** Phones that want the scheduled scan for new setups. */
+const SCAN_SET = 'push:scanning';
 /** A phone that never syncs again is forgotten after this long. */
 const RECORD_TTL_SECONDS = 60 * 60 * 24 * 30;
 
@@ -53,11 +63,23 @@ export async function saveRecord(id: string, record: PushRecord): Promise<void> 
   await command('SET', key(id), JSON.stringify(record), 'EX', RECORD_TTL_SECONDS);
   if (record.setup && !record.finished) await command('SADD', WATCH_SET, id);
   else await command('SREM', WATCH_SET, id);
+  if (record.scan) await command('SADD', SCAN_SET, id);
+  else await command('SREM', SCAN_SET, id);
 }
 
 export async function deleteRecord(id: string): Promise<void> {
   await command('DEL', key(id));
   await command('SREM', WATCH_SET, id);
+  await command('SREM', SCAN_SET, id);
+}
+
+export async function scanningIds(): Promise<string[]> {
+  return (await command<string[]>('SMEMBERS', SCAN_SET)) ?? [];
+}
+
+/** True for the one caller that may scan now; scans are spaced by `seconds`. */
+export async function claimScan(seconds: number): Promise<boolean> {
+  return (await command<string | null>('SET', 'push:scan-lock', Date.now(), 'NX', 'EX', seconds)) === 'OK';
 }
 
 export async function watchingIds(): Promise<string[]> {
