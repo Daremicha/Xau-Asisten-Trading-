@@ -215,6 +215,12 @@ export function scoreConfluence(inputs: SignalInputs): {
 
   // RSI, graded rather than a single threshold, and read against the trend.
   // An extreme reading argues against chasing the move, not for it.
+  //
+  // Setups whose RSI agreed with them returned less per trade than setups it
+  // argued against, in both halves of a 24 month Intraday replay, so this
+  // vote was tested switched off, inverted and at half strength. None did
+  // better than as it stands (profit factor 1.29 to 1.30 against 1.31), and
+  // declining setups the RSI agreed with cost more profit than it saved.
   const rsi = indicators.rsi14;
   let rsiVote: number;
   let rsiDescription: string;
