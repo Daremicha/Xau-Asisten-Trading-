@@ -2000,6 +2000,11 @@ export default function Home() {
           learningRecords={learningRecords}
           engineWeights={engineWeights}
           tradingStyle={tradingStyle}
+          summary={{
+            equity,
+            accountType,
+            settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit },
+          }}
           theme={theme}
         />
 
