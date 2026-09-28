@@ -23,7 +23,7 @@ import {
 import { evaluatePendingOrder, missCause } from '@/lib/order-validity';
 import { replayOrder, resolveClose, resolveMiss } from '@/lib/order-replay';
 import { tickMayResolve } from '@/lib/close-guard';
-import { auditableRecords } from '@/lib/record-audit';
+import { auditableRecords, repairCorrectionUnits } from '@/lib/record-audit';
 import type { Candle } from '@/lib/candles';
 import { trackPosition } from '@/lib/position-tracker';
 import { QUOTE_POLL_MS } from '@/lib/price-feed';
@@ -790,9 +790,19 @@ export default function Home() {
             // The query asks for the newest first because that is the cheap
             // index. Everything downstream reads this list as a history, so it
             // is put back into the order a history is written in.
-            const ordered = chronological(loadedRecords);
+            // Corrections typed in cents were once stored as dollars; they are
+            // put right once, here, and written back.
+            const { records: ordered, repaired } = repairCorrectionUnits(
+              chronological(loadedRecords),
+              snap.exists() ? (snap.data().accountType as string | undefined) : undefined
+            );
             setLearningRecords(ordered);
             setEngineWeights(recalculateEngineWeights(learningInput(ordered), tradingStyleRef.current));
+            for (const record of repaired) {
+              void setDoc(doc(db, 'users', user.uid, 'learning_records', record.id), record, { merge: true }).catch(
+                (err) => console.warn('Could not store a repaired correction:', err)
+              );
+            }
           }
           setRecordsLoaded(true);
         } catch (err) {
@@ -803,7 +813,16 @@ export default function Home() {
       } else {
         // Guest trader: everything lives in this browser.
         setSyncStatus(GUEST_STATUS);
-        applyLocalProfile(readLocalProfile());
+        const profile = readLocalProfile();
+        const { records: repairedRecords, repaired } = repairCorrectionUnits(profile.learningRecords, profile.accountType);
+        applyLocalProfile({ ...profile, learningRecords: repairedRecords });
+        if (repaired.length > 0) {
+          try {
+            localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(repairedRecords));
+          } catch {
+            // Repaired again on the next load.
+          }
+        }
         setRecordsLoaded(true);
         const restored = loadActiveSetup();
         if (restored) setActiveSetup(restored);
@@ -1670,6 +1689,7 @@ export default function Home() {
           verdict: 'corrected',
           confirmed: false,
           correctedFrom: target.outcome,
+          moneyUnit: 'USD',
         },
       };
 
@@ -2119,6 +2139,7 @@ export default function Home() {
           onCorrect={handleCorrectRecord}
           onConfirm={handleConfirmRecord}
           accountUnit={accountUnitLabel(accountType)}
+          accountType={accountType}
           theme={theme}
         />
 

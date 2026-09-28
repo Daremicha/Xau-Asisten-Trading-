@@ -360,3 +360,31 @@ export function auditableRecords(
 ): Array<SelfLearningMemoryRecord & { placedAt?: string }> {
   return records.filter((r) => r.autoResolved && !r.audit);
 }
+
+/**
+ * Puts corrected results typed in cents back into dollars.
+ *
+ * The correction form asked for the result in the account's unit ("Result
+ * (Cent)") and stored the number as dollars, so an 18 cent stop typed as 18
+ * was recorded as an 18 dollar one, 1 800 cents. Every correction made before
+ * the unit was recorded on the row is converted once, on a cent account only:
+ * on a dollar account the label and the storage already agreed.
+ */
+export function repairCorrectionUnits(
+  records: SelfLearningMemoryRecord[],
+  accountType: string | null | undefined
+): { records: SelfLearningMemoryRecord[]; repaired: SelfLearningMemoryRecord[] } {
+  if (accountType !== 'Cent') return { records, repaired: [] };
+  const repaired: SelfLearningMemoryRecord[] = [];
+  const next = records.map((r) => {
+    if (r.audit?.verdict !== 'corrected' || r.audit.moneyUnit === 'USD') return r;
+    const fixed: SelfLearningMemoryRecord = {
+      ...r,
+      profitOrLossDollars: parseFloat(((r.profitOrLossDollars || 0) / 100).toFixed(4)),
+      audit: { ...r.audit, moneyUnit: 'USD' },
+    };
+    repaired.push(fixed);
+    return fixed;
+  });
+  return { records: repaired.length ? next : records, repaired };
+}
