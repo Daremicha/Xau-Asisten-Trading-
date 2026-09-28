@@ -22,6 +22,49 @@ function ago(iso: string, now: number): string {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
 }
 
+function wibTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * The server's scan for new setups, as it stands for this phone. A quiet
+ * market and a broken scan both mean no notification; this line tells them
+ * apart.
+ */
+function describeScan(
+  phone: ClosedAppAlertStatus['phone'],
+  now: number
+): { ok: boolean; warn?: boolean; text: string } {
+  if (!phone) return { ok: false, warn: true, text: 'could not ask the server about this phone.' };
+  if (!phone.registered) {
+    return {
+      ok: false,
+      text: 'the server does not know this phone. Close the app completely and open it again; it signs up on start.',
+    };
+  }
+  if (!phone.scanning) {
+    return {
+      ok: false,
+      text: 'not switched on for this phone yet. Open the app once more so it sends your settings to the server.',
+    };
+  }
+  const last = phone.lastScan;
+  if (!last) {
+    return {
+      ok: true,
+      text: 'on. It runs every 15 minutes while the market is open; the first result appears here after it runs.',
+    };
+  }
+  const when = `${wibTime(last.at)} WIB (${ago(last.at, now)})`;
+  if (last.outcome === 'error') return { ok: false, text: `last run ${when}: ${last.note}.` };
+  return {
+    ok: true,
+    text: `on, every 15 minutes. Last run ${when}: ${last.note}.${
+      last.outcome === 'no-setup' ? ' A 📊 NEW SETUP alert is sent when one passes.' : ''
+    }`,
+  };
+}
+
 /**
  * Whether trade alerts will reach this phone with the app closed, and a way
  * to prove it. Two things must both work: the phone must be signed up, and the
@@ -61,7 +104,8 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
 
   const watcherAlive = status.lastCheckAt !== null && status.readAt - Date.parse(status.lastCheckAt) < STALE_AFTER_MS;
   const phoneReady = status.permission === 'granted' && status.subscribed;
-  const allGood = status.serverEnabled && watcherAlive && phoneReady;
+  const scanLine = describeScan(status.phone, status.readAt);
+  const allGood = status.serverEnabled && watcherAlive && phoneReady && status.phone?.registered !== false;
 
   const muted = isDark ? 'text-slate-400' : 'text-slate-600';
   const good = 'text-emerald-500';
@@ -119,11 +163,17 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
         </span>
       </div>
 
-      {allGood && (
-        <p className={muted}>
-          <strong>New setups:</strong> the server runs your analysis every 15 minutes while the market is open and
-          no trade is in play, and sends a 📊 NEW SETUP alert when one passes. Opening the app loads that setup.
-        </p>
+      {status.serverEnabled && phoneReady && (
+        <div className="flex items-start gap-1.5">
+          {scanLine.ok ? (
+            <CheckCircle2 className={`w-3.5 h-3.5 mt-0.5 ${good}`} />
+          ) : (
+            <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 ${scanLine.warn ? 'text-amber-500' : bad}`} />
+          )}
+          <span className={muted}>
+            <strong>New-setup scan:</strong> {scanLine.text}
+          </span>
+        </div>
       )}
 
       {phoneReady && (
