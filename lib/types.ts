@@ -363,6 +363,12 @@ export interface SelfLearningMemoryRecord {
     confirmed: boolean;
     /** Set on a row the user corrected, naming what it used to say. */
     correctedFrom?: 'TP' | 'SL' | 'MISSED';
+    /**
+     * 'USD' on a correction whose amount was stored in dollars. Corrections
+     * made before this was recorded stored the amount as typed, which on a
+     * cent account was cents; see repairCorrectionUnits.
+     */
+    moneyUnit?: 'USD';
   };
   /** Conditions the setup was produced under, for conditional learning. */
   context?: TradeContext;

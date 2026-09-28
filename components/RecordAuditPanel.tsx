@@ -19,7 +19,8 @@
  */
 
 import React, { useState } from 'react';
-import { SelfLearningMemoryRecord } from '@/lib/types';
+import type { AccountType, SelfLearningMemoryRecord } from '@/lib/types';
+import { fromAccountUnits } from '@/lib/account-display';
 import { auditableRecords, type RecordAuditVerdict } from '@/lib/record-audit';
 import { AlertTriangle, CheckCircle2, History, Loader2, ShieldQuestion } from 'lucide-react';
 
@@ -80,6 +81,8 @@ interface RecordAuditPanelProps {
   /** Marks a row as checked and correct, so it is not raised again. */
   onConfirm: (id: string) => Promise<void>;
   accountUnit: string;
+  /** The account the amount is typed for, to turn it into dollars. */
+  accountType?: AccountType;
   theme?: 'dark' | 'light';
 }
 
@@ -124,6 +127,7 @@ export default function RecordAuditPanel({
   onCorrect,
   onConfirm,
   accountUnit,
+  accountType,
   theme = 'dark',
 }: RecordAuditPanelProps) {
   const isDark = theme === 'dark';
@@ -167,9 +171,13 @@ export default function RecordAuditPanel({
         id: row.id,
         outcome: draft.outcome as 'TP' | 'SL' | 'MISSED',
         exitPrice: exit,
-        // A stop is a loss whichever sign the user happened to type.
-        profitOrLossDollars:
+        // A stop is a loss whichever sign the user happened to type, and the
+        // amount is typed in the account's unit, which is cents on a cent
+        // account while every record is kept in dollars.
+        profitOrLossDollars: fromAccountUnits(
           draft.outcome === 'MISSED' ? 0 : draft.outcome === 'SL' ? -Math.abs(amount) : Math.abs(amount),
+          accountType
+        ),
       });
       setSummary((prev) =>
         prev ? { ...prev, results: prev.results.filter((r) => r.id !== row.id) } : prev

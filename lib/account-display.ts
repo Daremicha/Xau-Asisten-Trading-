@@ -33,6 +33,12 @@ export function toAccountUnits(usd: number, accountType?: AccountType | null): n
   return isCentAccount(accountType) ? usd * CENT_UNITS_PER_DOLLAR : usd;
 }
 
+/** Converts an amount typed in the account's own unit back into internal USD. */
+export function fromAccountUnits(amount: number, accountType?: AccountType | null): number {
+  if (!Number.isFinite(amount)) return 0;
+  return isCentAccount(accountType) ? amount / CENT_UNITS_PER_DOLLAR : amount;
+}
+
 /** The unit a balance is quoted in, for labels and column headers. */
 export function accountUnitLabel(accountType?: AccountType | null): string {
   return isCentAccount(accountType) ? 'Cent' : 'USD';
