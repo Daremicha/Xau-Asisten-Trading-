@@ -34,6 +34,24 @@ function wib(iso: string | undefined): string {
 
 const signed = (value: number, digits = 2) => `${value > 0 ? '+' : ''}${value.toFixed(digits)}`;
 
+/**
+ * Win rate of the closed trades most of the models agreed with, against the
+ * ones they doubted: the comparison that decides whether their opinion is ever
+ * allowed to filter a trade.
+ */
+function aiLine(live: SelfLearningMemoryRecord[], results: Result[]): string {
+  const group = (agreed: boolean) => {
+    const picked = live.filter((r, i) => {
+      const c = r.context;
+      if (results[i] === 'MISSED' || typeof c?.aiAnswered !== 'number' || c.aiAnswered === 0) return false;
+      return (c.aiAgree ?? 0) * 2 > c.aiAnswered === agreed;
+    });
+    const wins = picked.filter((r) => resultOf(r) === 'TP').length;
+    return picked.length ? `${wins}/${picked.length} won (${((wins / picked.length) * 100).toFixed(0)}%)` : 'none yet';
+  };
+  return `AI majority agreed: ${group(true)} - otherwise: ${group(false)}`;
+}
+
 export function tradeSummaryText(
   records: SelfLearningMemoryRecord[],
   options: { equity: number; accountType: AccountType; settings: SummarySettings; now?: number }
@@ -67,7 +85,9 @@ export function tradeSummaryText(
       avgR === null ? '-' : signed(avgR)
     }`,
     '',
-    '#|Closed (WIB)|Order|Entry|Exit|Result|P/L|R',
+    aiLine(live, results),
+    '',
+    '#|Closed (WIB)|Order|Entry|Exit|Result|P/L|R|AI agree',
     ...live.map((r, i) =>
       [
         i + 1,
@@ -78,6 +98,7 @@ export function tradeSummaryText(
         results[i],
         results[i] === 'MISSED' ? '-' : money(r.profitOrLossDollars, true),
         typeof r.context?.rMultiple === 'number' && results[i] !== 'MISSED' ? signed(r.context.rMultiple) : '-',
+        typeof r.context?.aiAnswered === 'number' ? `${r.context.aiAgree ?? 0}/${r.context.aiAnswered}` : '-',
       ].join('|')
     ),
   ];

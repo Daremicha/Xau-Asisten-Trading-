@@ -149,6 +149,18 @@ Respond strictly in valid JSON format:
     // how often it wins overall.
     const riskDistance = Math.abs(setup.entryPrice - setup.stopLoss);
     const factorVotes = sanitiseFactorVotes(setup.factorVotes);
+    // How many of the models agreed, when they were asked and answered.
+    const ai = setup.aiReview;
+    const aiCounts =
+      ai &&
+      Number.isInteger(ai.agree) &&
+      Number.isInteger(ai.answered) &&
+      ai.answered > 0 &&
+      ai.answered <= 3 &&
+      ai.agree >= 0 &&
+      ai.agree <= ai.answered
+        ? { aiAgree: ai.agree, aiAnswered: ai.answered }
+        : null;
     const context: TradeContext = {
       anchor: setup.entryAnchor ?? 'Market',
       convictionScore: setup.convictionScore ?? 0,
@@ -186,6 +198,7 @@ Respond strictly in valid JSON format:
       // Only present when the setup carried them. Firestore refuses an
       // undefined field, so an absent map is left out rather than written.
       ...(factorVotes ? { factorVotes } : {}),
+      ...(aiCounts ?? {}),
     };
 
     const learningRecord: SelfLearningMemoryRecord = {

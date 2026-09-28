@@ -9,6 +9,9 @@
  * shows it once.
  */
 
+import { reviewLabel } from './ai-review-label';
+import type { AiReview } from './types';
+
 export interface AlertSetup {
   id: string;
   orderType: string;
@@ -101,13 +104,14 @@ export function nearLevelAlert(setup: AlertSetup, level: 'SL' | 'TP1', marketPri
 
 /** A setup the server's scan found while the app was closed. */
 export function newSetupAlert(
-  setup: AlertSetup & { recommendedLotSize?: number },
+  setup: AlertSetup & { recommendedLotSize?: number; aiReview?: AiReview | null },
   scanId: string
 ): TradeAlert {
   const lot = typeof setup.recommendedLotSize === 'number' ? ` · lot ${setup.recommendedLotSize.toFixed(2)}` : '';
+  const ai = reviewLabel(setup.aiReview);
   return {
     title: `📊 NEW SETUP: ${setup.orderType} @ ${price(setup.entryPrice)}`,
-    body: `SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}${lot}. Open the app to load it, then place the order in MT5.`,
+    body: `SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}${lot}.${ai ? ` ${ai}.` : ''} Open the app to load it, then place the order in MT5.`,
     tag: `${scanId}_new`,
   };
 }

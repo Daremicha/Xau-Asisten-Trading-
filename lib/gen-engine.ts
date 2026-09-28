@@ -1,4 +1,6 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
+import { redactSecrets } from '@/lib/safe-error';
 import { EngineProvider } from '@/lib/types';
 
 export interface GenerationOptions {
@@ -104,7 +106,7 @@ async function callOpenAI(
 }
 
 /**
- * Executes a call to Anthropic Claude Sonnet models.
+ * Executes a call to Anthropic Claude through the official SDK.
  * Activates when Gemini and ChatGPT quotas or limits are reached.
  */
 async function callClaude(
@@ -119,57 +121,35 @@ async function callClaude(
   const systemMessage =
     options.systemInstruction ||
     'You are a Senior Institutional Quantitative Trading strategist for XAUUSD (Gold). Write in rigorous institutional English. Avoid using the word "A" followed by "I". If JSON is requested, output only pure JSON.';
+  const model = options.claudeModel || 'claude-opus-5';
 
-  const modelsToTry = [
-    options.claudeModel || 'claude-3-7-sonnet-20250219',
-    'claude-3-5-sonnet-20241022',
-  ];
-
-  for (const modelCandidate of modelsToTry) {
-    try {
-      const res = await withTimeout(
-        fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': secretKey.trim(),
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: modelCandidate,
-            max_tokens: 2048,
-            temperature: 0.2,
-            system: systemMessage,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        }),
-        9000
-      );
-
-      if (!res.ok) {
-        console.warn(`Claude switch response for ${modelCandidate} returned status: ${res.status}`);
-        continue;
-      }
-
-      const data = await res.json();
-      const content = data?.content?.[0]?.text;
-      const cleaned = cleanMarkdownFences(content);
-      if (cleaned) {
-        return { text: cleaned, model: modelCandidate };
-      }
-    } catch (err) {
-      console.warn(`Claude fallback invocation error for ${modelCandidate}:`, err);
-    }
+  try {
+    const client = new Anthropic({ apiKey: secretKey.trim(), timeout: 20_000, maxRetries: 1 });
+    const response = await client.beta.messages.create({
+      model,
+      max_tokens: 4000,
+      system: systemMessage,
+      output_config: { effort: 'low' },
+      // A declined request is re-run on a fallback model chosen by the API.
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    if (response.stop_reason === 'refusal') return null;
+    const content = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+    const cleaned = cleanMarkdownFences(content);
+    return cleaned ? { text: cleaned, model: response.model ?? model } : null;
+  } catch (err) {
+    console.warn(`Claude invocation error for ${model}:`, err instanceof Error ? redactSecrets(err.message) : err);
+    return null;
   }
-
-  return null;
 }
 
 /**
  * Multi-Provider Failover Synthesis:
  * 1. Primary: Google Gemini (gemini-flash-latest, overridable per call)
  * 2. Secondary: OpenAI ChatGPT (gpt-4o) - triggered automatically if Gemini quota is reached (429/quota/503)
- * 3. Tertiary: Anthropic Claude Sonnet (claude-3-7-sonnet / claude-3-5-sonnet) - triggered if Gemini & ChatGPT are unavailable
+ * 3. Tertiary: Anthropic Claude (claude-opus-5) - triggered if Gemini & ChatGPT are unavailable
  * 4. Algorithmic Fallback: Mathematical SMC/ICT calculation engine
  */
 export async function executeGenerativeSynthesisWithProvider(
@@ -268,10 +248,10 @@ export async function executeGenerativeSynthesisWithProvider(
         switchReason: switchReason || 'Switched to ChatGPT (GPT-4o) as primary quota fallback.',
       };
     }
-    switchReason = 'Gemini & ChatGPT quotas reached. Activated Claude Sonnet.';
+    switchReason = 'Gemini & ChatGPT quotas reached. Activated Claude.';
   }
 
-  // STEP 3: Automatic Switch to Tertiary Provider (Anthropic Claude Sonnet)
+  // STEP 3: Automatic Switch to Tertiary Provider (Anthropic Claude)
   const claudeKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   if (claudeKey && claudeKey.trim().length > 0) {
     const claudeResult = await callClaude(prompt, options);
@@ -281,7 +261,7 @@ export async function executeGenerativeSynthesisWithProvider(
         provider: 'claude',
         model: claudeResult.model,
         isFallback: true,
-        switchReason: switchReason || 'Switched to Claude Sonnet as quota fallback.',
+        switchReason: switchReason || 'Switched to Claude as quota fallback.',
       };
     }
   }
@@ -291,7 +271,7 @@ export async function executeGenerativeSynthesisWithProvider(
 
 /**
  * Standard content generator maintaining complete backwards compatibility.
- * Automatically fails over to OpenAI and Claude Sonnet if Gemini quota is reached.
+ * Automatically fails over to OpenAI and Claude if Gemini quota is reached.
  */
 export async function executeGenerativeSynthesis(
   prompt: string,

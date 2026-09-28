@@ -92,6 +92,7 @@ import {
   NotificationPermissionState,
 } from '@/lib/notification-utility';
 import { enableClosedAppAlerts, fetchAnnouncedSetup, syncWatchedSetup } from '@/lib/push-client';
+import { fetchAiReview } from '@/lib/ai-review-client';
 import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
 import { learningInput, TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
@@ -586,6 +587,25 @@ export default function Home() {
     // Also re-checked the moment the screen's own trade is settled, which is
     // when the server starts scanning for the next one.
   }, [setupHydrated, noActiveSetup]);
+
+  // The language models' second opinion, asked once for each new setup. It is
+  // shown on the card and recorded with the trade; the order is the engine's.
+  const marketPriceRef = React.useRef(marketPrice);
+  marketPriceRef.current = marketPrice;
+  const reviewRequested = React.useRef<string | null>(null);
+  const setupNeedingReview =
+    activeSetup && activeSetup.aiReview === undefined && isUnresolved(activeSetup) ? activeSetup.id : null;
+  useEffect(() => {
+    const setup = activeSetupRef.current;
+    if (!setupNeedingReview || !setup || reviewRequested.current === setupNeedingReview) return;
+    reviewRequested.current = setupNeedingReview;
+    void fetchAiReview(setup, marketPriceRef.current).then((review) => {
+      // No answer this time is kept as none, so the card stops waiting and
+      // the trade is recorded without a verdict.
+      const aiReview = review ?? null;
+      setActiveSetup((prev) => (prev && prev.id === setupNeedingReview ? { ...prev, aiReview } : prev));
+    });
+  }, [setupNeedingReview]);
 
   // Mirror it to the cloud so the same order follows the user to another device.
   useEffect(() => {

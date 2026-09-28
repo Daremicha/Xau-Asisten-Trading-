@@ -6,6 +6,7 @@ import { isGoldMarketClosed } from '@/lib/market-hours';
 import { runAnalysis } from '@/lib/run-analysis';
 import { isRepeat, OFFER_TTL_MS, offerKey, SCAN_EVERY_SECONDS, scanRequest } from '@/lib/setup-scan';
 import { newSetupAlert } from '@/lib/trade-alerts';
+import { reviewOnce } from '@/lib/ai-review-store';
 import type { InstitutionalTradingSetup } from '@/lib/types';
 import { sendPush, vapidPublicKey } from '@/lib/push-send';
 import {
@@ -153,7 +154,16 @@ async function scanForSetups(): Promise<number> {
     const key = offerKey(setup);
     if (isRepeat(key, record.lastOffer, now)) continue;
 
-    const stored = { ...setup, protectAtR: record.scan.protectAtR };
+    // The models' opinion rides along with the announcement. It never stops
+    // one: their verdicts are recorded and judged on live results first.
+    const aiReview = await reviewOnce(setup, setup.currentMarketPrice ?? null)
+      .then((r) => (r.status === 'done' ? r.review : undefined))
+      .catch(() => undefined);
+    const stored = {
+      ...setup,
+      protectAtR: record.scan.protectAtR,
+      ...(aiReview !== undefined ? { aiReview } : {}),
+    };
     const alert = newSetupAlert(stored, setup.id);
     const outcome = await sendPush(record.subscription, {
       key: `${setup.id}:new`,
