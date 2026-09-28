@@ -497,6 +497,18 @@ export default function Home() {
    * which is exactly how the order used to vanish on refresh.
    */
   const [setupHydrated, setSetupHydrated] = useState<boolean>(false);
+  // True once the trade history has actually been read, from the account or
+  // from this browser. Nothing is recorded automatically before then: a trade
+  // recorded against the empty list the page starts with replaced the whole
+  // history on screen with that one trade.
+  const [recordsLoaded, setRecordsLoaded] = useState<boolean>(false);
+  // The latest history and balance, for code that resumes after a network
+  // call: a value captured before the call can be minutes out of date by the
+  // time it returns.
+  const learningRecordsRef = React.useRef(learningRecords);
+  learningRecordsRef.current = learningRecords;
+  const equityRef = React.useRef(equity);
+  equityRef.current = equity;
 
   /**
    * Holds the open setup across a reload. It is cleared only once the user
@@ -606,6 +618,16 @@ export default function Home() {
       setActiveSetup((prev) => (prev && prev.id === setupNeedingReview ? { ...prev, aiReview } : prev));
     });
   }, [setupNeedingReview]);
+  /** Asks the models again after none of them answered. */
+  const retryAiReview = useCallback(() => {
+    const setup = activeSetupRef.current;
+    if (!setup) return;
+    const id = setup.id;
+    setActiveSetup((prev) => (prev && prev.id === id ? { ...prev, aiReview: undefined } : prev));
+    void fetchAiReview(setup, marketPriceRef.current, true).then((review) => {
+      setActiveSetup((prev) => (prev && prev.id === id ? { ...prev, aiReview: review ?? null } : prev));
+    });
+  }, []);
 
   // Mirror it to the cloud so the same order follows the user to another device.
   useEffect(() => {
@@ -622,6 +644,7 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       setAuthLoading(false);
+      setRecordsLoaded(false);
 
       if (user) {
         setSyncStatus(savedStatus());
@@ -640,6 +663,7 @@ export default function Home() {
               setIsMigrating(false);
               if (migrated) {
                 applyLocalProfile(local);
+                setRecordsLoaded(true);
                 markMigrated(user.uid);
                 setMigrationNotice(
                   `Your guest data was copied to this account: ${local.learningRecords.length} recorded trade${
@@ -770,6 +794,7 @@ export default function Home() {
             setLearningRecords(ordered);
             setEngineWeights(recalculateEngineWeights(learningInput(ordered), tradingStyleRef.current));
           }
+          setRecordsLoaded(true);
         } catch (err) {
           console.warn('Notice loading user cloud document:', err);
         } finally {
@@ -779,6 +804,7 @@ export default function Home() {
         // Guest trader: everything lives in this browser.
         setSyncStatus(GUEST_STATUS);
         applyLocalProfile(readLocalProfile());
+        setRecordsLoaded(true);
         const restored = loadActiveSetup();
         if (restored) setActiveSetup(restored);
         setSetupHydrated(true);
@@ -1040,6 +1066,8 @@ export default function Home() {
     // apart, so the level it appears to have reached is not a level the market
     // the user trades in ever touched.
     if (!quoteIsSpot) return;
+    // Not before the history has loaded: see recordsLoaded.
+    if (!recordsLoaded) return;
     if (resolvedRef.current === activeSetup.id) return;
 
     const close = resolveClose(
@@ -1085,7 +1113,7 @@ export default function Home() {
     // handleSimulateOutcome closes over the same setup each render, so listing
     // it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot, stopAtEntry]);
+  }, [activeSetup, livePosition, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot, stopAtEntry, recordsLoaded]);
 
   useEffect(() => {
     if (!activeSetup) return;
@@ -1093,6 +1121,7 @@ export default function Home() {
     // Same rule as the automatic close: a missed entry recorded from a futures
     // quote is a miss that never happened.
     if (!quoteIsSpot) return;
+    if (!recordsLoaded) return;
     if (resolvedRef.current === activeSetup.id) return;
 
     // A miss recorded from a price that cannot be trusted is the same mistake
@@ -1109,7 +1138,7 @@ export default function Home() {
     // handleSimulateOutcome is recreated each render but closes over the same
     // setup, so listing it would re-fire this effect without changing anything.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSetup, pendingVerdict, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot]);
+  }, [activeSetup, pendingVerdict, replay, tickTrust, isEvaluatingOutcome, marketPrice, quoteIsSpot, recordsLoaded]);
 
   const [autoResolveNotice, setAutoResolveNotice] = useState<string | null>(null);
 
@@ -1435,8 +1464,13 @@ export default function Home() {
         const data = await res.json();
         if (data.learningRecord) {
           const newRecord: SelfLearningMemoryRecord = data.learningRecord;
-          const updatedRecords = [...learningRecords, newRecord];
-          setLearningRecords(updatedRecords);
+          // Appended to the history as it is now, not as it was when the
+          // request left: the call can take long enough for the history to
+          // have loaded, or changed, in the meantime.
+          const latest = learningRecordsRef.current;
+          const updatedRecords = latest.some((r) => r.id === newRecord.id) ? latest : [...latest, newRecord];
+          learningRecordsRef.current = updatedRecords;
+          setLearningRecords((prev) => (prev.some((r) => r.id === newRecord.id) ? prev : [...prev, newRecord]));
 
           // Recalculate weights with the newly acquired experience
           const newWeights = recalculateEngineWeights(learningInput(updatedRecords), tradingStyle);
@@ -1444,7 +1478,8 @@ export default function Home() {
 
           // Update active balance according to trade outcome (0 change for MISSED)
           // Four decimals, because two is a whole unit on a cent account.
-          const newEquity = Math.max(0, roundMoney(equity + (newRecord.profitOrLossDollars || 0)));
+          const newEquity = Math.max(0, roundMoney(equityRef.current + (newRecord.profitOrLossDollars || 0)));
+          equityRef.current = newEquity;
           setEquity(newEquity);
 
           // The trade is resolved, so the held copy is no longer needed.
@@ -1480,22 +1515,28 @@ export default function Home() {
                 doc(db, 'users', currentUser.uid),
                 {
                   lockedEquity: newEquity,
-                  totalTrades: updatedRecords.length,
-                  winTrades: updatedRecords.filter((r) => r.outcome === 'TP').length,
-                  lossTrades: updatedRecords.filter((r) => r.outcome === 'SL').length,
-                  missedTrades: updatedRecords.filter((r) => r.outcome === 'MISSED').length,
+                  // Counts only from a history that was actually read; from a
+                  // partial one they would overwrite the right numbers.
+                  ...(recordsLoaded
+                    ? {
+                        totalTrades: updatedRecords.length,
+                        winTrades: updatedRecords.filter((r) => r.outcome === 'TP').length,
+                        lossTrades: updatedRecords.filter((r) => r.outcome === 'SL').length,
+                        missedTrades: updatedRecords.filter((r) => r.outcome === 'MISSED').length,
+                      }
+                    : {}),
                   updatedAt: new Date().toISOString(),
                 },
                 { merge: true }
               );
             });
 
-            if (!stored) {
+            if (!stored && recordsLoaded) {
               // Keep a browser copy so the result survives until the cloud accepts it.
               localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(updatedRecords));
               localStorage.setItem(LOCAL_KEYS.equity, newEquity.toString());
             }
-          } else {
+          } else if (recordsLoaded) {
             localStorage.setItem(LOCAL_KEYS.records, JSON.stringify(updatedRecords));
             localStorage.setItem(LOCAL_KEYS.equity, newEquity.toString());
           }
@@ -1982,6 +2023,7 @@ export default function Home() {
               userEquity={equity}
               currentPrice={marketPrice}
               protectStopAtR={protectStopAtR}
+              onRetryAiReview={retryAiReview}
               theme={theme}
             />
           </div>

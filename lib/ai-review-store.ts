@@ -14,6 +14,8 @@ import { redis, redisConfigured } from './upstash';
 
 /** A review is kept for as long as a setup can still be in play. */
 const REVIEW_TTL_SECONDS = 60 * 60 * 24 * 3;
+/** A review in which no model answered, kept only this long. */
+const FAILED_TTL_SECONDS = 5 * 60;
 /** How long one caller may take to get the answer before another may try. */
 const LOCK_SECONDS = 60;
 /** Reviews allowed in one hour, for all callers together. */
@@ -87,11 +89,18 @@ export async function storedReview(id: string): Promise<AiReview | null | undefi
  * Without storage the models are asked every time, which only happens on a
  * development machine.
  */
-export async function reviewOnce(setup: InstitutionalTradingSetup, marketPrice: number | null): Promise<CachedReview> {
+export async function reviewOnce(
+  setup: InstitutionalTradingSetup,
+  marketPrice: number | null,
+  options: { retryFailed?: boolean } = {}
+): Promise<CachedReview> {
   if (!redisConfigured()) return { status: 'done', review: await reviewSetup(setup, marketPrice) };
 
   const known = await storedReview(setup.id);
-  if (known !== undefined) return { status: 'done', review: known };
+  // Asked again by the user after nobody answered: the stored failure is not
+  // the answer they are asking for.
+  const retry = options.retryFailed && known && known.answered === 0;
+  if (known !== undefined && !retry) return { status: 'done', review: known };
 
   const claimed = (await redis<string | null>('SET', `${key(setup.id)}:lock`, Date.now(), 'NX', 'EX', LOCK_SECONDS)) === 'OK';
   if (!claimed) return { status: 'pending' };
@@ -105,6 +114,10 @@ export async function reviewOnce(setup: InstitutionalTradingSetup, marketPrice: 
   }
 
   const review = await reviewSetup(setup, marketPrice);
-  await redis('SET', key(setup.id), JSON.stringify(review), 'EX', REVIEW_TTL_SECONDS);
+  // A review nobody answered is kept only briefly, so asking again later can
+  // get a real one once a busy model recovers or a balance is topped up.
+  const ttl = review && review.answered === 0 ? FAILED_TTL_SECONDS : REVIEW_TTL_SECONDS;
+  await redis('SET', key(setup.id), JSON.stringify(review), 'EX', ttl);
+  await redis('DEL', `${key(setup.id)}:lock`);
   return { status: 'done', review };
 }

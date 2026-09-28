@@ -58,6 +58,8 @@ interface SignalCardProps {
    * when a run over real history supported it.
    */
   protectStopAtR?: number | null;
+  /** Asks the language models again after none of them answered. */
+  onRetryAiReview?: () => void;
   theme?: 'dark' | 'light';
 }
 
@@ -98,6 +100,7 @@ export default function SignalCard({
   isEvaluatingOutcome,
   currentPrice,
   protectStopAtR = null,
+  onRetryAiReview,
   theme = 'dark',
 }: SignalCardProps) {
   const isDark = theme === 'dark';
@@ -810,7 +813,11 @@ Ready for direct execution in MetaTrader 5.`;
               </div>
             </div>
 
-            <AiReviewPanel review={setup.aiReview ?? (isUnresolved(setup) ? undefined : null)} theme={theme} />
+            <AiReviewPanel
+              review={setup.aiReview ?? (isUnresolved(setup) ? undefined : null)}
+              onRetry={isUnresolved(setup) ? onRetryAiReview : undefined}
+              theme={theme}
+            />
 
             {/* Institutional SMC/ICT Rationale */}
             <div
