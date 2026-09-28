@@ -21,7 +21,7 @@ import { requestTwelveData, twelveDataBase, twelveDataConfigured } from './twelv
 const TWELVE_DATA_PAGE = 5000;
 const REQUEST_TIMEOUT_MS = 20_000;
 
-export type HistoryInterval = '15min' | '1h';
+export type HistoryInterval = '5min' | '15min' | '1h';
 
 /**
  * Instruments the history can be downloaded for. Gold is what the app trades;
@@ -32,6 +32,7 @@ export type HistorySymbol = 'XAU/USD' | 'BTC/USD';
 export const HISTORY_SYMBOLS: HistorySymbol[] = ['XAU/USD', 'BTC/USD'];
 
 export const INTERVAL_MS: Record<HistoryInterval, number> = {
+  '5min': 5 * 60_000,
   '15min': 15 * 60_000,
   '1h': 60 * 60_000,
 };
@@ -157,7 +158,7 @@ async function yahooRange(interval: HistoryInterval, beforeMs: number | null): P
 
   const res = await fetchWithTimeout(
     `https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=${
-      interval === '1h' ? '1h' : '15m'
+      interval === '1h' ? '1h' : interval === '5min' ? '5m' : '15m'
     }&period1=${start}&period2=${end}`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
