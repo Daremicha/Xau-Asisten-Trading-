@@ -64,6 +64,35 @@ export function parseVerdict(text: string | null | undefined): Pick<ProviderRevi
   }
 }
 
+const BILLING: Record<ReviewProvider, string> = {
+  gemini: 'aistudio.google.com',
+  chatgpt: 'platform.openai.com → Billing',
+  claude: 'console.anthropic.com → Plans & Billing',
+};
+
+/**
+ * What went wrong, in words a trader can act on. Providers answer with raw
+ * JSON; the common cases are named, anything else is passed on, shortened.
+ */
+export function explainFailure(provider: ReviewProvider, message: string): string {
+  const m = message.toLowerCase();
+  if (/credit balance|no credits|insufficient_quota|exceeded your current quota|billing/.test(m)) {
+    return `API credit is used up. Top it up at ${BILLING[provider]}. A ChatGPT Plus or Claude Pro subscription does not include API credit.`;
+  }
+  if (/\b503\b|high demand|overloaded|unavailable|\b529\b/.test(m)) {
+    return 'The model is overloaded right now. Usually temporary; ask again in a few minutes.';
+  }
+  if (/\b401\b|\b403\b|api key|unauthori[sz]ed|permission/.test(m)) {
+    return 'The API key was rejected. Check the key set in Vercel.';
+  }
+  if (/\b404\b|not found|does not exist|not available/.test(m)) {
+    return 'This model is not available to the key. Set another in the *_REVIEW_MODEL variable.';
+  }
+  if (/\b429\b|rate limit/.test(m)) return 'Too many requests at once. Ask again in a minute.';
+  if (/within 20 seconds|timeout|timed out/.test(m)) return 'No answer within 20 seconds.';
+  return message.slice(0, 160);
+}
+
 function failure(provider: ReviewProvider, model: string, err: unknown): ProviderReview {
   const message = err instanceof Error ? err.message : String(err);
   return {
@@ -72,7 +101,7 @@ function failure(provider: ReviewProvider, model: string, err: unknown): Provide
     verdict: null,
     confidence: null,
     reason: '',
-    error: redactSecrets(message).slice(0, 160),
+    error: explainFailure(provider, redactSecrets(message)),
   };
 }
 
@@ -98,23 +127,39 @@ function answered(provider: ReviewProvider, model: string, text: string | null |
   return { provider, model, ...parsed };
 }
 
+/** Tried in turn when the one before is overloaded or unavailable. */
+const GEMINI_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
 async function askGemini(prompt: string): Promise<ProviderReview | null> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return null;
-  const model = process.env.GEMINI_REVIEW_MODEL?.trim() || 'gemini-flash-latest';
-  try {
-    const client = new GoogleGenAI({ apiKey: key });
-    const result = await withTimeout(
-      client.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', systemInstruction: SYSTEM },
-      })
-    );
-    return answered('gemini', model, result.text);
-  } catch (err) {
-    return failure('gemini', model, err);
+  const first = process.env.GEMINI_REVIEW_MODEL?.trim() || 'gemini-flash-latest';
+  const models = [first, ...GEMINI_FALLBACKS.filter((m) => m !== first)];
+  const client = new GoogleGenAI({ apiKey: key });
+  let last: ProviderReview | null = null;
+  const started = Date.now();
+  for (const model of models) {
+    // The three providers are asked side by side inside one request's time;
+    // a fallback is not started once most of it has gone.
+    if (last && Date.now() - started > 15_000) break;
+    try {
+      const result = await withTimeout(
+        client.models.generateContent({
+          model,
+          contents: prompt,
+          config: { responseMimeType: 'application/json', systemInstruction: SYSTEM },
+        })
+      );
+      return answered('gemini', model, result.text);
+    } catch (err) {
+      last = failure('gemini', model, err);
+      // Only a busy or missing model is worth another try; a bad key or an
+      // empty balance fails the same way on every model.
+      const text = err instanceof Error ? err.message : String(err);
+      if (!/\b503\b|\b404\b|\b429\b|high demand|overloaded|unavailable|not found/i.test(text)) break;
+    }
   }
+  return last;
 }
 
 async function askChatGpt(prompt: string): Promise<ProviderReview | null> {

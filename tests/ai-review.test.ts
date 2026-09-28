@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { parseVerdict, reviewPrompt, reviewSetup } from '../lib/ai-review';
+import { explainFailure, parseVerdict, reviewPrompt, reviewSetup } from '../lib/ai-review';
 import { reviewLabel } from '../lib/ai-review-label';
 import { sanitiseReviewSetup } from '../lib/ai-review-store';
 import { newSetupAlert } from '../lib/trade-alerts';
@@ -101,7 +101,7 @@ describe('asking the models', () => {
     const result = await reviewSetup(setup, null);
     expect(result?.answered).toBe(0);
     expect(result?.reviews[0].verdict).toBeNull();
-    expect(result?.reviews[0].error).toContain('404');
+    expect(result?.reviews[0].error).toContain('not available');
     expect(reviewLabel(result)).toBeNull();
   });
 });
@@ -162,5 +162,25 @@ describe('the trade summary', () => {
     expect(text).toContain('AI majority agreed: 1/2 won (50%) - otherwise: 0/1 won (0%)');
     expect(text).toContain('|+1.40|3/3');
     expect(text).toContain('|+1.40|-');
+  });
+});
+
+describe('a provider failure, in words a trader can act on', () => {
+  test('an empty API balance says where to top it up', () => {
+    expect(
+      explainFailure('claude', '400 {"error":{"message":"Your credit balance is too low to access the Anthropic API."}}')
+    ).toContain('console.anthropic.com');
+    expect(explainFailure('chatgpt', 'HTTP 429: You have no credits remaining.')).toContain('platform.openai.com');
+  });
+
+  test('an overloaded model is called temporary', () => {
+    expect(explainFailure('gemini', '{"error":{"code":503,"message":"This model is currently experiencing high demand."}}')).toContain(
+      'overloaded'
+    );
+  });
+
+  test('a rejected key and a missing model are named', () => {
+    expect(explainFailure('chatgpt', 'HTTP 401: Incorrect API key provided')).toContain('key');
+    expect(explainFailure('gemini', '404 models/gemini-x is not found')).toContain('REVIEW_MODEL');
   });
 });

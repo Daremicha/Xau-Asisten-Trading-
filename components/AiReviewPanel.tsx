@@ -8,6 +8,8 @@ import type { AiReview } from '@/lib/types';
 interface AiReviewPanelProps {
   /** Undefined while the models are still being asked. */
   review: AiReview | null | undefined;
+  /** Shown when no model answered, to ask again. */
+  onRetry?: () => void;
   theme?: 'dark' | 'light';
 }
 
@@ -16,7 +18,7 @@ interface AiReviewPanelProps {
  * the prices on the card are the tested engine's, and whether the models'
  * agreement means anything is read from the recorded trades later.
  */
-export default function AiReviewPanel({ review, theme = 'dark' }: AiReviewPanelProps) {
+export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiReviewPanelProps) {
   const isDark = theme === 'dark';
   // No model configured at all: nothing to show.
   if (review === null) return null;
@@ -74,6 +76,17 @@ export default function AiReviewPanel({ review, theme = 'dark' }: AiReviewPanelP
             </li>
           ))}
         </ul>
+      )}
+
+      {review && review.answered === 0 && onRetry && (
+        <button
+          type="button"
+          id="ai-review-retry"
+          onClick={onRetry}
+          className="px-2.5 py-1 rounded-lg bg-sky-500 text-slate-950 text-xs font-bold cursor-pointer"
+        >
+          Ask again
+        </button>
       )}
 
       <p className={`text-[10px] leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>

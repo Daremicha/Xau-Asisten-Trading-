@@ -16,7 +16,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export async function fetchAiReview(
   setup: InstitutionalTradingSetup,
-  marketPrice: number | null
+  marketPrice: number | null,
+  retry = false
 ): Promise<AiReview | null | undefined> {
   const body = JSON.stringify({
     setup: {
@@ -32,6 +33,7 @@ export async function fetchAiReview(
       institutionalRationale: setup.institutionalRationale,
     },
     marketPrice,
+    retry,
   });
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
     try {

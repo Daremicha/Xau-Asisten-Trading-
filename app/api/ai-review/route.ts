@@ -10,7 +10,11 @@ export const maxDuration = 45;
  * asked once per setup; every later request gets the stored answer.
  */
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { setup?: unknown; marketPrice?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    setup?: unknown;
+    marketPrice?: unknown;
+    retry?: unknown;
+  } | null;
   const setup = sanitiseReviewSetup(body?.setup);
   if (!setup) {
     return NextResponse.json({ success: false, error: 'setup must be a setup produced by the analysis.' }, { status: 400 });
@@ -20,7 +24,7 @@ export async function POST(request: Request) {
       ? body.marketPrice
       : null;
   try {
-    const result = await reviewOnce(setup, marketPrice);
+    const result = await reviewOnce(setup, marketPrice, { retryFailed: body?.retry === true });
     if (result.status === 'done') return NextResponse.json({ success: true, review: result.review });
     return NextResponse.json({ success: true, review: null, status: result.status });
   } catch (err) {
