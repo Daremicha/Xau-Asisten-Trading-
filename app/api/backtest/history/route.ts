@@ -44,9 +44,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
 
   const rawInterval = url.searchParams.get('interval') ?? '15min';
-  if (rawInterval !== '15min' && rawInterval !== '1h') {
+  if (rawInterval !== '5min' && rawInterval !== '15min' && rawInterval !== '1h') {
     return NextResponse.json(
-      { success: false, error: 'interval must be 15min or 1h.' },
+      { success: false, error: 'interval must be 5min, 15min or 1h.' },
       { status: 400 }
     );
   }
