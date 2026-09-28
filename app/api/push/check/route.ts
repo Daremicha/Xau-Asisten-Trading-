@@ -4,7 +4,15 @@ import { replayOrder } from '@/lib/order-replay';
 import { messagesFor } from '@/lib/push-watch';
 import { isGoldMarketClosed } from '@/lib/market-hours';
 import { runAnalysis } from '@/lib/run-analysis';
-import { isRepeat, OFFER_TTL_MS, offerKey, SCAN_EVERY_SECONDS, scanRequest } from '@/lib/setup-scan';
+import {
+  isRepeat,
+  noSetupNote,
+  OFFER_TTL_MS,
+  offerKey,
+  SCAN_EVERY_SECONDS,
+  scanRequest,
+  type ScanResult,
+} from '@/lib/setup-scan';
 import { newSetupAlert } from '@/lib/trade-alerts';
 import { reviewOnce } from '@/lib/ai-review-store';
 import type { InstitutionalTradingSetup } from '@/lib/types';
@@ -14,6 +22,7 @@ import {
   claimScan,
   deleteRecord,
   loadRecord,
+  type PushRecord,
   recordCheck,
   saveRecord,
   scanningIds,
@@ -140,19 +149,46 @@ async function scanForSetups(): Promise<number> {
   for (const id of ids) {
     const record = await loadRecord(id);
     if (!record?.scan) continue;
+    const at = new Date(now).toISOString();
+    // Every pass is noted on the phone's record, so the app can show that the
+    // scan ran and what it found, and a quiet market is not mistaken for a
+    // broken alert.
+    const note = (outcome: ScanResult['outcome'], text: string, extra: Partial<PushRecord> = {}) =>
+      saveRecord(id, { ...record, ...extra, lastScan: { at, outcome, note: text }, updatedAt: at });
+
     // A trade in play, or a setup already announced and not yet loaded, is
     // enough to be getting on with.
-    if (record.setup && !record.finished) continue;
-    if (record.offer && now - Date.parse(record.offer.at) < OFFER_TTL_MS) continue;
+    if (record.setup && !record.finished) {
+      await note('held', 'a trade is in play on this phone');
+      continue;
+    }
+    if (record.offer && now - Date.parse(record.offer.at) < OFFER_TTL_MS) {
+      await note('held', 'an announced setup is waiting to be opened');
+      continue;
+    }
 
     const input = scanRequest(record.scan);
-    if (!input) continue;
-    const result = await runAnalysis(input);
+    if (!input) {
+      await note('error', 'the settings sent by the app could not be read');
+      continue;
+    }
+    const result = await runAnalysis(input).catch(() => null);
+    if (!result || result.status !== 200) {
+      const error = (result?.body as { error?: unknown } | undefined)?.error;
+      await note('error', `analysis failed${typeof error === 'string' ? `: ${error.slice(0, 120)}` : ''}`);
+      continue;
+    }
     const setup = (result.body as { setup?: InstitutionalTradingSetup | null }).setup;
-    if (!setup) continue;
+    if (!setup) {
+      await note('no-setup', noSetupNote(result.body));
+      continue;
+    }
 
     const key = offerKey(setup);
-    if (isRepeat(key, record.lastOffer, now)) continue;
+    if (isRepeat(key, record.lastOffer, now)) {
+      await note('held', `same ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} already announced`);
+      continue;
+    }
 
     // The models' opinion rides along with the announcement. It never stops
     // one: their verdicts are recorded and judged on live results first.
@@ -175,13 +211,13 @@ async function scanForSetups(): Promise<number> {
       continue;
     }
     if (outcome === 'sent') offered += 1;
-    const at = new Date(now).toISOString();
-    await saveRecord(id, {
-      ...record,
-      offer: { setup: stored, at },
-      lastOffer: { key, at },
-      updatedAt: at,
-    });
+    await note(
+      outcome === 'sent' ? 'announced' : 'error',
+      outcome === 'sent'
+        ? `announced ${setup.orderType} @ ${setup.entryPrice.toFixed(2)}`
+        : `found ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} but the notification could not be sent`,
+      { offer: { setup: stored, at }, lastOffer: { key, at } }
+    );
   }
   return offered;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { isRepeat, offerKey, REPEAT_AFTER_MS, sanitiseScanSettings, scanRequest } from '../lib/setup-scan';
+import { noSetupNote } from '../lib/setup-scan';
 import { newSetupAlert } from '../lib/trade-alerts';
 
 const settings = {
@@ -51,5 +52,26 @@ describe('announcing a setup', () => {
     expect(isRepeat(key, { key, at: new Date(now - 60_000).toISOString() }, now)).toBe(true);
     expect(isRepeat(key, { key, at: new Date(now - REPEAT_AFTER_MS - 1).toISOString() }, now)).toBe(false);
     expect(isRepeat(offerKey({ ...setup, entryPrice: 4290 }), { key, at: new Date(now).toISOString() }, now)).toBe(false);
+  });
+});
+
+describe('the scan result shown in the app', () => {
+  test('names the score and the floor that turned a setup down', () => {
+    expect(
+      noSetupNote({ skipped: { reason: 'below-conviction', convictionScore: 25, threshold: 55, declinedBy: 'session' } })
+    ).toBe('best setup scored 25/100, needs 55 in the Asian session');
+    expect(noSetupNote({ skipped: { reason: 'below-conviction', convictionScore: 30, threshold: 40 } })).toBe(
+      'best setup scored 30/100, needs 40'
+    );
+  });
+
+  test('says when the daily loss limit is what stopped it', () => {
+    expect(noSetupNote({ skipped: { reason: 'daily-limit', convictionScore: 0, threshold: 0 } })).toContain(
+      'daily loss limit'
+    );
+  });
+
+  test('falls back to a plain line when the analysis gave no reason', () => {
+    expect(noSetupNote({})).toBe('no setup found');
   });
 });

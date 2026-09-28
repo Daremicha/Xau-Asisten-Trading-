@@ -3,6 +3,7 @@
  * keep the server told which setup to watch.
  */
 
+import type { ScanResult } from './setup-scan';
 import type { InstitutionalTradingSetup } from './types';
 
 export type PushSetupState = 'on' | 'unconfigured' | 'unsupported' | 'denied' | 'failed';
@@ -128,12 +129,26 @@ export interface ClosedAppAlertStatus {
   serverEnabled: boolean;
   /** When the scheduled watcher last ran, or null when it never has. */
   lastCheckAt: string | null;
+  /** What the server holds for this phone; null when it could not be asked. */
+  phone: {
+    registered: boolean;
+    scanning: boolean;
+    watchingTrade: boolean;
+    lastScan: ScanResult | null;
+  } | null;
 }
 
 /** Everything the status panel needs to say whether alerts will arrive with the app closed. */
 export async function closedAppAlertStatus(): Promise<ClosedAppAlertStatus> {
   if (!supported()) {
-    return { supported: false, permission: 'unsupported', subscribed: false, serverEnabled: false, lastCheckAt: null };
+    return {
+      supported: false,
+      permission: 'unsupported',
+      subscribed: false,
+      serverEnabled: false,
+      lastCheckAt: null,
+      phone: null,
+    };
   }
   let serverEnabled = false;
   let lastCheckAt: string | null = null;
@@ -148,13 +163,32 @@ export async function closedAppAlertStatus(): Promise<ClosedAppAlertStatus> {
     // Unknown reads as not enabled; the panel says so.
   }
   let subscribed = false;
+  let phone: ClosedAppAlertStatus['phone'] = null;
   try {
     const registration = await navigator.serviceWorker.getRegistration();
-    subscribed = Boolean(await registration?.pushManager.getSubscription());
+    const subscription = await registration?.pushManager.getSubscription();
+    subscribed = Boolean(subscription);
+    if (subscription && serverEnabled) {
+      const res = await fetch('/api/push/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+        cache: 'no-store',
+      });
+      const data = (await res.json().catch(() => null)) as (ClosedAppAlertStatus['phone'] & { success?: boolean }) | null;
+      if (res.ok && data?.success) {
+        phone = {
+          registered: Boolean(data.registered),
+          scanning: Boolean(data.scanning),
+          watchingTrade: Boolean(data.watchingTrade),
+          lastScan: data.lastScan ?? null,
+        };
+      }
+    }
   } catch {
-    subscribed = false;
+    // Unknown reads as not subscribed; the panel says so.
   }
-  return { supported: true, permission: Notification.permission, subscribed, serverEnabled, lastCheckAt };
+  return { supported: true, permission: Notification.permission, subscribed, serverEnabled, lastCheckAt, phone };
 }
 
 /** Asks the server for a test notification in a few seconds. Returns an error to show, or null. */

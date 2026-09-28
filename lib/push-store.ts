@@ -6,7 +6,7 @@
 
 import { createHash } from 'node:crypto';
 import type { StoredSubscription, WatchedSetup } from './push-watch';
-import type { ScanSettings } from './setup-scan';
+import type { ScanResult, ScanSettings } from './setup-scan';
 import type { InstitutionalTradingSetup } from './types';
 import { redis, redisConfigured } from './upstash';
 
@@ -27,6 +27,8 @@ export interface PushRecord {
   offer?: { setup: InstitutionalTradingSetup; at: string } | null;
   /** The last order announced, so the same one is not announced again. */
   lastOffer?: { key: string; at: string } | null;
+  /** What the most recent scan did for this phone. */
+  lastScan?: ScanResult | null;
   updatedAt: string;
 }
 

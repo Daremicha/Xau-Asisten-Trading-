@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       // Once the app holds a setup, the announced one has been taken up.
       offer: setup ? null : existing?.offer ?? null,
       lastOffer: existing?.lastOffer ?? null,
+      lastScan: existing?.lastScan ?? null,
       updatedAt: new Date().toISOString(),
     });
     return NextResponse.json({ success: true, watching: setup !== null && !finished });

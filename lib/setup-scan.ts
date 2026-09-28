@@ -114,3 +114,33 @@ export function offerKey(setup: Pick<InstitutionalTradingSetup, 'orderType' | 'e
 export function isRepeat(key: string, last: { key: string; at: string } | null | undefined, now: number): boolean {
   return Boolean(last && last.key === key && now - Date.parse(last.at) < REPEAT_AFTER_MS);
 }
+
+/** What the last scan did for a phone, shown in the app so a quiet scan can be told from a broken one. */
+export interface ScanResult {
+  at: string;
+  outcome: 'announced' | 'no-setup' | 'held' | 'error';
+  /** One short line, e.g. "best setup scored 25/100, needs 55". */
+  note: string;
+}
+
+/** Words for an analysis that offered nothing. */
+export function noSetupNote(body: Record<string, unknown>): string {
+  const skipped = body.skipped as
+    | { reason?: string; convictionScore?: number; threshold?: number; declinedBy?: string }
+    | undefined;
+  if (!skipped) return 'no setup found';
+  switch (skipped.reason) {
+    case 'daily-limit':
+      return 'daily loss limit reached, scanning resumes with the next trading day';
+    case 'feed-mismatch':
+      return 'price feed unavailable for XAUUSD';
+    case 'unfillable':
+      return 'price had already run past the level';
+    case 'dead-band':
+      return `setup scored ${skipped.convictionScore}/100, a band the backtest showed loses`;
+    default:
+      return `best setup scored ${skipped.convictionScore}/100, needs ${skipped.threshold}${
+        skipped.declinedBy === 'session' ? ' in the Asian session' : ''
+      }`;
+  }
+}
