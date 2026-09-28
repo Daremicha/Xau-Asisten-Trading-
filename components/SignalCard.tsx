@@ -762,6 +762,14 @@ Ready for direct execution in MetaTrader 5.`;
                 {/* Why this lot and not a bigger one. The risk percentage the
                     user set is a ceiling for the strongest setups, so a weaker
                     read deliberately commits less of it. */}
+                {setup.entryAnchor === 'Asian Range Breakout' && (
+                  <div id="london-breakout-badge" className="text-sky-400">
+                    Strategy: <strong>London breakout</strong>
+                    <span className="text-[10px] block leading-snug mt-0.5">
+                      Stop order beyond the Asian range, with the trend. Delete it at 10:00 London if unfilled.
+                    </span>
+                  </div>
+                )}
                 {typeof setup.convictionScore === 'number' && (
                   <div
                     className={

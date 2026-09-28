@@ -312,6 +312,9 @@ async function replay(
     breakEvenAtR,
     economicEvents: options.economicEvents,
     dailyLossLimitPercent: options.dailyLossLimitPercent ?? null,
+    // The live app trades it for Intraday when the balance allows, so the
+    // replay does too.
+    londonBreakout: true,
   });
 
   let guard = 0;

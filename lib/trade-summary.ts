@@ -87,11 +87,12 @@ export function tradeSummaryText(
     '',
     aiLine(live, results),
     '',
-    '#|Closed (WIB)|Order|Entry|Exit|Result|P/L|R|AI agree',
+    '#|Closed (WIB)|Setup|Order|Entry|Exit|Result|P/L|R|AI agree',
     ...live.map((r, i) =>
       [
         i + 1,
         wib(r.timestamp),
+        r.context?.anchor === 'Asian Range Breakout' ? 'LBO' : 'SMC',
         r.orderType,
         r.entryPrice.toFixed(2),
         results[i] === 'MISSED' ? '-' : r.exitPrice.toFixed(2),

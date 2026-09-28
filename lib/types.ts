@@ -286,7 +286,7 @@ export interface TechnicalIndicators {
  */
 export interface TradeContext {
   /** The level the entry was derived from. */
-  anchor: 'Order Block' | 'Fair Value Gap' | 'Market';
+  anchor: 'Order Block' | 'Fair Value Gap' | 'Market' | 'Asian Range Breakout';
   /** Conviction the engine gave the setup, zero to one hundred. */
   convictionScore: number;
   /** Session the order was produced in. */
@@ -482,7 +482,7 @@ export interface InstitutionalTradingSetup {
   riskRewardRatio: string;
   stopLossPips: number;
   /** The level the entry was derived from, kept so the result can be learned from. */
-  entryAnchor?: 'Order Block' | 'Fair Value Gap' | 'Market';
+  entryAnchor?: 'Order Block' | 'Fair Value Gap' | 'Market' | 'Asian Range Breakout';
   /**
    * Each confluence factor's vote relative to this order's direction, kept so
    * the result can be credited to the factors that argued for it and against
