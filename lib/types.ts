@@ -307,6 +307,13 @@ export interface TradeContext {
    * outvoted. What lets the engine learn which factors mislead it.
    */
   factorVotes?: Record<string, number>;
+  /**
+   * How many of the language models agreed with the setup, and how many gave
+   * an answer at all. Recorded so live results can show whether their opinion
+   * is worth anything before it is ever allowed to filter a trade.
+   */
+  aiAgree?: number;
+  aiAnswered?: number;
 }
 
 export interface SelfLearningMemoryRecord {
@@ -538,6 +545,32 @@ export interface InstitutionalTradingSetup {
    * user's setting when the setup was issued. Absent means the stop stays put.
    */
   protectAtR?: number | null;
+  /** What the language models made of this setup. They never change its prices. */
+  aiReview?: AiReview | null;
+}
+
+/** The language models that give a second opinion on a setup. */
+export type ReviewProvider = 'gemini' | 'chatgpt' | 'claude';
+
+export interface ProviderReview {
+  provider: ReviewProvider;
+  model: string;
+  /** Null when the provider did not give a usable answer. */
+  verdict: 'agree' | 'doubt' | null;
+  /** Zero to one hundred, how sure the model says it is. */
+  confidence: number | null;
+  /** One or two sentences in Indonesian. */
+  reason: string;
+  /** Set when the provider could not be asked or did not answer. */
+  error?: string;
+}
+
+export interface AiReview {
+  at: string;
+  reviews: ProviderReview[];
+  /** Models that answered agree, and how many answered at all. */
+  agree: number;
+  answered: number;
 }
 
 export interface AdaptiveStrategyEngineWeights {

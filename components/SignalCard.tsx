@@ -5,6 +5,8 @@ import React, { useState } from 'react';
 import { formatTimeLeft } from '@/lib/order-validity';
 import { formatAccountMoney } from '@/lib/account-display';
 import { computeTradeResult } from '@/lib/trade-result';
+import AiReviewPanel from '@/components/AiReviewPanel';
+import { isUnresolved } from '@/lib/active-setup-store';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
@@ -200,7 +202,7 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
             : 'bg-orange-50 text-orange-700 border-orange-200',
-          label: `Claude Sonnet (${metadata.model})`,
+          label: `Claude (${metadata.model})`,
           isFallback: true,
         };
       case 'algorithmic':
@@ -799,6 +801,8 @@ Ready for direct execution in MetaTrader 5.`;
                 </div>
               </div>
             </div>
+
+            <AiReviewPanel review={setup.aiReview ?? (isUnresolved(setup) ? undefined : null)} theme={theme} />
 
             {/* Institutional SMC/ICT Rationale */}
             <div
