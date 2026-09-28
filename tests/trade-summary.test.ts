@@ -43,9 +43,9 @@ describe('the copied trade summary', () => {
   });
 
   test('lists every trade in WIB, oldest first, in the account currency', () => {
-    expect(text).toContain('1|2026-09-24 14:30|SELL LIMIT|4280.20|4253.85|TP|+26.35 Cent|+1.46');
-    expect(text).toContain('3|2026-09-25 09:00|SELL LIMIT|4280.20|4280.20|BE|');
-    expect(text).toContain('4|2026-09-25 10:00|SELL LIMIT|4280.20|-|MISSED|-|-');
+    expect(text).toContain('1|2026-09-24 14:30|SMC|SELL LIMIT|4280.20|4253.85|TP|+26.35 Cent|+1.46');
+    expect(text).toContain('3|2026-09-25 09:00|SMC|SELL LIMIT|4280.20|4280.20|BE|');
+    expect(text).toContain('4|2026-09-25 10:00|SMC|SELL LIMIT|4280.20|-|MISSED|-|-');
   });
 
   test('a stop anywhere but the entry is a loss', () => {

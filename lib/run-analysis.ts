@@ -25,7 +25,8 @@ import {
   validateProposal,
   type ProposalContext,
 } from './proposal-validation';
-import { priceToPips, round2 } from './candles';
+import { priceToPips, round2, type Candle } from './candles';
+import { BREAKOUT_ANCHOR, LONDON_BREAKOUT, londonBreakoutPlan, type BreakoutPlan } from './london-breakout';
 
 /** Distance between live price and the quoted entry, in pips. */
 const priceToPipsDistance = (price: number, entry: number) => priceToPips(price - entry);
@@ -42,6 +43,54 @@ export interface AnalysisReply {
 
 function reply(body: Record<string, unknown>, init?: { status?: number }): AnalysisReply {
   return { status: init?.status ?? 200, body };
+}
+
+/**
+ * The London breakout order to offer now, with its lot, or null. Intraday
+ * only, the style it was tested on; once a day; and only when the minimum lot
+ * does not risk more than the user's percentage.
+ */
+function breakoutFor(
+  input: ValidatedAnalyzeRequest,
+  candles: Candle[],
+  price: number
+): { plan: BreakoutPlan; lot: ReturnType<typeof calculateXAUUSDLotSize>; affordable: boolean } | null {
+  if (input.tradingStyle !== 'Intraday') return null;
+  const now = Date.now();
+  const today = new Date(now).toISOString().slice(0, 10);
+  const tradedToday = input.pastLearningRecords.some(
+    (r) => r.context?.anchor === BREAKOUT_ANCHOR && (r.placedAt ?? r.timestamp ?? '').slice(0, 10) === today
+  );
+  if (tradedToday) return null;
+  // Closed candles only: the one still forming would move the range and the average.
+  const closed = candles.filter((c) => c.time + 15 * 60_000 <= now);
+  const plan = londonBreakoutPlan(closed, price, now);
+  if (!plan) return null;
+  const lot = calculateXAUUSDLotSize(
+    input.equity,
+    input.riskPercentage,
+    plan.entryPrice,
+    plan.stopLoss,
+    input.accountType,
+    input.tradingStyle,
+    input.brokerId
+  );
+  return { plan, lot, affordable: !lot.exceedsRiskBudget };
+}
+
+/** Why a breakout that exists was not offered, and the balance that would carry it. */
+function breakoutWaitingNote(
+  input: ValidatedAnalyzeRequest,
+  found: { plan: BreakoutPlan; lot: ReturnType<typeof calculateXAUUSDLotSize> }
+): string {
+  const share = (found.lot.actualRiskDollars / input.equity) * 100;
+  const needed = found.lot.actualRiskDollars / (input.riskPercentage / 100);
+  const money = input.accountType === 'Cent' ? `${Math.ceil(needed * 100).toLocaleString('en-US')} Cent` : `$${Math.ceil(needed)}`;
+  return `A London breakout is set up (${found.plan.orderType} ${found.plan.entryPrice.toFixed(2)}), but its ${Math.round(
+    Math.abs(found.plan.entryPrice - found.plan.stopLoss) * 10
+  )} pip stop would risk ${share.toFixed(1)}% of the balance at the minimum lot, over your ${
+    input.riskPercentage
+  }%. It is offered from a balance of about ${money}.`;
 }
 
 /**
@@ -334,12 +383,38 @@ Reply with JSON only:
       });
     }
 
+    // The London breakout of the Asian range, offered only when the structural
+    // engine has nothing to trade, the same order of priority the replay
+    // tested. It waits until the minimum lot keeps the risk inside what the
+    // user asked for: its stop is the whole Asian range. See london-breakout.ts.
+    const breakoutFound = breakoutFor(input, snapshot.candlesM15, marketPrice);
+    const breakoutCandidate = breakoutFound?.affordable ? breakoutFound : null;
+    const breakoutNote = breakoutFound && !breakoutFound.affordable ? breakoutWaitingNote(input, breakoutFound) : null;
+    // Typed through a cast: it is set inside takeBreakout, which the checker cannot follow.
+    let breakout = null as typeof breakoutCandidate;
+    const takeBreakout = (): boolean => {
+      if (!breakoutCandidate) return false;
+      breakout = breakoutCandidate;
+      finalOrder = {
+        orderType: breakout.plan.orderType,
+        entryPrice: breakout.plan.entryPrice,
+        stopLoss: breakout.plan.stopLoss,
+        takeProfit1: breakout.plan.takeProfit1,
+        takeProfit2: breakout.plan.takeProfit2,
+        takeProfit3: breakout.plan.takeProfit3,
+        riskRewardRatio: `1:${LONDON_BREAKOUT.targetR.toFixed(2)}`,
+      };
+      institutionalRationale = `${breakout.plan.rationale}\n\nThe structural engine had no setup to offer; its reading, for reference: ${decision.rationale}`;
+      engineMetadata = { ...engineMetadata, model: 'London breakout of the Asian range' };
+      return true;
+    };
+
     // An order price has already left behind. Checked on the order that would
     // actually be offered, so an accepted model proposal is held to it too.
     // Offering one of these is worse than offering nothing: the app records it
     // as a missed entry within seconds, and the ledger fills with trades that
     // never existed.
-    if (isDeadOnArrival(finalOrder, marketPrice)) {
+    if (isDeadOnArrival(finalOrder, marketPrice) && !takeBreakout()) {
       const risk = Math.abs(finalOrder.entryPrice - finalOrder.stopLoss);
       const away = Math.abs(marketPrice - finalOrder.entryPrice);
       return reply({
@@ -412,9 +487,11 @@ Reply with JSON only:
     // the bad.
     const dead = input.skipConvictionBand;
     if (
+      !breakout &&
       dead &&
       conviction.convictionScore >= dead.min &&
-      conviction.convictionScore < dead.max
+      conviction.convictionScore < dead.max &&
+      !takeBreakout()
     ) {
       return reply({
         success: true,
@@ -436,7 +513,7 @@ Reply with JSON only:
 
     const floorNow = effectiveConvictionFloor(input.minConviction, killZone.currentZone);
     const weakNote = weakSetupDecline(conviction.convictionScore, alignedVotes(decision.factors, decision.direction));
-    if (conviction.convictionScore < floorNow || weakNote) {
+    if (!breakout && (conviction.convictionScore < floorNow || weakNote) && !takeBreakout()) {
       const sessionNote =
         sessionDeclineNote(input.minConviction, killZone.currentZone, conviction.convictionScore) ?? weakNote;
       return reply({
@@ -456,7 +533,7 @@ Reply with JSON only:
                 ? 'session'
                 : 'weak-setup',
           direction: decision.direction,
-          notes: sessionNote ? [sessionNote, ...conviction.notes] : conviction.notes,
+          notes: [...(sessionNote ? [sessionNote] : []), ...conviction.notes, ...(breakoutNote ? [breakoutNote] : [])],
           rationale: decision.rationale,
           nextCheck: nextCheck(input.tradingStyle),
         },
@@ -464,11 +541,15 @@ Reply with JSON only:
       });
     }
 
-    const riskPercentUsed = effectiveRiskPercentage(input.riskPercentage, conviction.multiplier);
+    // The breakout was tested at the full risk asked for; conviction scales
+    // only the structural engine's setups.
+    const riskPercentUsed = breakout
+      ? input.riskPercentage
+      : effectiveRiskPercentage(input.riskPercentage, conviction.multiplier);
 
     // Sized from the order that will actually be placed, which may be the
     // model's proposal rather than the engine's own.
-    const lotCalculation = calculateXAUUSDLotSize(
+    const lotCalculation = breakout ? breakout.lot : calculateXAUUSDLotSize(
       input.equity,
       riskPercentUsed,
       finalOrder.entryPrice,
@@ -478,7 +559,14 @@ Reply with JSON only:
       input.brokerId
     );
 
-    const validity = computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming);
+    const validity = breakout
+      ? {
+          ...computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming),
+          validUntil: new Date(breakout.plan.expiresAt).toISOString(),
+          validForMinutes: Math.max(1, Math.round((breakout.plan.expiresAt - Date.now()) / 60_000)),
+          basis: 'A London breakout order is only valid until 10:00 London time.',
+        }
+      : computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming);
 
     const spreadDollars = (lotCalculation.contractSpecs.typicalSpreadPips * 0.1) / 2;
     const bid = round2(marketPrice - spreadDollars);
@@ -491,7 +579,7 @@ Reply with JSON only:
     const mt5Instructions = [
       `1. Open MetaTrader 5 on desktop or mobile.`,
       `2. Select symbol: [ ${symbolHint} ].`,
-      `3. Order type: [ ${decision.orderType} ].`,
+      `3. Order type: [ ${finalOrder.orderType} ].`,
       lotCalculation.exceedsRiskBudget
         ? `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ]. WARNING: the broker minimum lot risks $${lotCalculation.actualRiskDollars.toFixed(
             2
@@ -501,14 +589,18 @@ Reply with JSON only:
         : `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ], sized to $${lotCalculation.actualRiskDollars.toFixed(
             2
           )} risk at ${input.riskPercentage}% of $${input.equity.toLocaleString('en-US')}.`,
-      `5. Entry price: [ ${decision.entryPrice.toFixed(2)} ] (${decision.anchor}).`,
-      `6. Stop loss: [ ${decision.stopLoss.toFixed(2)} ], ${decision.stopLossPips} pips away.`,
-      `7. Targets: TP1 [ ${decision.takeProfit1.toFixed(2)} ] | TP2 [ ${decision.takeProfit2.toFixed(
+      `5. Entry price: [ ${finalOrder.entryPrice.toFixed(2)} ] (${breakout ? BREAKOUT_ANCHOR : decision.anchor}).`,
+      `6. Stop loss: [ ${finalOrder.stopLoss.toFixed(2)} ], ${lotCalculation.stopLossPips} pips away.`,
+      `7. Targets: TP1 [ ${finalOrder.takeProfit1.toFixed(2)} ] | TP2 [ ${finalOrder.takeProfit2.toFixed(
         2
-      )} ] | TP3 [ ${decision.takeProfit3.toFixed(2)} ].`,
-      `8. Profile: ${styleProfile.label}. Entry sits ${decision.entryDistancePips} pips from the current price${
-        decision.entryOutOfReach ? ', which is beyond this style\u2019s usual reach, so it may not fill today' : ''
-      }.`,
+      )} ] | TP3 [ ${finalOrder.takeProfit3.toFixed(2)} ].`,
+      breakout
+        ? `8. London breakout: a stop order, filled only if price breaks out of the Asian range. Delete it at ${new Date(
+            breakout.plan.expiresAt
+          ).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB (10:00 London) if it has not filled.`
+        : `8. Profile: ${styleProfile.label}. Entry sits ${decision.entryDistancePips} pips from the current price${
+            decision.entryOutOfReach ? ', which is beyond this style\u2019s usual reach, so it may not fill today' : ''
+          }.`,
       `9. Broker: ${specs.brokerName}, ${specs.typicalSpreadPips} pips typical spread.`,
       `10. Data source: ${snapshot.source ?? 'unknown'}${
         snapshot.status === 'stale' ? ` (STALE, ${Math.round(snapshot.ageMs / 1000)}s old)` : ''
@@ -623,14 +715,18 @@ Reply with JSON only:
       riskRewardRatio: finalOrder.riskRewardRatio,
       // Kept on the setup so the result can be learned from by condition, not
       // just by outcome: which level the entry came from, and how far it sat.
-      entryAnchor: proposalOutcome.accepted ? 'Market' : decision.anchor,
+      entryAnchor: breakout ? BREAKOUT_ANCHOR : proposalOutcome.accepted ? 'Market' : decision.anchor,
       // How each factor voted against the direction actually placed, so the
       // result can later be credited to the factors that were right about it.
-      factorVotes: alignedVotes(decision.factors, directionOfOrder(finalOrder.orderType)),
+      factorVotes: breakout ? undefined : alignedVotes(decision.factors, directionOfOrder(finalOrder.orderType)),
       // Only the engine's own targets carry a basis; a model proposal that was
       // accepted replaced them, and saying otherwise would be a fabrication.
-      targetBasis: proposalOutcome.accepted ? undefined : decision.targetBasis,
-      targetsFellBack: proposalOutcome.accepted ? undefined : decision.targetsFellBack,
+      targetBasis: breakout
+        ? [`TP1 at ${LONDON_BREAKOUT.targetR}R, the target the breakout was tested with; TP2 and TP3 a half and a whole R further.`]
+        : proposalOutcome.accepted
+          ? undefined
+          : decision.targetBasis,
+      targetsFellBack: breakout || proposalOutcome.accepted ? undefined : decision.targetsFellBack,
       entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
       stopLossPips: lotCalculation.stopLossPips,
       recommendedLotSize: lotCalculation.lotSize,
@@ -639,10 +735,16 @@ Reply with JSON only:
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       riskPercentage: input.riskPercentage,
       effectiveRiskPercentage: riskPercentUsed,
-      convictionMultiplier: conviction.multiplier,
-      convictionScore: conviction.convictionScore,
-      convictionBand: conviction.band,
-      convictionNotes: conviction.notes,
+      // A breakout is not scored by the structural engine, so it carries no
+      // conviction of its own.
+      ...(breakout
+        ? {}
+        : {
+            convictionMultiplier: conviction.multiplier,
+            convictionScore: conviction.convictionScore,
+            convictionBand: conviction.band,
+            convictionNotes: conviction.notes,
+          }),
       validUntil: validity.validUntil,
       validityBasis: validity.basis,
       multiTimeframeAlignment: read.multiTimeframe,
@@ -675,7 +777,7 @@ Reply with JSON only:
       validity,
       confluenceFactors: decision.factors,
       entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
-      entryOutOfReach: decision.entryOutOfReach && !proposalOutcome.accepted,
+      entryOutOfReach: !breakout && decision.entryOutOfReach && !proposalOutcome.accepted,
       modelProposal: proposalOutcome,
       actualRiskDollars: lotCalculation.actualRiskDollars,
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,

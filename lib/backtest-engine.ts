@@ -33,6 +33,7 @@ import { effectiveConvictionFloor, weakSetupDecline } from './session-rules';
 import { dailyLossLimitReached, netToday, nextTradingDayStart } from './daily-loss';
 import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal } from './signal-engine';
+import { BREAKOUT_ANCHOR, londonBreakoutPlan } from './london-breakout';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
 import { computeValidity } from './order-validity';
@@ -104,6 +105,13 @@ export interface BacktestConfig {
    * Null or zero leaves the rule off. See daily-loss.ts.
    */
   dailyLossLimitPercent?: number | null;
+  /**
+   * Trade the London breakout of the Asian range when the account can carry
+   * its stop at the risk asked for, as the live app does for Intraday. Off
+   * unless asked for, so a replay of the structural engine alone stays one.
+   * See london-breakout.ts.
+   */
+  londonBreakout?: boolean;
   /**
    * Dollars an order filled at market loses to slippage: instant entries,
    * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
@@ -342,6 +350,11 @@ export interface OrderPlan {
   breakEvenAtR?: number | null;
   /** Adverse slippage on market fills, in dollars. Zero when omitted. */
   slippageDollars?: number;
+  /**
+   * True for a stop order: it fills as price runs through it, so it pays
+   * slippage like a market order, where a resting limit fills at its price.
+   */
+  stopEntry?: boolean;
 }
 
 /**
@@ -422,7 +435,11 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
   // Market fills go against the trader; a resting limit fills at its price.
   const adverseEntry = isLong ? slip : -slip;
   const adverseExit = isLong ? -slip : slip;
-  const fillPrice = plan.instant ? decisionBar.close + adverseEntry : plan.entryPrice;
+  const fillPrice = plan.instant
+    ? decisionBar.close + adverseEntry
+    : plan.stopEntry
+      ? plan.entryPrice + adverseEntry
+      : plan.entryPrice;
   const riskDistance = Math.abs(fillPrice - plan.stopLoss);
   const armAt = plan.breakEvenAtR && plan.breakEvenAtR > 0 && riskDistance > 0
     ? riskDistance * plan.breakEvenAtR
@@ -544,6 +561,8 @@ export function createBacktest(config: BacktestConfig): Runner {
   const dailyLossLimit = config.dailyLossLimitPercent ?? null;
   const minConviction = Math.max(0, Math.min(100, config.minConviction ?? 0));
   const deadBand = config.skipConvictionBand ?? null;
+  const breakoutOn = Boolean(config.londonBreakout) && tradingStyle === 'Intraday';
+  let breakoutDay = '';
 
   const trades: BacktestTrade[] = [];
   const records: SelfLearningMemoryRecord[] = [];
@@ -611,80 +630,158 @@ export function createBacktest(config: BacktestConfig): Runner {
     // default floor. Only about one decision in two hundred falls within an
     // hour of one of these releases, so the rule would be tuning noise.
 
-    const decision = buildSignal({
-      price: bar.close,
-      structures: read.multiTimeframe,
-      indicators: read.indicators,
-      weights,
-      tradingStyle,
-      candles: read.executionCandles,
-      // The same panels the live engine reads, so the replay tests the engine
-      // that actually runs rather than a reduced version of it.
-      pivotBias: read.tradingCentral,
-      wyckoff: read.wyckoff,
-      quasimodo: read.quasimodo,
-      killZoneActive: killZone.isHighVolatilityTiming,
-      upcomingHighImpactEvents: news.upcoming,
-      minutesToNextEvent: news.minutesToNext,
-    });
-
     const trends = [read.multiTimeframe.d1.trend, read.multiTimeframe.h4.trend, read.multiTimeframe.h1.trend];
-    const conviction = assessConviction({
-      confidenceScore: decision.confidenceScore,
-      timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
-      killZoneActive: killZone.isHighVolatilityTiming,
-      entryOutOfReach: decision.entryOutOfReach,
-      dataStale: false,
-      proposalRejected: false,
-    });
-    // Nothing on this chart is good enough, so nothing is traded. Skipping is
-    // free; a bad fill is not.
-    // An order price has already left behind is not a signal, and the replay
-    // must refuse it for the same reason the live engine does, or the two stop
-    // describing the same system.
-    if (decision.entryUnfillable) {
-      skipped += 1;
-      cursor = i + cooldownBars;
-      return;
+    const aligned = new Set(trends).size === 1 && trends[0] !== 'Ranging';
+
+    // What will be traded, from whichever strategy offers it.
+    let order: {
+      direction: 'long' | 'short';
+      orderType: OrderExecutionType;
+      entryPrice: number;
+      stopLoss: number;
+      takeProfit1: number;
+      anchor: string;
+      contextAnchor: TradeContext['anchor'];
+      confidenceScore: number;
+      convictionScore: number;
+      entryDistancePips: number;
+      stopLossPips: number;
+      factorVotes?: Record<string, number>;
+      lot: ReturnType<typeof calculateXAUUSDLotSize>;
+      expiresAt: number;
+      stopEntry: boolean;
+    } | null = null;
+
+    // The London breakout, in its window, when the structural engine has
+    // nothing to trade and the minimum lot does not push the risk past what the
+    // user asked for. Offered first instead, it displaced engine setups that
+    // paid, and the first half of the replay came out worse; as the fallback
+    // both halves improved at every balance that can carry it.
+    const breakoutKey = new Date(bar.time).toISOString().slice(0, 10);
+    const tryBreakout = (): typeof order => {
+      if (!breakoutOn || breakoutDay === breakoutKey) return null;
+      const plan = londonBreakoutPlan(window, bar.close, bar.time + intervalMs);
+      if (!plan) return null;
+      const lot = calculateXAUUSDLotSize(
+        equity,
+        riskPercentage,
+        plan.entryPrice,
+        plan.stopLoss,
+        accountType,
+        tradingStyle,
+        brokerId
+      );
+      if (lot.exceedsRiskBudget) return null;
+      breakoutDay = breakoutKey;
+      return {
+        direction: plan.direction,
+        orderType: plan.orderType,
+        entryPrice: plan.entryPrice,
+        stopLoss: plan.stopLoss,
+        takeProfit1: plan.takeProfit1,
+        anchor: BREAKOUT_ANCHOR,
+        contextAnchor: BREAKOUT_ANCHOR,
+        confidenceScore: 0,
+        convictionScore: 0,
+        entryDistancePips: Math.round(Math.abs(plan.entryPrice - bar.close) * 10),
+        stopLossPips: Math.round(Math.abs(plan.entryPrice - plan.stopLoss) * 10),
+        lot,
+        expiresAt: plan.expiresAt,
+        stopEntry: true,
+      };
+    };
+    if (!order) {
+      const decision = buildSignal({
+        price: bar.close,
+        structures: read.multiTimeframe,
+        indicators: read.indicators,
+        weights,
+        tradingStyle,
+        candles: read.executionCandles,
+        // The same panels the live engine reads, so the replay tests the engine
+        // that actually runs rather than a reduced version of it.
+        pivotBias: read.tradingCentral,
+        wyckoff: read.wyckoff,
+        quasimodo: read.quasimodo,
+        killZoneActive: killZone.isHighVolatilityTiming,
+        upcomingHighImpactEvents: news.upcoming,
+        minutesToNextEvent: news.minutesToNext,
+      });
+
+      const conviction = assessConviction({
+        confidenceScore: decision.confidenceScore,
+        timeframesAligned: aligned,
+        killZoneActive: killZone.isHighVolatilityTiming,
+        entryOutOfReach: decision.entryOutOfReach,
+        dataStale: false,
+        proposalRejected: false,
+      });
+      // Nothing on this chart is good enough, so nothing is traded. Skipping is
+      // free; a bad fill is not.
+      // An order price has already left behind is not a signal, and the replay
+      // must refuse it for the same reason the live engine does, or the two stop
+      // describing the same system.
+      const engineSkip = decision.entryUnfillable
+        ? 'unfillable'
+        : conviction.convictionScore < effectiveConvictionFloor(minConviction, killZone.currentZone) ||
+            weakSetupDecline(conviction.convictionScore, alignedVotes(decision.factors, decision.direction)) !== null ||
+            (deadBand && conviction.convictionScore >= deadBand.min && conviction.convictionScore < deadBand.max)
+          ? 'below-conviction'
+          : null;
+      if (engineSkip) {
+        order = tryBreakout();
+        if (!order) {
+          if (engineSkip === 'unfillable') skipped += 1;
+          else belowConviction += 1;
+          cursor = i + cooldownBars;
+          return;
+        }
+      } else {
+        const riskUsed = effectiveRiskPercentage(riskPercentage, conviction.multiplier);
+        const validity = computeValidity(tradingStyle, killZone.isHighVolatilityTiming, at);
+        order = {
+          direction: decision.direction,
+          orderType: decision.orderType,
+          entryPrice: decision.entryPrice,
+          stopLoss: decision.stopLoss,
+          takeProfit1: decision.takeProfit1,
+          anchor: decision.anchor,
+          contextAnchor: decision.anchor,
+          confidenceScore: decision.confidenceScore,
+          convictionScore: conviction.convictionScore,
+          entryDistancePips: Math.abs(decision.entryDistancePips),
+          stopLossPips: decision.stopLossPips,
+          factorVotes: alignedVotes(decision.factors, decision.direction),
+          lot: calculateXAUUSDLotSize(
+            equity,
+            riskUsed,
+            decision.entryPrice,
+            decision.stopLoss,
+            accountType,
+            tradingStyle,
+            brokerId
+          ),
+          expiresAt: bar.time + validity.validForMinutes * MINUTE_MS,
+          stopEntry: false,
+        };
+      }
     }
 
-    if (
-      conviction.convictionScore < effectiveConvictionFloor(minConviction, killZone.currentZone) ||
-      weakSetupDecline(conviction.convictionScore, alignedVotes(decision.factors, decision.direction)) !== null ||
-      (deadBand &&
-        conviction.convictionScore >= deadBand.min &&
-        conviction.convictionScore < deadBand.max)
-    ) {
-      belowConviction += 1;
-      cursor = i + cooldownBars;
-      return;
-    }
-
-    const riskUsed = effectiveRiskPercentage(riskPercentage, conviction.multiplier);
-    const lot = calculateXAUUSDLotSize(
-      equity,
-      riskUsed,
-      decision.entryPrice,
-      decision.stopLoss,
-      accountType,
-      tradingStyle,
-      brokerId
-    );
-
-    const validity = computeValidity(tradingStyle, killZone.isHighVolatilityTiming, at);
-    const instant = decision.orderType.includes('INSTANT');
+    const lot = order.lot;
+    const instant = order.orderType.includes('INSTANT');
 
     const outcome = simulateOrder(candles, {
-      direction: decision.direction,
+      direction: order.direction,
       instant,
-      entryPrice: decision.entryPrice,
-      stopLoss: decision.stopLoss,
-      takeProfit1: decision.takeProfit1,
+      entryPrice: order.entryPrice,
+      stopLoss: order.stopLoss,
+      takeProfit1: order.takeProfit1,
       decidedAt: i,
-      expiresAt: bar.time + validity.validForMinutes * MINUTE_MS,
+      expiresAt: order.expiresAt,
       maxHoldMs,
       breakEvenAtR: config.breakEvenAtR ?? null,
       slippageDollars: config.slippageDollars ?? DEFAULT_SLIPPAGE_DOLLARS,
+      stopEntry: order.stopEntry,
     });
 
     if (outcome.kind === 'unresolved') {
@@ -702,12 +799,12 @@ export function createBacktest(config: BacktestConfig): Runner {
         sequence,
         openedAt: bar.time,
         closedAt: missBar.time,
-        orderType: decision.orderType,
-        direction: decision.direction,
-        entryPrice: decision.entryPrice,
-        fillPrice: decision.entryPrice,
-        stopLoss: decision.stopLoss,
-        takeProfit1: decision.takeProfit1,
+        orderType: order.orderType,
+        direction: order.direction,
+        entryPrice: order.entryPrice,
+        fillPrice: order.entryPrice,
+        stopLoss: order.stopLoss,
+        takeProfit1: order.takeProfit1,
         filled: false,
         outcome: 'MISSED',
         // Where price actually was when the order died: the distance the
@@ -721,8 +818,8 @@ export function createBacktest(config: BacktestConfig): Runner {
         pips: 0,
         rMultiple: 0,
         equityAfter: equity,
-        confidenceScore: decision.confidenceScore,
-        convictionScore: conviction.convictionScore,
+        confidenceScore: order.confidenceScore,
+        convictionScore: order.convictionScore,
         holdingHours: parseFloat(((missBar.time - bar.time) / 3_600_000).toFixed(2)),
         riskBudgetDollars: lot.riskDollars,
         actualRiskDollars: lot.actualRiskDollars,
@@ -730,17 +827,17 @@ export function createBacktest(config: BacktestConfig): Runner {
       };
       trades.push(trade);
       records.push(
-        recordFor(trade, tradingStyle, decision.anchor, {
-          anchor: decision.anchor,
-          convictionScore: conviction.convictionScore,
+        recordFor(trade, tradingStyle, order.anchor, {
+          anchor: order.contextAnchor,
+          convictionScore: order.convictionScore,
           session: killZone.currentZone,
           killZoneActive: killZone.isHighVolatilityTiming,
-          timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
+          timeframesAligned: aligned,
           newsNearby,
-          entryDistancePips: Math.abs(decision.entryDistancePips),
-          stopLossPips: decision.stopLossPips,
+          entryDistancePips: order.entryDistancePips,
+          stopLossPips: order.stopLossPips,
           rMultiple: 0,
-          factorVotes: alignedVotes(decision.factors, decision.direction),
+          ...(order.factorVotes ? { factorVotes: order.factorVotes } : {}),
         })
       );
       equityCurve.push({ sequence, time: missBar.time, equity });
@@ -755,7 +852,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       accountType,
       contractSpecs: lot.contractSpecs,
     };
-    const gross = resultFromMove(sized, outcome.exitPrice, decision.direction);
+    const gross = resultFromMove(sized, outcome.exitPrice, order.direction);
     // Spread is paid once, on entry, across the whole position.
     const spreadCost =
       lot.contractSpecs.typicalSpreadPips * 0.1 * lot.lotSize * lot.contractSpecs.contractSizeOz;
@@ -772,12 +869,12 @@ export function createBacktest(config: BacktestConfig): Runner {
       sequence,
       openedAt: bar.time,
       closedAt: exitBar.time,
-      orderType: decision.orderType,
-      direction: decision.direction,
-      entryPrice: decision.entryPrice,
+      orderType: order.orderType,
+      direction: order.direction,
+      entryPrice: order.entryPrice,
       fillPrice: parseFloat(outcome.fillPrice.toFixed(2)),
-      stopLoss: decision.stopLoss,
-      takeProfit1: decision.takeProfit1,
+      stopLoss: order.stopLoss,
+      takeProfit1: order.takeProfit1,
       filled: true,
       outcome: settled,
       exitPrice: parseFloat(outcome.exitPrice.toFixed(2)),
@@ -790,8 +887,8 @@ export function createBacktest(config: BacktestConfig): Runner {
       rMultiple:
         lot.actualRiskDollars > 0 ? parseFloat((net / lot.actualRiskDollars).toFixed(2)) : 0,
       equityAfter: equity,
-      confidenceScore: decision.confidenceScore,
-      convictionScore: conviction.convictionScore,
+      confidenceScore: order.confidenceScore,
+      convictionScore: order.convictionScore,
       holdingHours: parseFloat(((exitBar.time - fillBar.time) / 3_600_000).toFixed(2)),
       protectedExit: outcome.protectedExit ?? false,
       riskBudgetDollars: lot.riskDollars,
@@ -801,17 +898,17 @@ export function createBacktest(config: BacktestConfig): Runner {
 
     trades.push(trade);
     records.push(
-      recordFor(trade, tradingStyle, decision.anchor, {
-        anchor: decision.anchor,
-        convictionScore: conviction.convictionScore,
+      recordFor(trade, tradingStyle, order.anchor, {
+        anchor: order.contextAnchor,
+        convictionScore: order.convictionScore,
         session: killZone.currentZone,
         killZoneActive: killZone.isHighVolatilityTiming,
-        timeframesAligned: new Set(trends).size === 1 && trends[0] !== 'Ranging',
+        timeframesAligned: aligned,
         newsNearby,
-        entryDistancePips: Math.abs(decision.entryDistancePips),
-        stopLossPips: decision.stopLossPips,
+        entryDistancePips: order.entryDistancePips,
+        stopLossPips: order.stopLossPips,
         rMultiple: trade.rMultiple,
-        factorVotes: alignedVotes(decision.factors, decision.direction),
+        ...(order.factorVotes ? { factorVotes: order.factorVotes } : {}),
       })
     );
     equityCurve.push({ sequence, time: exitBar.time, equity });
