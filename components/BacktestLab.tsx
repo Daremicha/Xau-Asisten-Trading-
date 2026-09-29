@@ -65,6 +65,8 @@ interface BacktestLabProps {
   skipConvictionBand: { min: number; max: number } | null;
   /** The daily loss limit live analysis applies, in percent; zero is off. */
   dailyLossLimit: number;
+  /** A single target at 0.5R, as the live setups use when it is on. */
+  quickTarget?: boolean;
   onSkipBand: (band: { min: number; max: number } | null) => void;
   theme?: 'dark' | 'light';
 }
@@ -90,6 +92,7 @@ export default function BacktestLab({
   onProtectStop,
   skipConvictionBand,
   dailyLossLimit,
+  quickTarget = false,
   onSkipBand,
   theme = 'dark',
 }: BacktestLabProps) {
@@ -124,6 +127,7 @@ export default function BacktestLab({
         minConviction,
         skipConvictionBand,
         dailyLossLimitPercent: dailyLossLimit,
+        quickTarget,
         signal: controller.signal,
         onProgress: setProgress,
       });

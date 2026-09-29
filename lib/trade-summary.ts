@@ -15,6 +15,7 @@ export interface SummarySettings {
   minConviction: number;
   protectStopAtR: number | null;
   dailyLossLimit: number;
+  quickTarget?: boolean;
 }
 
 type Result = 'TP' | 'SL' | 'BE' | 'MISSED';
@@ -79,7 +80,7 @@ export function tradeSummaryText(
       settings.minConviction === 0 ? 'Take all' : settings.minConviction
     } - ${settings.protectStopAtR ? `SL to entry at ${settings.protectStopAtR}R` : 'no break-even move'} - daily limit ${
       settings.dailyLossLimit ? `${settings.dailyLossLimit}%` : 'off'
-    }`,
+    }${settings.quickTarget ? ' - quick target 0.5R' : ''}`,
     `Trades: ${closed.length} closed (TP ${wins} - SL ${count('SL')} - BE ${count('BE')}) - ${count('MISSED')} missed`,
     `Win rate: ${closed.length ? ((wins / closed.length) * 100).toFixed(1) : '-'}% - Net: ${money(net, true)} - Avg R: ${
       avgR === null ? '-' : signed(avgR)

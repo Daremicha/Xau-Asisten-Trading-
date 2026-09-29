@@ -46,6 +46,8 @@ export interface ValidatedAnalyzeRequest {
   skipConvictionBand: { min: number; max: number } | null;
   /** Daily loss limit in percent, or null when off. */
   dailyLossLimitPercent: number | null;
+  /** A single target at 0.5R, when the user turned it on; see quick-target. */
+  quickTarget: boolean;
   /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
@@ -142,6 +144,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       minConviction,
       skipConvictionBand,
       dailyLossLimitPercent,
+      quickTarget: b.quickTarget === true,
       priorWeights,
     },
     errors: [],

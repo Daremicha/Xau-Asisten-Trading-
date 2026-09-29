@@ -29,6 +29,8 @@ export const LOCAL_KEYS = {
   skipConvictionBand: 'xauusd_skip_conviction_band',
   /** Daily loss limit in percent; zero when the user turned it off. */
   dailyLossLimit: 'xauusd_daily_loss_limit',
+  /** A single target at 0.5R; see quick-target. */
+  quickTarget: 'xauusd_quick_target',
   /** Dark or light, so the app opens looking the way it was left. */
   theme: 'xauusd_theme',
   /**
@@ -68,6 +70,8 @@ export interface LocalProfile {
    * has never chosen and the default applies.
    */
   dailyLossLimit: number | null;
+  /** Quick target on or off, or null when never chosen. */
+  quickTarget: boolean | null;
   /** Dark or light, or null when the user has never chosen. */
   theme: 'dark' | 'light' | null;
 }
@@ -156,6 +160,10 @@ export function readLocalProfile(): LocalProfile {
       const value = readNumber(LOCAL_KEYS.dailyLossLimit);
       return value !== null && value >= 0 && value <= 50 ? value : null;
     })(),
+    quickTarget: (() => {
+      const raw = readRaw(LOCAL_KEYS.quickTarget);
+      return raw === 'true' ? true : raw === 'false' ? false : null;
+    })(),
     theme: (() => {
       const raw = readRaw(LOCAL_KEYS.theme);
       return raw === 'dark' || raw === 'light' ? raw : null;
@@ -224,6 +232,7 @@ export interface ProfileSettings {
   protectStopAtR: number | null;
   skipConvictionBand: { min: number; max: number } | null;
   dailyLossLimit: number;
+  quickTarget: boolean;
   backtestPrior: PriorWeights | null;
   theme: 'dark' | 'light';
 }
@@ -241,6 +250,7 @@ export const CLOUD_FIELDS: Record<keyof ProfileSettings, string> = {
   protectStopAtR: 'protectStopAtR',
   skipConvictionBand: 'skipConvictionBand',
   dailyLossLimit: 'dailyLossLimit',
+  quickTarget: 'quickTarget',
   backtestPrior: 'backtestPrior',
   theme: 'theme',
 };
@@ -275,6 +285,7 @@ export function writeLocalSettings(patch: Partial<ProfileSettings>): void {
     );
   }
   if (patch.dailyLossLimit !== undefined) writeRaw(LOCAL_KEYS.dailyLossLimit, String(patch.dailyLossLimit));
+  if (patch.quickTarget !== undefined) writeRaw(LOCAL_KEYS.quickTarget, String(patch.quickTarget));
   if (patch.backtestPrior !== undefined) {
     writeRaw(LOCAL_KEYS.backtestPrior, patch.backtestPrior === null ? null : JSON.stringify(patch.backtestPrior));
   }
@@ -336,6 +347,7 @@ export function settingsMissingFromCloud(
   if (absent(CLOUD_FIELDS.dailyLossLimit) && local.dailyLossLimit !== null) {
     missing.dailyLossLimit = local.dailyLossLimit;
   }
+  if (absent(CLOUD_FIELDS.quickTarget) && local.quickTarget !== null) missing.quickTarget = local.quickTarget;
   if (absent(CLOUD_FIELDS.backtestPrior) && local.backtestPrior !== null) {
     missing.backtestPrior = local.backtestPrior;
   }
