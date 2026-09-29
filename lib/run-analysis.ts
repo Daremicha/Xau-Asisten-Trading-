@@ -27,6 +27,7 @@ import {
 } from './proposal-validation';
 import { priceToPips, round2, type Candle } from './candles';
 import { BREAKOUT_ANCHOR, LONDON_BREAKOUT, londonBreakoutPlan, type BreakoutPlan } from './london-breakout';
+import { QUICK_TARGET_R, quickTargets } from './quick-target';
 
 /** Distance between live price and the quoted entry, in pips. */
 const priceToPipsDistance = (price: number, entry: number) => priceToPips(price - entry);
@@ -541,6 +542,18 @@ Reply with JSON only:
       });
     }
 
+    // A nearer target when the user chose it. The entry, the stop and the lot
+    // are the engine's; only where the trade is taken off changes. See
+    // quick-target.ts.
+    const quick = !breakout && input.quickTarget;
+    if (quick) {
+      finalOrder = {
+        ...finalOrder,
+        ...quickTargets(finalOrder.entryPrice, finalOrder.stopLoss, directionOfOrder(finalOrder.orderType)),
+        riskRewardRatio: `1:${QUICK_TARGET_R.toFixed(2)}`,
+      };
+    }
+
     // The breakout was tested at the full risk asked for; conviction scales
     // only the structural engine's setups.
     const riskPercentUsed = breakout
@@ -723,10 +736,14 @@ Reply with JSON only:
       // accepted replaced them, and saying otherwise would be a fabrication.
       targetBasis: breakout
         ? [`TP1 at ${LONDON_BREAKOUT.targetR}R, the target the breakout was tested with; TP2 and TP3 a half and a whole R further.`]
-        : proposalOutcome.accepted
+        : quick
+          ? [
+              `Quick target on: one target at ${QUICK_TARGET_R}R. It wins more often and earns less per trade; turn it off in the settings for the engine's own targets.`,
+            ]
+          : proposalOutcome.accepted
           ? undefined
           : decision.targetBasis,
-      targetsFellBack: breakout || proposalOutcome.accepted ? undefined : decision.targetsFellBack,
+      targetsFellBack: breakout || quick || proposalOutcome.accepted ? undefined : decision.targetsFellBack,
       entryDistancePips: priceToPipsDistance(marketPrice, finalOrder.entryPrice),
       stopLossPips: lotCalculation.stopLossPips,
       recommendedLotSize: lotCalculation.lotSize,

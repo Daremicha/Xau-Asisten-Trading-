@@ -89,6 +89,8 @@ export interface BacktestJobOptions {
   skipConvictionBand?: { min: number; max: number } | null;
   /** The user's daily loss limit in percent, applied to every pass. Zero or null is off. */
   dailyLossLimitPercent?: number | null;
+  /** A single target at 0.5R, when the user turned the quick target on. */
+  quickTarget?: boolean;
   /** Releases the replay reacts to. Fetched by the job when left out. */
   economicEvents?: ForexFactoryEvent[];
   onProgress?: (update: BacktestProgressUpdate) => void;
@@ -315,6 +317,7 @@ async function replay(
     // The live app trades it for Intraday when the balance allows, so the
     // replay does too.
     londonBreakout: true,
+    quickTarget: options.quickTarget ?? false,
   });
 
   let guard = 0;

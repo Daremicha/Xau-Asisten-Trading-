@@ -23,6 +23,8 @@ export interface ScanSettings {
   minConviction: number;
   dailyLossLimitPercent: number;
   protectAtR: number | null;
+  /** A single target at 0.5R, when the user turned it on. */
+  quickTarget: boolean;
   /** Trades closed in the last two days, for the daily loss limit. */
   recentResults: Array<{ closedAt: number; net: number }>;
   priorWeights?: unknown;
@@ -68,6 +70,7 @@ export function sanitiseScanSettings(value: unknown): ScanSettings | null {
     minConviction,
     dailyLossLimitPercent,
     protectAtR: num(s.protectAtR, 0.5, 3),
+    quickTarget: s.quickTarget === true,
     recentResults: recent
       .map((r) => r as { closedAt?: unknown; net?: unknown })
       .filter((r) => num(r.closedAt, 0, 1e14) !== null && num(r.net, -1e7, 1e7) !== null)
@@ -86,6 +89,7 @@ export function scanRequest(scan: ScanSettings): ValidatedAnalyzeRequest | null 
     brokerId: scan.brokerId,
     minConviction: scan.minConviction,
     dailyLossLimitPercent: scan.dailyLossLimitPercent,
+    quickTarget: scan.quickTarget,
     priorWeights: scan.priorWeights,
     // Only what the daily loss limit reads: when each trade closed and what it made.
     pastLearningRecords: scan.recentResults.map((r, i) => ({

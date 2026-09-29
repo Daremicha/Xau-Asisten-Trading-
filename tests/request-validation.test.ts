@@ -59,6 +59,7 @@ describe('analysis request validation', () => {
       pastLearningRecords: [],
       minConviction: 0,
       dailyLossLimitPercent: null,
+      quickTarget: false,
       skipConvictionBand: null,
       priorWeights: null,
     });

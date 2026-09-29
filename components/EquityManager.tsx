@@ -20,11 +20,13 @@ import {
   Briefcase,
   Filter,
   Info,
+  Target,
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
 import { stopBandLabel, stopBandPips } from '@/lib/style-profiles';
 import { DAILY_LOSS_LIMIT_CHOICES, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
+import { QUICK_TARGET_R } from '@/lib/quick-target';
 
 interface EquityManagerProps {
   equity: number;
@@ -43,6 +45,9 @@ interface EquityManagerProps {
   /** Percent of the day's starting balance that may be lost; zero is off. */
   dailyLossLimit: number;
   onChangeDailyLossLimit: (percent: number) => void;
+  /** A single target at 0.5R instead of the engine's own. */
+  quickTarget?: boolean;
+  onChangeQuickTarget?: (on: boolean) => void;
   /** Switches to the style and floor that held up in the 24 month replay. */
   onApplyTestedConfiguration?: () => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
@@ -66,6 +71,8 @@ export default function EquityManager({
   onChangeMinConviction,
   dailyLossLimit,
   onChangeDailyLossLimit,
+  quickTarget = false,
+  onChangeQuickTarget,
   onApplyTestedConfiguration,
   onChangeTradingStyle,
   onChangeAccountType,
@@ -312,6 +319,49 @@ export default function EquityManager({
               }`}
         </span>
       </div>
+
+      {/* The user's choice between winning more often and earning more. Off by
+          default: over two years the engine's own targets earned more. */}
+      {onChangeQuickTarget && (
+        <div
+          id="quick-target-setting"
+          className={`flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-2.5 rounded-xl border ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <span
+            className={`text-[11px] px-1 font-medium flex items-center gap-1.5 shrink-0 ${
+              isDark ? 'text-slate-400' : 'text-slate-600'
+            }`}
+          >
+            <Target className="w-3 h-3" /> Quick TP ({QUICK_TARGET_R}R):
+          </span>
+          <div className="flex items-center gap-1.5">
+            {[false, true].map((on) => (
+              <button
+                key={String(on)}
+                type="button"
+                id={`quick-target-${on ? 'on' : 'off'}`}
+                onClick={() => onChangeQuickTarget(on)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  quickTarget === on
+                    ? 'bg-sky-500 text-slate-950 shadow-sm'
+                    : isDark
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                {on ? 'On' : 'Off'}
+              </button>
+            ))}
+          </div>
+          <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            {quickTarget
+              ? `On: one target at ${QUICK_TARGET_R}R, same entry, stop and lot. About 72% of filled trades win, each for less. Over two years it earned about a third less than the engine's own targets.`
+              : "Off: the engine's own targets. About 43% of filled trades win, and it earned the most over the two year replay."}
+          </span>
+        </div>
+      )}
 
       {/* Selectors Row: Trading Style, Account Type & Broker */}
       <div

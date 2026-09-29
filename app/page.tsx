@@ -267,6 +267,8 @@ export default function Home() {
    * is offered until the next trading day. Zero turns it off.
    */
   const [dailyLossLimit, setDailyLossLimit] = useState<number>(DEFAULT_DAILY_LOSS_LIMIT);
+  // A single target at 0.5R; off unless the user turns it on.
+  const [quickTarget, setQuickTarget] = useState<boolean>(false);
   /**
    * A conviction band live analysis refuses outright, when a backtest showed it
    * losing money in both halves of the period. Null when every band is taken.
@@ -354,6 +356,7 @@ export default function Home() {
     if (profile.minConviction !== null) setMinConviction(profile.minConviction);
     if (profile.protectStopAtR !== null) setProtectStopAtR(profile.protectStopAtR);
     if (profile.dailyLossLimit !== null) setDailyLossLimit(profile.dailyLossLimit);
+    if (profile.quickTarget !== null) setQuickTarget(profile.quickTarget);
     if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
@@ -534,6 +537,7 @@ export default function Home() {
       minConviction,
       dailyLossLimitPercent: dailyLossLimit,
       protectAtR: protectStopAtR,
+      quickTarget,
       recentResults: closedResults(learningRecords).filter((r) => r.closedAt >= since),
       priorWeights: backtestPrior,
     };
@@ -546,6 +550,7 @@ export default function Home() {
     minConviction,
     dailyLossLimit,
     protectStopAtR,
+    quickTarget,
     learningRecords,
     backtestPrior,
   ]);
@@ -737,6 +742,7 @@ export default function Home() {
             if (typeof data.dailyLossLimit === 'number' && data.dailyLossLimit >= 0 && data.dailyLossLimit <= 50) {
               setDailyLossLimit(data.dailyLossLimit);
             }
+            if (typeof data.quickTarget === 'boolean') setQuickTarget(data.quickTarget);
             const band = data.skipConvictionBand as { min?: unknown; max?: unknown } | null;
             if (
               band &&
@@ -774,6 +780,7 @@ export default function Home() {
               ...(data.selectedBroker ? { selectedBroker: data.selectedBroker as BrokerId } : {}),
               ...(typeof data.minConviction === 'number' ? { minConviction: data.minConviction } : {}),
               ...(typeof data.dailyLossLimit === 'number' ? { dailyLossLimit: data.dailyLossLimit } : {}),
+              ...(typeof data.quickTarget === 'boolean' ? { quickTarget: data.quickTarget } : {}),
               ...(data.theme === 'dark' || data.theme === 'light' ? { theme: data.theme } : {}),
             });
             markMirrorOwner(user.uid);
@@ -1212,6 +1219,12 @@ export default function Home() {
     void persistSettings({ minConviction: score });
   };
 
+  /** Turns the quick target on or off. */
+  const handleChangeQuickTarget = (on: boolean) => {
+    setQuickTarget(on);
+    void persistSettings({ quickTarget: on });
+  };
+
   /** Sets the daily loss limit, or turns it off with zero. */
   const handleChangeDailyLossLimit = (percent: number) => {
     setDailyLossLimit(percent);
@@ -1324,6 +1337,7 @@ export default function Home() {
           pastLearningRecords: learningRecords.slice(-RECENT_RECORD_LIMIT),
           minConviction,
           dailyLossLimitPercent: dailyLossLimit,
+          quickTarget,
           // What the engine shrinks toward. Null keeps its own defaults.
           priorWeights: backtestPrior,
         }),
@@ -2082,6 +2096,8 @@ export default function Home() {
           minConviction={minConviction}
           dailyLossLimit={dailyLossLimit}
           onChangeDailyLossLimit={handleChangeDailyLossLimit}
+          quickTarget={quickTarget}
+          onChangeQuickTarget={handleChangeQuickTarget}
           onLockEquity={handleLockEquity}
           onSetEquity={handleSetEquity}
           onChangeRiskPct={handleChangeRiskPercentage}
@@ -2151,7 +2167,7 @@ export default function Home() {
           summary={{
             equity,
             accountType,
-            settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit },
+            settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget },
           }}
           theme={theme}
         />
@@ -2171,6 +2187,7 @@ export default function Home() {
           onProtectStop={handleProtectStop}
           skipConvictionBand={skipConvictionBand}
           dailyLossLimit={dailyLossLimit}
+          quickTarget={quickTarget}
           onSkipBand={handleSkipBand}
           theme={theme}
         />

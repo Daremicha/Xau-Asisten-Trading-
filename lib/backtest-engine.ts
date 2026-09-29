@@ -34,6 +34,7 @@ import { dailyLossLimitReached, netToday, nextTradingDayStart } from './daily-lo
 import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal } from './signal-engine';
 import { BREAKOUT_ANCHOR, londonBreakoutPlan } from './london-breakout';
+import { quickTargets } from './quick-target';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
 import { computeValidity } from './order-validity';
@@ -112,6 +113,11 @@ export interface BacktestConfig {
    * See london-breakout.ts.
    */
   londonBreakout?: boolean;
+  /**
+   * A single target at 0.5R, as the live app gives when the user turned the
+   * quick target on. See quick-target.ts.
+   */
+  quickTarget?: boolean;
   /**
    * Dollars an order filled at market loses to slippage: instant entries,
    * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
@@ -767,6 +773,9 @@ export function createBacktest(config: BacktestConfig): Runner {
       }
     }
 
+    if (order.contextAnchor !== BREAKOUT_ANCHOR && config.quickTarget) {
+      order = { ...order, takeProfit1: quickTargets(order.entryPrice, order.stopLoss, order.direction).takeProfit1 };
+    }
     const lot = order.lot;
     const instant = order.orderType.includes('INSTANT');
 
