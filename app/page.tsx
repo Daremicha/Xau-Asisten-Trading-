@@ -11,6 +11,8 @@ import { doc, getDoc, setDoc, collection, getDocs, limit, orderBy, query } from 
  * would keep growing with every trade ever taken.
  */
 const RECENT_RECORD_LIMIT = 200;
+/** Browser key for the section last open. */
+const TAB_KEY = 'xauusd_tab';
 import { auth, db } from '@/lib/firebase';
 import { migrateLocalProfileToCloud } from '@/lib/cloud-sync';
 import {
@@ -95,6 +97,7 @@ import { enableClosedAppAlerts, fetchAnnouncedSetup, syncWatchedSetup } from '@/
 import { fetchAiReview } from '@/lib/ai-review-client';
 import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
+import BottomNav, { APP_TABS, SectionHeading, type AppTab } from '@/components/BottomNav';
 import { learningInput, TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
 import { closedResults, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
@@ -266,6 +269,29 @@ export default function Home() {
    * Percent of the day's starting balance that may be lost before no new setup
    * is offered until the next trading day. Zero turns it off.
    */
+  // The section on screen. Remembered in this browser only, as a convenience.
+  const [tab, setTab] = useState<AppTab>('trade');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(TAB_KEY) as AppTab | null;
+        if (saved && APP_TABS.includes(saved)) setTab(saved);
+      } catch {
+        // Storage refused: the app opens on Trade, which is the default anyway.
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  const changeTab = useCallback((next: AppTab) => {
+    setTab(next);
+    try {
+      localStorage.setItem(TAB_KEY, next);
+    } catch {
+      // Remembering the section is a convenience; nothing depends on it.
+    }
+    window.scrollTo({ top: 0 });
+  }, []);
+
   const [dailyLossLimit, setDailyLossLimit] = useState<number>(DEFAULT_DAILY_LOSS_LIMIT);
   // A single target at 0.5R; off unless the user turns it on.
   const [quickTarget, setQuickTarget] = useState<boolean>(false);
@@ -1784,8 +1810,10 @@ export default function Home() {
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Main Trading Terminal Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Main Trading Terminal Body, one section at a time. Every section stays
+          mounted and the others are only hidden, so a running backtest, a
+          half-typed correction or the chart survive moving between them. */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-28 space-y-6">
         {/* Market data provenance. Trading decisions depend on knowing whether
             the quote on screen is real, so this is never hidden. */}
         {feedStatus !== 'live' && (
@@ -1835,30 +1863,6 @@ export default function Home() {
             </button>
           </div>
         )}
-
-        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
-          {feedStatus === 'live' && feedSource && (
-            <span className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-              <span>Live data source: {feedSource}. Refreshed about once a minute.</span>
-            </span>
-          )}
-          <span className="flex items-center gap-1.5" title={lastSavedLabel ?? undefined}>
-            {syncStatus.state === 'saved' ? (
-              <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-            ) : syncStatus.state === 'saving' ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : syncStatus.state === 'failed' ? (
-              <CloudOff className="w-3.5 h-3.5 text-rose-400" />
-            ) : (
-              <HardDrive className="w-3.5 h-3.5" />
-            )}
-            <span>
-              {syncStatus.label}
-              {syncStatus.state === 'saved' && lastSavedLabel ? ` ${lastSavedLabel}` : ''}
-            </span>
-          </span>
-        </div>
 
         {/* A pending order that ended without filling is recorded by the engine
             itself. The notice explains what it decided and why. */}
@@ -2006,45 +2010,69 @@ export default function Home() {
           </div>
         )}
 
-        {/* Primary Live Market Chart & TradingView Feed (Top Position) */}
-        <MarketChart
-          currentPrice={marketPrice}
-          bidPrice={bidPrice}
-          askPrice={askPrice}
-          quoteAgeSeconds={quoteAgeSeconds}
-          onRefreshQuote={handleManualRefresh}
-          isRefreshingQuote={isRefreshingFeed}
-          selectedTimeframe={selectedTimeframe}
-          onSelectTimeframe={setSelectedTimeframe}
-          activeSetup={activeSetup}
-          indicators={displayIndicators}
-          feedStatus={feedStatus}
-          quotaPaced={quotaPaced}
-          statusPanel={
-            activeSetup && livePosition && isUnresolved(activeSetup) ? (
-              <PositionStatusCard
-                setup={activeSetup}
-                position={livePosition}
-                currentPrice={marketPrice}
-                quoteAgeSeconds={quoteAgeSeconds}
-                resolutionHeldBack={
-                  // Only worth saying when the price is actually claiming a
-                  // level has been reached; otherwise it is noise on a trade
-                  // that is simply still running.
-                  !tickTrust.ok && livePosition.state === 'closed' ? tickTrust.reason : null
-                }
-                theme={theme}
-              />
-            ) : null
-          }
-          theme={theme}
-        />
 
-        {/* Institutional Signal Execution & Portfolio Growth Tracker (Directly Below Live Chart) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Institutional Signal & MetaTrader 5 Execution Panel (6 cols) */}
-          <div className="lg:col-span-6 space-y-6">
-            <SignalCard
+        {/* Trade: the chart, the live position and the setup. */}
+        <section id="section-trade" className={tab === 'trade' ? 'space-y-6' : 'hidden'}>
+          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {feedStatus === 'live' && feedSource && (
+              <span className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                <span>Live data source: {feedSource}. Refreshed about once a minute.</span>
+              </span>
+            )}
+            <span className="flex items-center gap-1.5" title={lastSavedLabel ?? undefined}>
+              {syncStatus.state === 'saved' ? (
+                <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+              ) : syncStatus.state === 'saving' ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : syncStatus.state === 'failed' ? (
+                <CloudOff className="w-3.5 h-3.5 text-rose-400" />
+              ) : (
+                <HardDrive className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {syncStatus.label}
+                {syncStatus.state === 'saved' && lastSavedLabel ? ` ${lastSavedLabel}` : ''}
+              </span>
+            </span>
+          </div>
+
+          {/* Primary Live Market Chart & TradingView Feed (Top Position) */}
+          <MarketChart
+            currentPrice={marketPrice}
+            bidPrice={bidPrice}
+            askPrice={askPrice}
+            quoteAgeSeconds={quoteAgeSeconds}
+            onRefreshQuote={handleManualRefresh}
+            isRefreshingQuote={isRefreshingFeed}
+            selectedTimeframe={selectedTimeframe}
+            onSelectTimeframe={setSelectedTimeframe}
+            activeSetup={activeSetup}
+            indicators={displayIndicators}
+            feedStatus={feedStatus}
+            quotaPaced={quotaPaced}
+            statusPanel={
+              activeSetup && livePosition && isUnresolved(activeSetup) ? (
+                <PositionStatusCard
+                  setup={activeSetup}
+                  position={livePosition}
+                  currentPrice={marketPrice}
+                  quoteAgeSeconds={quoteAgeSeconds}
+                  resolutionHeldBack={
+                    // Only worth saying when the price is actually claiming a
+                    // level has been reached; otherwise it is noise on a trade
+                    // that is simply still running.
+                    !tickTrust.ok && livePosition.state === 'closed' ? tickTrust.reason : null
+                  }
+                  theme={theme}
+                />
+              ) : null
+            }
+            theme={theme}
+          />
+
+
+          <SignalCard
               setup={activeSetup}
               skipped={skippedSetup}
               lastOutcome={lastOutcome}
@@ -2060,11 +2088,63 @@ export default function Home() {
               onRetryAiReview={retryAiReview}
               theme={theme}
             />
+        </section>
+
+        {/* Market: sessions, structure, pivots and the calendar. */}
+        <section id="section-market" className={tab === 'market' ? 'space-y-6' : 'hidden'}>
+          <SectionHeading
+            title="Market analysis"
+            subtitle="Trading sessions, multi-timeframe structure, pivot bias and USD news, all in WIB."
+            theme={theme}
+          />
+          {/* Global Trading Sessions in WIB Time */}
+          <TradingSessionZone theme={theme} />
+
+          {/* Institutional Analysis & News Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Smart Money Concepts (SMC) & Multi-Timeframe Matrix (6 cols) */}
+            <div className="lg:col-span-6 space-y-6">
+              {structuresReady && displayMT && displayIndicators && displayWyckoff && displayQM ? (
+                <SMCMatrix
+                  multiTimeframe={displayMT}
+                  indicators={displayIndicators}
+                  wyckoff={displayWyckoff}
+                  quasimodo={displayQM}
+                  theme={theme}
+                />
+              ) : (
+                <div
+                  className={`border rounded-2xl p-6 text-sm ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 text-slate-400'
+                      : 'bg-white border-slate-200 text-slate-500'
+                  }`}
+                >
+                  Market structure appears once the feed has delivered enough candles to measure it. Nothing is shown
+                  here until then.
+                </div>
+              )}
+
+              {/* Pivot and directional bias, computed from the previous session */}
+              {displayTradingCentral && <TradingCentralCard bias={displayTradingCentral} theme={theme} />}
+            </div>
+
+            {/* Right Column: Forex Factory Economic Calendar & Upcoming News (WIB) */}
+            <div className="lg:col-span-6 space-y-6">
+              <EconomicCalendar events={economicEvents} notice={calendarMessage} theme={theme} />
+            </div>
           </div>
 
-          {/* Portfolio & Equity Growth Panel (6 cols) */}
-          <div className="lg:col-span-6 space-y-6">
-            <PortfolioGrowthCard
+        </section>
+
+        {/* Results: the balance, the recorded trades and their review. */}
+        <section id="section-results" className={tab === 'results' ? 'space-y-6' : 'hidden'}>
+          <SectionHeading
+            title="Results"
+            subtitle="Balance growth, every recorded trade, the copyable summary and trades worth re-checking."
+            theme={theme}
+          />
+          <PortfolioGrowthCard
               currentEquity={equity}
               initialEquity={initialEquity}
               isEquityLocked={isEquityLocked}
@@ -2075,137 +2155,117 @@ export default function Home() {
               onReconcileToLedger={handleReconcileToLedger}
               theme={theme}
             />
-          </div>
-        </div>
 
-        {/* Whether trade alerts reach this phone with the app closed. */}
-        <AlertsStatus
-          permission={notificationPermission}
-          onRequestNotification={handleRequestNotification}
-          theme={theme}
-        />
+          {/* Autonomous Continuous Self-Learning Engine Section */}
+          <SelfLearningDashboard
+            learningRecords={learningRecords}
+            engineWeights={engineWeights}
+            tradingStyle={tradingStyle}
+            summary={{
+              equity,
+              accountType,
+              settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget },
+            }}
+            theme={theme}
+          />
 
-        {/* Equity & Risk Allocation (Lock Enforcement) */}
-        <EquityManager
-          equity={equity}
-          isLocked={isEquityLocked}
-          riskPercentage={riskPercentage}
-          tradingStyle={tradingStyle}
-          accountType={accountType}
-          selectedBroker={selectedBroker}
-          minConviction={minConviction}
-          dailyLossLimit={dailyLossLimit}
-          onChangeDailyLossLimit={handleChangeDailyLossLimit}
-          quickTarget={quickTarget}
-          onChangeQuickTarget={handleChangeQuickTarget}
-          onLockEquity={handleLockEquity}
-          onSetEquity={handleSetEquity}
-          onChangeRiskPct={handleChangeRiskPercentage}
-          onChangeMinConviction={handleChangeMinConviction}
-          onChangeTradingStyle={handleChangeTradingStyle}
-          onApplyTestedConfiguration={handleApplyTestedConfiguration}
-          onChangeAccountType={handleChangeAccountType}
-          onChangeBroker={handleChangeBroker}
-          onResetEquity={handleResetEquity}
-          theme={theme}
-        />
+          {/* Rows the engine may be learning the wrong lesson from. */}
+          <RecordAuditPanel
+            learningRecords={learningRecords}
+            onAudit={handleAuditMisses}
+            onCorrect={handleCorrectRecord}
+            onConfirm={handleConfirmRecord}
+            accountUnit={accountUnitLabel(accountType)}
+            accountType={accountType}
+            theme={theme}
+          />
 
-        {/* Global Trading Sessions in WIB Time */}
-        <TradingSessionZone theme={theme} />
+        </section>
 
-        {/* Institutional Analysis & News Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Smart Money Concepts (SMC) & Multi-Timeframe Matrix (6 cols) */}
-          <div className="lg:col-span-6 space-y-6">
-            {structuresReady && displayMT && displayIndicators && displayWyckoff && displayQM ? (
-              <SMCMatrix
-                multiTimeframe={displayMT}
-                indicators={displayIndicators}
-                wyckoff={displayWyckoff}
-                quasimodo={displayQM}
-                theme={theme}
-              />
-            ) : (
-              <div
-                className={`border rounded-2xl p-6 text-sm ${
-                  theme === 'dark'
-                    ? 'bg-slate-900 border-slate-800 text-slate-400'
-                    : 'bg-white border-slate-200 text-slate-500'
-                }`}
-              >
-                Market structure appears once the feed has delivered enough candles to measure it. Nothing is shown
-                here until then.
-              </div>
-            )}
+        {/* Backtest: the strategy replayed over real history. */}
+        <section id="section-lab" className={tab === 'lab' ? 'space-y-6' : 'hidden'}>
+          {/* Historical replay: does learning from results actually help */}
+          <BacktestLab
+            tradingStyle={tradingStyle}
+            accountType={accountType}
+            brokerId={selectedBroker}
+            equity={equity}
+            riskPercentage={riskPercentage}
+            result={backtestResult}
+            onResult={setBacktestResult}
+            adoptedPrior={backtestPrior}
+            onAdoptPrior={handleAdoptBacktestPrior}
+            protectStopAtR={protectStopAtR}
+            onProtectStop={handleProtectStop}
+            skipConvictionBand={skipConvictionBand}
+            dailyLossLimit={dailyLossLimit}
+            quickTarget={quickTarget}
+            onSkipBand={handleSkipBand}
+            theme={theme}
+          />
+        </section>
 
-            {/* Pivot and directional bias, computed from the previous session */}
-            {displayTradingCentral && <TradingCentralCard bias={displayTradingCentral} theme={theme} />}
-          </div>
+        {/* Account: balance, risk and trading settings, and alerts. */}
+        <section id="section-account" className={tab === 'account' ? 'space-y-6' : 'hidden'}>
+          <SectionHeading
+            title="Account & settings"
+            subtitle="Balance, risk per trade, trading style, broker, daily limit, quick TP and phone alerts."
+            theme={theme}
+          />
+          {/* Equity & Risk Allocation (Lock Enforcement) */}
+          <EquityManager
+            equity={equity}
+            isLocked={isEquityLocked}
+            riskPercentage={riskPercentage}
+            tradingStyle={tradingStyle}
+            accountType={accountType}
+            selectedBroker={selectedBroker}
+            minConviction={minConviction}
+            dailyLossLimit={dailyLossLimit}
+            onChangeDailyLossLimit={handleChangeDailyLossLimit}
+            quickTarget={quickTarget}
+            onChangeQuickTarget={handleChangeQuickTarget}
+            onLockEquity={handleLockEquity}
+            onSetEquity={handleSetEquity}
+            onChangeRiskPct={handleChangeRiskPercentage}
+            onChangeMinConviction={handleChangeMinConviction}
+            onChangeTradingStyle={handleChangeTradingStyle}
+            onApplyTestedConfiguration={handleApplyTestedConfiguration}
+            onChangeAccountType={handleChangeAccountType}
+            onChangeBroker={handleChangeBroker}
+            onResetEquity={handleResetEquity}
+            theme={theme}
+          />
 
-          {/* Right Column: Forex Factory Economic Calendar & Upcoming News (WIB) */}
-          <div className="lg:col-span-6 space-y-6">
-            <EconomicCalendar events={economicEvents} notice={calendarMessage} theme={theme} />
-          </div>
-        </div>
+          {/* Whether trade alerts reach this phone with the app closed. */}
+          <AlertsStatus
+            permission={notificationPermission}
+            onRequestNotification={handleRequestNotification}
+            theme={theme}
+          />
 
-        {/* Rows the engine may be learning the wrong lesson from. */}
-        <RecordAuditPanel
-          learningRecords={learningRecords}
-          onAudit={handleAuditMisses}
-          onCorrect={handleCorrectRecord}
-          onConfirm={handleConfirmRecord}
-          accountUnit={accountUnitLabel(accountType)}
-          accountType={accountType}
-          theme={theme}
-        />
 
-        {/* Autonomous Continuous Self-Learning Engine Section */}
-        <SelfLearningDashboard
-          learningRecords={learningRecords}
-          engineWeights={engineWeights}
-          tradingStyle={tradingStyle}
-          summary={{
-            equity,
-            accountType,
-            settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget },
-          }}
-          theme={theme}
-        />
-
-        {/* Historical replay: does learning from results actually help */}
-        <BacktestLab
-          tradingStyle={tradingStyle}
-          accountType={accountType}
-          brokerId={selectedBroker}
-          equity={equity}
-          riskPercentage={riskPercentage}
-          result={backtestResult}
-          onResult={setBacktestResult}
-          adoptedPrior={backtestPrior}
-          onAdoptPrior={handleAdoptBacktestPrior}
-          protectStopAtR={protectStopAtR}
-          onProtectStop={handleProtectStop}
-          skipConvictionBand={skipConvictionBand}
-          dailyLossLimit={dailyLossLimit}
-          quickTarget={quickTarget}
-          onSkipBand={handleSkipBand}
-          theme={theme}
-        />
+          <p
+            className={`text-[11px] leading-relaxed text-center px-4 pt-2 ${
+              theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+            }`}
+          >
+            XAUUSD Institutional Trading Assistant &bull; Smart Money Concepts &bull; ICT Framework
+            <br />
+            Risk Warning: Gold spot trading carries market risk. Exercise proper institutional money management.
+          </p>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer
-        className={`w-full border-t py-6 text-center text-xs transition-colors ${
-          theme === 'dark'
-            ? 'border-slate-800/80 bg-slate-900 text-slate-500'
-            : 'border-slate-200 bg-white text-slate-500'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>XAUUSD Institutional Trading Assistant &bull; Smart Money Concepts &bull; ICT Framework</span>
-          <span>Risk Warning: Gold spot trading carries market risk. Exercise proper institutional money management.</span>
-        </div>
-      </footer>
+      <BottomNav
+        active={tab}
+        onChange={changeTab}
+        badges={{
+          trade: activeSetup && isUnresolved(activeSetup) ? 'live' : null,
+          account: syncStatus.state === 'failed' ? 'warn' : null,
+        }}
+        theme={theme}
+      />
     </div>
   );
 }
