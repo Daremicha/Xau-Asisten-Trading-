@@ -152,9 +152,10 @@ export async function runAnalysis(input: ValidatedAnalyzeRequest): Promise<Analy
     const marketPrice = snapshot.price;
     // A backtested prior, when the user has adopted one, replaces the engine's
     // own defaults as the point the live evidence shrinks toward.
-    // Live trades no longer re-tune the weights; see LIVE_LEARNING.
+    // Live trades re-tune the weights only when the user's self-learning
+    // switch is on; see DEFAULT_SELF_LEARNING.
     const engineWeights = recalculateEngineWeights(
-      learningInput(input.pastLearningRecords),
+      learningInput(input.pastLearningRecords, input.selfLearning),
       input.tradingStyle,
       input.priorWeights
     );

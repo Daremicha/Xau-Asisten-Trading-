@@ -48,6 +48,8 @@ export interface ValidatedAnalyzeRequest {
   dailyLossLimitPercent: number | null;
   /** A single target at 0.5R, when the user turned it on; see quick-target. */
   quickTarget: boolean;
+  /** True when the user's self-learning switch is on: live trades re-tune the weights. */
+  selfLearning: boolean;
   /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
@@ -145,6 +147,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       skipConvictionBand,
       dailyLossLimitPercent,
       quickTarget: b.quickTarget === true,
+      selfLearning: b.selfLearning === true,
       priorWeights,
     },
     errors: [],

@@ -97,8 +97,15 @@ import { enableClosedAppAlerts, fetchAnnouncedSetup, syncWatchedSetup } from '@/
 import { fetchAiReview } from '@/lib/ai-review-client';
 import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
+import LessonsPanel from '@/components/LessonsPanel';
 import BottomNav, { APP_TABS, SectionHeading, type AppTab } from '@/components/BottomNav';
-import { learningInput, TESTED_FLOOR, TESTED_PROTECT_AT_R, TESTED_STYLE } from '@/lib/tested-configuration';
+import {
+  DEFAULT_SELF_LEARNING,
+  learningInput,
+  TESTED_FLOOR,
+  TESTED_PROTECT_AT_R,
+  TESTED_STYLE,
+} from '@/lib/tested-configuration';
 import { closedResults, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { BellRing, X, WifiOff, AlertTriangle, RefreshCw, Cloud, CloudOff, HardDrive } from 'lucide-react';
 import type {
@@ -307,16 +314,15 @@ export default function Home() {
 
   // Self-Learning Engine Memory & Weights
   const [learningRecords, setLearningRecords] = useState<SelfLearningMemoryRecord[]>([]);
-  const [engineWeights, setEngineWeights] = useState<AdaptiveStrategyEngineWeights>({
-    orderBlockWeight: 0.28,
-    fairValueGapWeight: 0.24,
-    liquiditySweepWeight: 0.22,
-    newsImpactWeight: 0.14,
-    indicatorConfluenceWeight: 0.12,
-    atrBufferFactor: 1.25,
-    totalAnalysesLearned: 0,
-    historicalWinRate: 0,
-  });
+  // Whether live trades re-tune the engine. The user's switch, on by default.
+  const [selfLearning, setSelfLearning] = useState<boolean>(DEFAULT_SELF_LEARNING);
+  // The weights the engine trades with: what the live trades taught it when
+  // self-learning is on, the tested starting point (or an adopted backtest
+  // prior) when it is off. The same calculation the analysis runs.
+  const engineWeights = useMemo<AdaptiveStrategyEngineWeights>(
+    () => recalculateEngineWeights(learningInput(learningRecords, selfLearning), tradingStyle, backtestPrior),
+    [learningRecords, selfLearning, tradingStyle, backtestPrior]
+  );
 
   // Session context. Memoised so a price tick does not rebuild these arrays and
   // restart the timers in the calendar and session components every few seconds.
@@ -383,10 +389,10 @@ export default function Home() {
     if (profile.protectStopAtR !== null) setProtectStopAtR(profile.protectStopAtR);
     if (profile.dailyLossLimit !== null) setDailyLossLimit(profile.dailyLossLimit);
     if (profile.quickTarget !== null) setQuickTarget(profile.quickTarget);
+    if (profile.selfLearning !== null) setSelfLearning(profile.selfLearning);
     if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
-      setEngineWeights(recalculateEngineWeights(learningInput(profile.learningRecords), tradingStyleRef.current));
     }
   }, []);
 
@@ -565,7 +571,9 @@ export default function Home() {
       protectAtR: protectStopAtR,
       quickTarget,
       recentResults: closedResults(learningRecords).filter((r) => r.closedAt >= since),
-      priorWeights: backtestPrior,
+      // The scan sees only each trade's result, not what it was taken under,
+      // so with self-learning on it is handed the weights the trades taught.
+      priorWeights: selfLearning ? normalisePrior(engineWeights) : backtestPrior,
     };
   }, [
     equity,
@@ -579,6 +587,8 @@ export default function Home() {
     quickTarget,
     learningRecords,
     backtestPrior,
+    selfLearning,
+    engineWeights,
   ]);
 
   // Keep the server watching the same setup, so alerts still arrive when the
@@ -769,6 +779,7 @@ export default function Home() {
               setDailyLossLimit(data.dailyLossLimit);
             }
             if (typeof data.quickTarget === 'boolean') setQuickTarget(data.quickTarget);
+            if (typeof data.selfLearning === 'boolean') setSelfLearning(data.selfLearning);
             const band = data.skipConvictionBand as { min?: unknown; max?: unknown } | null;
             if (
               band &&
@@ -807,6 +818,7 @@ export default function Home() {
               ...(typeof data.minConviction === 'number' ? { minConviction: data.minConviction } : {}),
               ...(typeof data.dailyLossLimit === 'number' ? { dailyLossLimit: data.dailyLossLimit } : {}),
               ...(typeof data.quickTarget === 'boolean' ? { quickTarget: data.quickTarget } : {}),
+              ...(typeof data.selfLearning === 'boolean' ? { selfLearning: data.selfLearning } : {}),
               ...(data.theme === 'dark' || data.theme === 'light' ? { theme: data.theme } : {}),
             });
             markMirrorOwner(user.uid);
@@ -830,7 +842,6 @@ export default function Home() {
               snap.exists() ? (snap.data().accountType as string | undefined) : undefined
             );
             setLearningRecords(ordered);
-            setEngineWeights(recalculateEngineWeights(learningInput(ordered), tradingStyleRef.current));
             for (const record of repaired) {
               void setDoc(doc(db, 'users', user.uid, 'learning_records', record.id), record, { merge: true }).catch(
                 (err) => console.warn('Could not store a repaired correction:', err)
@@ -1245,6 +1256,12 @@ export default function Home() {
     void persistSettings({ minConviction: score });
   };
 
+  /** Turns self-learning on or off. */
+  const handleChangeSelfLearning = (on: boolean) => {
+    setSelfLearning(on);
+    void persistSettings({ selfLearning: on });
+  };
+
   /** Turns the quick target on or off. */
   const handleChangeQuickTarget = (on: boolean) => {
     setQuickTarget(on);
@@ -1364,6 +1381,7 @@ export default function Home() {
           minConviction,
           dailyLossLimitPercent: dailyLossLimit,
           quickTarget,
+          selfLearning,
           // What the engine shrinks toward. Null keeps its own defaults.
           priorWeights: backtestPrior,
         }),
@@ -1400,9 +1418,6 @@ export default function Home() {
         // A new setup replaces the previous trade's receipt.
         setLastOutcome(null);
         setSkippedSetup(null);
-        if (data.engineWeights) {
-          setEngineWeights(data.engineWeights);
-        }
         setCalendarMessage(data.calendarConfigured ? null : (data.calendarMessage ?? null));
 
         // Save setup to Firestore if user is authenticated
@@ -1531,9 +1546,7 @@ export default function Home() {
           learningRecordsRef.current = updatedRecords;
           setLearningRecords((prev) => (prev.some((r) => r.id === newRecord.id) ? prev : [...prev, newRecord]));
 
-          // Recalculate weights with the newly acquired experience
-          const newWeights = recalculateEngineWeights(learningInput(updatedRecords), tradingStyle);
-          setEngineWeights(newWeights);
+          // The weights follow from the records; see engineWeights.
 
           // Update active balance according to trade outcome (0 change for MISSED)
           // Four decimals, because two is a whole unit on a cent account.
@@ -1617,7 +1630,6 @@ export default function Home() {
   const persistRecords = useCallback(
     async (records: SelfLearningMemoryRecord[], nextEquity?: number) => {
       setLearningRecords(records);
-      setEngineWeights(recalculateEngineWeights(learningInput(records), tradingStyle));
       if (typeof nextEquity === 'number') setEquity(nextEquity);
 
       const changed = records.filter((r) => r.audit);
@@ -1653,7 +1665,7 @@ export default function Home() {
         // the old behaviour rather than a new failure.
       }
     },
-    [currentUser, saveToCloud, tradingStyle]
+    [currentUser, saveToCloud]
   );
 
   /**
@@ -2086,6 +2098,7 @@ export default function Home() {
               currentPrice={marketPrice}
               protectStopAtR={protectStopAtR}
               onRetryAiReview={retryAiReview}
+              selfLearning={selfLearning}
               theme={theme}
             />
         </section>
@@ -2141,7 +2154,7 @@ export default function Home() {
         <section id="section-results" className={tab === 'results' ? 'space-y-6' : 'hidden'}>
           <SectionHeading
             title="Results"
-            subtitle="Balance growth, every recorded trade, the copyable summary and trades worth re-checking."
+            subtitle="Balance growth, lessons from your trades, every recorded trade, the copyable summary and trades worth re-checking."
             theme={theme}
           />
           <PortfolioGrowthCard
@@ -2156,15 +2169,25 @@ export default function Home() {
               theme={theme}
             />
 
+          {/* What the user's own trades say, and what the engine changed. */}
+          <LessonsPanel
+            learningRecords={learningRecords}
+            selfLearning={selfLearning}
+            tradingStyle={tradingStyle}
+            backtestPrior={backtestPrior}
+            theme={theme}
+          />
+
           {/* Autonomous Continuous Self-Learning Engine Section */}
           <SelfLearningDashboard
             learningRecords={learningRecords}
             engineWeights={engineWeights}
+            selfLearning={selfLearning}
             tradingStyle={tradingStyle}
             summary={{
               equity,
               accountType,
-              settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget },
+              settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget, selfLearning },
             }}
             theme={theme}
           />
@@ -2209,7 +2232,7 @@ export default function Home() {
         <section id="section-account" className={tab === 'account' ? 'space-y-6' : 'hidden'}>
           <SectionHeading
             title="Account & settings"
-            subtitle="Balance, risk per trade, trading style, broker, daily limit, quick TP and phone alerts."
+            subtitle="Balance, risk per trade, trading style, broker, daily limit, quick TP, self-learning and phone alerts."
             theme={theme}
           />
           {/* Equity & Risk Allocation (Lock Enforcement) */}
@@ -2225,6 +2248,8 @@ export default function Home() {
             onChangeDailyLossLimit={handleChangeDailyLossLimit}
             quickTarget={quickTarget}
             onChangeQuickTarget={handleChangeQuickTarget}
+            selfLearning={selfLearning}
+            onChangeSelfLearning={handleChangeSelfLearning}
             onLockEquity={handleLockEquity}
             onSetEquity={handleSetEquity}
             onChangeRiskPct={handleChangeRiskPercentage}

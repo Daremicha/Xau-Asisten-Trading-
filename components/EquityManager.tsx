@@ -21,6 +21,7 @@ import {
   Filter,
   Info,
   Target,
+  Brain,
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
@@ -48,6 +49,9 @@ interface EquityManagerProps {
   /** A single target at 0.5R instead of the engine's own. */
   quickTarget?: boolean;
   onChangeQuickTarget?: (on: boolean) => void;
+  /** Whether live trades re-tune the engine. */
+  selfLearning?: boolean;
+  onChangeSelfLearning?: (on: boolean) => void;
   /** Switches to the style and floor that held up in the 24 month replay. */
   onApplyTestedConfiguration?: () => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
@@ -73,6 +77,8 @@ export default function EquityManager({
   onChangeDailyLossLimit,
   quickTarget = false,
   onChangeQuickTarget,
+  selfLearning = true,
+  onChangeSelfLearning,
   onApplyTestedConfiguration,
   onChangeTradingStyle,
   onChangeAccountType,
@@ -319,6 +325,49 @@ export default function EquityManager({
               }`}
         </span>
       </div>
+
+      {/* Whether the engine re-tunes itself after every closed trade. The
+          user's choice, on by default, with what the replay said beside it. */}
+      {onChangeSelfLearning && (
+        <div
+          id="self-learning-setting"
+          className={`flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-2.5 rounded-xl border ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <span
+            className={`text-[11px] px-1 font-medium flex items-center gap-1.5 shrink-0 ${
+              isDark ? 'text-slate-400' : 'text-slate-600'
+            }`}
+          >
+            <Brain className="w-3 h-3" /> Self-learning:
+          </span>
+          <div className="flex items-center gap-1.5">
+            {[false, true].map((on) => (
+              <button
+                key={String(on)}
+                type="button"
+                id={`self-learning-${on ? 'on' : 'off'}`}
+                onClick={() => onChangeSelfLearning(on)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  selfLearning === on
+                    ? 'bg-sky-500 text-slate-950 shadow-sm'
+                    : isDark
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                {on ? 'On' : 'Off'}
+              </button>
+            ))}
+          </div>
+          <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            {selfLearning
+              ? 'On: every closed trade re-tunes the engine for the next setup. See Results for what it learned. In the two year replay this earned about 9% less than fixed rules (profit factor 1.28 against 1.31).'
+              : 'Off: the engine keeps the tested rules. Trades are still recorded and their lessons still shown in Results.'}
+          </span>
+        </div>
+      )}
 
       {/* The user's choice between winning more often and earning more. Off by
           default: over two years the engine's own targets earned more. */}
