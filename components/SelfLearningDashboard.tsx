@@ -1,6 +1,5 @@
 'use client';
 
-import { LIVE_LEARNING } from '@/lib/tested-configuration';
 import React, { useState } from 'react';
 import { tradeSummaryText, type SummarySettings } from '@/lib/trade-summary';
 import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle, AccountType } from '@/lib/types';
@@ -14,6 +13,8 @@ interface SelfLearningDashboardProps {
   tradingStyle?: TradingStyle;
   /** What the copied trade summary says about the account and its settings. */
   summary?: { equity: number; accountType: AccountType; settings: SummarySettings };
+  /** Whether live trades re-tune the engine, the user's switch. */
+  selfLearning?: boolean;
   theme?: 'dark' | 'light';
 }
 
@@ -22,6 +23,7 @@ export default function SelfLearningDashboard({
   engineWeights,
   tradingStyle,
   summary,
+  selfLearning = false,
   theme = 'dark',
 }: SelfLearningDashboardProps) {
   const isDark = theme === 'dark';
@@ -119,12 +121,12 @@ export default function SelfLearningDashboard({
             >
               Adaptive Self-Learning Engine
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
-                {LIVE_LEARNING ? 'Continuous Calibration' : 'Weights locked to the tested setup'}
+                {selfLearning ? 'Learning from every trade' : 'Weights locked to the tested setup'}
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {LIVE_LEARNING
-                ? 'Autonomously evaluates TP, SL, and Missed pending orders to refine institutional execution parameters.'
+              {selfLearning
+                ? 'Every TP, SL and missed order re-tunes the confluence weights, the stop buffer and the entry distance for the next setup, within limits that keep one or two trades from swinging it.'
                 : 'Records and reviews every TP, SL and missed order. The engine keeps the weights that held up in the 24 month replay, because re-tuning them after each live trade did worse there.'}
             </p>
           </div>

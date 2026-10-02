@@ -1,6 +1,5 @@
 'use client';
 
-import { LIVE_LEARNING } from '@/lib/tested-configuration';
 import React, { useState } from 'react';
 import { formatTimeLeft } from '@/lib/order-validity';
 import { formatAccountMoney } from '@/lib/account-display';
@@ -60,6 +59,8 @@ interface SignalCardProps {
   protectStopAtR?: number | null;
   /** Asks the language models again after none of them answered. */
   onRetryAiReview?: () => void;
+  /** Whether live trades re-tune the engine, the user's switch. */
+  selfLearning?: boolean;
   theme?: 'dark' | 'light';
 }
 
@@ -101,6 +102,7 @@ export default function SignalCard({
   currentPrice,
   protectStopAtR = null,
   onRetryAiReview,
+  selfLearning = false,
   theme = 'dark',
 }: SignalCardProps) {
   const isDark = theme === 'dark';
@@ -593,9 +595,9 @@ Ready for direct execution in MetaTrader 5.`;
                     <strong>1. Why orders miss:</strong> Large institutions often enter early at the 50% Fair Value Gap mean threshold (Consequent Encroachment) rather than waiting to fill 100% of an unmitigated Order Block.
                   </p>
                   <p>
-                    <strong>2. What a miss changes:</strong> {LIVE_LEARNING
-                      ? <>When you click <em>&quot;Mark Missed &amp; Adapt&quot;</em>, the engine registers that the limit buffer was too conservative. It automatically increases the Fair Value Gap priority weight and relaxes entry distance buffers on subsequent setups.</>
-                      : <>The miss is recorded for your statistics. The engine&apos;s weights stay on the tested setup, because re-tuning them after each live trade did worse in the 24 month replay.</>}
+                    <strong>2. What a miss changes:</strong> {selfLearning
+                      ? <>With self-learning on, misses teach the engine how far its entries sit from where price actually turns; once enough have built up, and only if filled trades are worth having, entries move closer on later setups.</>
+                      : <>The miss is recorded for your statistics. With self-learning off the engine&apos;s weights stay on the tested setup.</>}
                   </p>
                   <p>
                     <strong>3. Instant Market Execution:</strong> If the setup has not reached TP1 and the multi-timeframe trend remains intact, you can click <em>&quot;Instant Market Fill&quot;</em> to recalibrate your entry at the live market price without increasing your dollar risk.
