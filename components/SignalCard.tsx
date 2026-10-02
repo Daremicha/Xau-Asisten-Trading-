@@ -6,6 +6,7 @@ import { formatAccountMoney } from '@/lib/account-display';
 import { computeTradeResult } from '@/lib/trade-result';
 import AiReviewPanel from '@/components/AiReviewPanel';
 import { isUnresolved } from '@/lib/active-setup-store';
+import type { RepeatedMiss } from '@/lib/repeat-level';
 import {
   ClosedTrade,
   InstitutionalTradingSetup,
@@ -34,6 +35,7 @@ import {
   Filter,
   Info,
   Layers,
+  History,
 } from 'lucide-react';
 
 interface SignalCardProps {
@@ -61,6 +63,8 @@ interface SignalCardProps {
   onRetryAiReview?: () => void;
   /** Whether live trades re-tune the engine, the user's switch. */
   selfLearning?: boolean;
+  /** Set when this level already missed in the last seven days. */
+  repeatedMiss?: RepeatedMiss | null;
   theme?: 'dark' | 'light';
 }
 
@@ -103,6 +107,7 @@ export default function SignalCard({
   protectStopAtR = null,
   onRetryAiReview,
   selfLearning = false,
+  repeatedMiss = null,
   theme = 'dark',
 }: SignalCardProps) {
   const isDark = theme === 'dark';
@@ -602,6 +607,29 @@ Ready for direct execution in MetaTrader 5.`;
                   <p>
                     <strong>3. Instant Market Execution:</strong> If the setup has not reached TP1 and the multi-timeframe trend remains intact, you can click <em>&quot;Instant Market Fill&quot;</em> to recalibrate your entry at the live market price without increasing your dollar risk.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* The same level already missed recently: offered anyway, because
+                skipping it did not reliably do better, but said so. */}
+            {repeatedMiss && isUnresolved(setup) && (
+              <div
+                id="repeated-miss-notice"
+                className={`flex items-start gap-2 p-3 rounded-xl border text-xs ${
+                  isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}
+              >
+                <History className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+                <div>
+                  <div className="font-bold">
+                    This level already missed {repeatedMiss.count === 1 ? 'once' : `${repeatedMiss.count} times`} in the last 7 days
+                  </div>
+                  <div className={`mt-0.5 ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
+                    Last at {formatLocalTime(repeatedMiss.lastAt)}. The order block or gap behind it is still on the chart, so the
+                    engine offers it again. Skipping re-offered levels was tested over 24 months and did not do reliably
+                    better, so it is your call whether to place it.
+                  </div>
                 </div>
               </div>
             )}

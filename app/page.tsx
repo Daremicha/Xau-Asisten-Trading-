@@ -98,6 +98,7 @@ import { fetchAiReview } from '@/lib/ai-review-client';
 import { closedAlert, filledAlert, missedAlert, protectAlert } from '@/lib/trade-alerts';
 import AlertsStatus from '@/components/AlertsStatus';
 import LessonsPanel from '@/components/LessonsPanel';
+import { previousMisses } from '@/lib/repeat-level';
 import BottomNav, { APP_TABS, SectionHeading, type AppTab } from '@/components/BottomNav';
 import {
   DEFAULT_SELF_LEARNING,
@@ -640,6 +641,12 @@ export default function Home() {
     // Also re-checked the moment the screen's own trade is settled, which is
     // when the server starts scanning for the next one.
   }, [setupHydrated, noActiveSetup]);
+
+  // Whether the level on offer already missed this week; the card says so.
+  const repeatedMiss = useMemo(
+    () => (activeSetup ? previousMisses(activeSetup, learningRecords) : null),
+    [activeSetup, learningRecords]
+  );
 
   // The language models' second opinion, asked once for each new setup. It is
   // shown on the card and recorded with the trade; the order is the engine's.
@@ -2098,6 +2105,7 @@ export default function Home() {
               currentPrice={marketPrice}
               protectStopAtR={protectStopAtR}
               onRetryAiReview={retryAiReview}
+              repeatedMiss={repeatedMiss}
               selfLearning={selfLearning}
               theme={theme}
             />
