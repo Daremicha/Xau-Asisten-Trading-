@@ -51,6 +51,12 @@ export interface ValidatedAnalyzeRequest {
   /** True when the user's self-learning switch is on: live trades re-tune the weights. */
   selfLearning: boolean;
   /**
+   * Refuse a setup the broker's minimum lot cannot size within the risk
+   * percentage. On unless the user turned it off, so a client that predates
+   * the switch gets the safe answer.
+   */
+  riskGuard: boolean;
+  /**
    * Starting parameters a backtest produced, which the live engine shrinks
    * toward instead of its own defaults. Null when the user has not adopted one.
    */
@@ -148,6 +154,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
       dailyLossLimitPercent,
       quickTarget: b.quickTarget === true,
       selfLearning: b.selfLearning === true,
+      riskGuard: b.riskGuard !== false,
       priorWeights,
     },
     errors: [],

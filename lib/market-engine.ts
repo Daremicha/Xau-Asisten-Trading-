@@ -60,6 +60,20 @@ export function getContractSpecification(
 }
 
 /**
+ * Dollars of price a stop is assumed to slip by when it fills, on top of the
+ * spread. The backtest charges the same amount, so the risk the card quotes is
+ * the risk the replay measured.
+ */
+export const STOP_SLIPPAGE_DOLLARS = 0.2;
+
+/**
+ * Whether a setup the broker's minimum lot cannot size within the user's risk
+ * percentage is refused. On by default: the percentage is a ceiling, and a
+ * trade that breaks it should be the user's explicit choice.
+ */
+export const DEFAULT_RISK_GUARD = true;
+
+/**
  * Calculates MetaTrader 5 lot size for XAUUSD (Gold).
  * Adjusts dynamically based on Broker (Exness, HFM, IC Markets, etc.), Account Type (Standard, Cent, Pro),
  * and Trading Style (Scalping, Intraday, Swing).
@@ -77,9 +91,10 @@ export function calculateXAUUSDLotSize(
   /** The risk the user asked for. */
   riskDollars: number;
   /**
-   * What the recommended lot actually risks. When the broker's minimum lot is
-   * larger than the budget allows, this exceeds riskDollars, and saying so
-   * matters more than the tidy number the user asked for.
+   * What the recommended lot actually risks, spread and stop slippage included.
+   * When the broker's minimum lot is larger than the budget allows, this
+   * exceeds riskDollars, and saying so matters more than the tidy number the
+   * user asked for.
    */
   actualRiskDollars: number;
   /** True when the minimum lot forces more risk than the budget allows. */
@@ -107,6 +122,10 @@ export function calculateXAUUSDLotSize(
   const minDistance = tradingStyle === 'Scalping' ? 0.3 : tradingStyle === 'Intraday' ? 0.8 : 2.0;
   const validDistance = Math.max(priceDistance, minDistance);
   const stopLossPips = parseFloat((validDistance * 10).toFixed(1));
+  // A stop loses more than its distance: the spread is paid on the way in and
+  // the stop can slip on the way out. Sizing on the distance alone let the
+  // real loss run past the budget the user set, so the lot is sized on both.
+  const lossPerOz = validDistance + specs.typicalSpreadPips * 0.1 + STOP_SLIPPAGE_DOLLARS;
 
   // Four decimals, not two. On a cent account two decimals of a dollar is a
   // whole cent, so a budget of 4.5 cent was being rounded to 5 and the number
@@ -117,8 +136,8 @@ export function calculateXAUUSDLotSize(
 
   if (accountType === 'Cent') {
     // In Cent Account, 1 lot = 1 Troy Oz.
-    // Price move of validDistance causes a loss of validDistance * 1.00 dollar per 1.00 Cent Lot.
-    const lossPerCentLot = validDistance * 1.0;
+    // Each dollar the stop costs an ounce is one dollar per 1.00 Cent Lot.
+    const lossPerCentLot = lossPerOz * 1.0;
     rawLot = riskDollars / lossPerCentLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(500.0, rawLot));
@@ -137,7 +156,7 @@ export function calculateXAUUSDLotSize(
 
   if (accountType === 'Pro') {
     // In Pro ECN Account, 1 lot = 100 Troy Oz, plus broker commission round turn per lot
-    const dollarLossPerProLot = validDistance * 100 + specs.commissionPerLot;
+    const dollarLossPerProLot = lossPerOz * 100 + specs.commissionPerLot;
     rawLot = riskDollars / dollarLossPerProLot;
     rawLot = Math.floor(rawLot * 100) / 100;
     const lotSize = Math.max(0.01, Math.min(50.0, rawLot));
@@ -154,8 +173,8 @@ export function calculateXAUUSDLotSize(
     };
   }
 
-  // Standard Account: 1 lot = 100 Troy Oz, spread included
-  const dollarLossPerStandardLot = validDistance * 100;
+  // Standard Account: 1 lot = 100 Troy Oz
+  const dollarLossPerStandardLot = lossPerOz * 100;
   rawLot = riskDollars / dollarLossPerStandardLot;
   rawLot = Math.floor(rawLot * 100) / 100;
   const lotSize = Math.max(0.01, Math.min(50.0, rawLot));

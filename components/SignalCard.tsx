@@ -822,14 +822,21 @@ Ready for direct execution in MetaTrader 5.`;
                     )}
                   </div>
                 )}
-                {/* The broker's minimum lot can risk more than the budget allows.
-                    Showing only the budget would understate the real exposure. */}
-                {setup.exceedsRiskBudget && typeof setup.actualRiskDollars === 'number' && (
-                  <div className="text-rose-400">
-                    Actual risk:{' '}
+                {/* What the stop actually costs, spread and slippage included,
+                    against the balance. The broker's minimum lot can push it
+                    past the budget, and showing only the budget would
+                    understate the real exposure. */}
+                {typeof setup.actualRiskDollars === 'number' && (
+                  <div id="risk-at-stop" className={setup.exceedsRiskBudget ? 'text-rose-400' : undefined}>
+                    Loss at SL:{' '}
                     <strong>{formatAccountMoney(setup.actualRiskDollars, setup.accountType)}</strong>
+                    {typeof setup.balanceAtSetup === 'number' && setup.balanceAtSetup > 0 && (
+                      <> ({((setup.actualRiskDollars / setup.balanceAtSetup) * 100).toFixed(1)}% of balance)</>
+                    )}
                     <span className="text-[10px] block leading-snug mt-0.5">
-                      Broker minimum lot exceeds your budget. Lower the stop distance or raise the balance.
+                      {setup.exceedsRiskBudget
+                        ? `The broker's smallest lot loses more than your ${setup.riskPercentage}% budget. With the risk guard on in Account, setups like this are refused.`
+                        : `Spread and stop slippage included, within your ${setup.riskPercentage}% budget.`}
                     </span>
                   </div>
                 )}
@@ -1089,11 +1096,39 @@ Ready for direct execution in MetaTrader 5.`;
                   ? 'The only price available is the wrong instrument'
                   : skipped.reason === 'daily-limit'
                   ? 'Daily loss limit reached'
+                  : skipped.reason === 'risk-cap'
+                  ? 'The smallest lot would break your risk setting'
                   : 'Nothing worth trading right now'}
               </h3>
             </div>
 
-            {skipped.reason === 'daily-limit' ? null : skipped.reason === 'feed-mismatch' ? (
+            {skipped.reason === 'daily-limit' ? null : skipped.reason === 'risk-cap' && skipped.riskCap ? (
+              <div
+                id="risk-cap-notice"
+                className={`text-center text-xs space-y-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}
+              >
+                <p>
+                  There was a setup, but at the broker&apos;s smallest lot its stop would lose{' '}
+                  <strong className="text-rose-400">
+                    {formatAccountMoney(skipped.riskCap.actualRiskDollars, skipped.riskCap.accountType)} (
+                    {skipped.riskCap.actualPercent.toFixed(1)}% of the balance)
+                  </strong>
+                  , spread and slippage included. Your setting allows{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {skipped.riskCap.riskPercentage}% (
+                    {formatAccountMoney(skipped.riskCap.budgetDollars, skipped.riskCap.accountType)})
+                  </strong>
+                  .
+                </p>
+                <p>
+                  The same trade fits your setting from a balance of about{' '}
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
+                    {formatAccountMoney(skipped.riskCap.balanceNeeded, skipped.riskCap.accountType)}
+                  </strong>
+                  .
+                </p>
+              </div>
+            ) : skipped.reason === 'feed-mismatch' ? (
               <div className={`text-center text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Gold futures and spot XAUUSD are different contracts, tens of dollars apart. Levels
                 read from one do not work at a broker quoting the other, so none were produced.
@@ -1193,6 +1228,8 @@ Ready for direct execution in MetaTrader 5.`;
             <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
               {skipped.reason === 'daily-limit'
                 ? 'A bad day ends here, before it becomes a bad week. You can change or turn off the limit in Capital & Account Configuration.'
+                : skipped.reason === 'risk-cap'
+                ? 'Raise the balance, or raise the risk per trade, or turn the risk guard off in Account to take it at the smallest lot anyway. A run of stops at this size empties a small account quickly.'
                 : skipped.reason === 'feed-mismatch'
                 ? 'Automatic fills and closes are paused while this lasts, so nothing is recorded from a price your market never traded. Run the analysis again once the spot feed is back.'
                 : skipped.reason === 'unfillable'

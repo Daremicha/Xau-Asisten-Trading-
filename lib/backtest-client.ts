@@ -91,6 +91,8 @@ export interface BacktestJobOptions {
   dailyLossLimitPercent?: number | null;
   /** A single target at 0.5R, when the user turned the quick target on. */
   quickTarget?: boolean;
+  /** Refuse setups the minimum lot cannot size within the risk, as live analysis does. */
+  riskGuard?: boolean;
   /** Releases the replay reacts to. Fetched by the job when left out. */
   economicEvents?: ForexFactoryEvent[];
   onProgress?: (update: BacktestProgressUpdate) => void;
@@ -318,6 +320,7 @@ async function replay(
     // replay does too.
     londonBreakout: true,
     quickTarget: options.quickTarget ?? false,
+    riskGuard: options.riskGuard ?? false,
   });
 
   let guard = 0;

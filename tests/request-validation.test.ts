@@ -61,6 +61,7 @@ describe('analysis request validation', () => {
       dailyLossLimitPercent: null,
       quickTarget: false,
       selfLearning: false,
+      riskGuard: true,
       skipConvictionBand: null,
       priorWeights: null,
     });
@@ -185,5 +186,16 @@ describe('the conviction floor on an analysis request', () => {
       'minConviction'
     );
     expect(validateAnalyzeBody({ equity: 5000, minConviction: -5 }).value).toBeNull();
+  });
+});
+
+describe('the risk guard', () => {
+  test('is on when the client does not say, so an older app gets the safe answer', () => {
+    expect(validateAnalyzeBody({ equity: 100, riskPercentage: 1 }).value?.riskGuard).toBe(true);
+  });
+
+  test('is off only when the user turned it off', () => {
+    expect(validateAnalyzeBody({ equity: 100, riskPercentage: 1, riskGuard: false }).value?.riskGuard).toBe(false);
+    expect(validateAnalyzeBody({ equity: 100, riskPercentage: 1, riskGuard: 'no' }).value?.riskGuard).toBe(true);
   });
 });

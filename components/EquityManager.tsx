@@ -22,10 +22,12 @@ import {
   Info,
   Target,
   Brain,
+  ShieldAlert,
 } from 'lucide-react';
 import { TradingStyle, AccountType, BrokerId, BROKER_PROFILES } from '@/lib/types';
 import { formatAccountMoney, isCentAccount } from '@/lib/account-display';
-import { stopBandLabel, stopBandPips } from '@/lib/style-profiles';
+import { STYLE_PROFILES, stopBandLabel, stopBandPips } from '@/lib/style-profiles';
+import { calculateXAUUSDLotSize } from '@/lib/market-engine';
 import { DAILY_LOSS_LIMIT_CHOICES, DEFAULT_DAILY_LOSS_LIMIT } from '@/lib/daily-loss';
 import { QUICK_TARGET_R } from '@/lib/quick-target';
 
@@ -52,6 +54,9 @@ interface EquityManagerProps {
   /** Whether live trades re-tune the engine. */
   selfLearning?: boolean;
   onChangeSelfLearning?: (on: boolean) => void;
+  /** Refuse setups the minimum lot cannot size within the risk percentage. */
+  riskGuard?: boolean;
+  onChangeRiskGuard?: (on: boolean) => void;
   /** Switches to the style and floor that held up in the 24 month replay. */
   onApplyTestedConfiguration?: () => void;
   onChangeTradingStyle: (style: TradingStyle) => void;
@@ -79,6 +84,8 @@ export default function EquityManager({
   onChangeQuickTarget,
   selfLearning = true,
   onChangeSelfLearning,
+  riskGuard = true,
+  onChangeRiskGuard,
   onApplyTestedConfiguration,
   onChangeTradingStyle,
   onChangeAccountType,
@@ -328,6 +335,83 @@ export default function EquityManager({
 
       {/* Whether the engine re-tunes itself after every closed trade. The
           user's choice, on by default, with what the replay said beside it. */}
+      {/* The risk percentage as a ceiling. Most stops sit on the style's widest
+          allowed distance, so that is the trade the smallest lot is priced on. */}
+      {onChangeRiskGuard &&
+        (() => {
+          const typicalStop = STYLE_PROFILES[tradingStyle].maxStopDollars;
+          const smallest = calculateXAUUSDLotSize(
+            equity,
+            riskPercentage,
+            4000,
+            4000 - typicalStop,
+            accountType,
+            tradingStyle,
+            selectedBroker
+          );
+          const minLotRisk = smallest.exceedsRiskBudget ? smallest.actualRiskDollars : null;
+          const minLotPercent = minLotRisk !== null && equity > 0 ? (minLotRisk / equity) * 100 : null;
+          return (
+            <div
+              id="risk-guard-setting"
+              className={`flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-2.5 rounded-xl border ${
+                minLotRisk !== null
+                  ? isDark
+                    ? 'bg-rose-500/5 border-rose-500/30'
+                    : 'bg-rose-50 border-rose-200'
+                  : isDark
+                  ? 'bg-slate-950 border-slate-800'
+                  : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <span
+                className={`text-[11px] px-1 font-medium flex items-center gap-1.5 shrink-0 ${
+                  isDark ? 'text-slate-400' : 'text-slate-600'
+                }`}
+              >
+                <ShieldAlert className="w-3 h-3" /> Risk guard:
+              </span>
+              <div className="flex items-center gap-1.5">
+                {[false, true].map((on) => (
+                  <button
+                    key={String(on)}
+                    type="button"
+                    id={`risk-guard-${on ? 'on' : 'off'}`}
+                    onClick={() => onChangeRiskGuard(on)}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      riskGuard === on
+                        ? on
+                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                          : 'bg-rose-500 text-white shadow-sm'
+                        : isDark
+                        ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    {on ? 'On' : 'Off'}
+                  </button>
+                ))}
+              </div>
+              <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {riskGuard
+                  ? `On: a setup is refused when the smallest lot would lose more than ${riskPercentage}% of the balance, spread and stop slippage included.`
+                  : `Off: setups are offered at the smallest lot even when it loses more than ${riskPercentage}%. The card shows the real figure.`}
+                {minLotRisk !== null && minLotPercent !== null && (
+                  <span className={`block mt-0.5 font-semibold ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
+                    At this balance the smallest lot on a typical {Math.round(typicalStop * 10)} pip stop loses{' '}
+                    {formatAccountMoney(minLotRisk, accountType)}, {minLotPercent.toFixed(1)}% of the balance.
+                    {riskGuard
+                      ? ' Almost every setup will be refused until the balance or the risk setting is higher.'
+                      : ''}{' '}
+                    The balance that fits {riskPercentage}% is about{' '}
+                    {formatAccountMoney(minLotRisk / (riskPercentage / 100), accountType)}.
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })()}
+
       {onChangeSelfLearning && (
         <div
           id="self-learning-setting"

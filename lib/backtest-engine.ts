@@ -119,6 +119,12 @@ export interface BacktestConfig {
    */
   quickTarget?: boolean;
   /**
+   * Refuse a setup when the broker's minimum lot would lose more than the risk
+   * percentage asked for, as the live app does with its risk guard on. Off
+   * unless asked for, so older replays keep trading the minimum lot.
+   */
+  riskGuard?: boolean;
+  /**
    * Dollars an order filled at market loses to slippage: instant entries,
    * stops and holding-limit closes. Defaults to DEFAULT_SLIPPAGE_DOLLARS.
    */
@@ -217,6 +223,8 @@ export interface BacktestRunSummary {
   belowConviction: number;
   /** Decisions passed over because the daily loss limit had been reached. */
   dailyLimitSkips?: number;
+  /** Setups refused because the minimum lot would have broken the risk asked for. */
+  riskCapSkips?: number;
 }
 
 export interface BacktestResult {
@@ -563,6 +571,7 @@ export function createBacktest(config: BacktestConfig): Runner {
   let decisions = 0;
   let skipped = 0;
   let belowConviction = 0;
+  let riskCapSkips = 0;
   let dailyLimitSkips = 0;
   const dailyLossLimit = config.dailyLossLimitPercent ?? null;
   const minConviction = Math.max(0, Math.min(100, config.minConviction ?? 0));
@@ -773,6 +782,13 @@ export function createBacktest(config: BacktestConfig): Runner {
       }
     }
 
+    // The risk asked for is a ceiling. When even the smallest lot breaks it,
+    // the setup is refused rather than traded at a size nobody agreed to.
+    if (config.riskGuard && order.lot.actualRiskDollars > equity * (riskPercentage / 100) + 0.005) {
+      riskCapSkips += 1;
+      cursor = i + cooldownBars;
+      return;
+    }
     if (order.contextAnchor !== BREAKOUT_ANCHOR && config.quickTarget) {
       order = { ...order, takeProfit1: quickTargets(order.entryPrice, order.stopLoss, order.direction).takeProfit1 };
     }
@@ -961,6 +977,7 @@ export function createBacktest(config: BacktestConfig): Runner {
           minConviction,
           belowConviction,
           dailyLimitSkips,
+          riskCapSkips,
         },
         trades,
         equityCurve,

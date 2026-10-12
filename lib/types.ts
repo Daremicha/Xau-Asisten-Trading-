@@ -402,7 +402,7 @@ export interface SkippedSetup {
    * recorded as a missed entry the moment it was placed, or the only feed
    * available quotes a different instrument from the one being traded.
    */
-  reason: 'below-conviction' | 'dead-band' | 'unfillable' | 'feed-mismatch' | 'daily-limit';
+  reason: 'below-conviction' | 'dead-band' | 'unfillable' | 'feed-mismatch' | 'daily-limit' | 'risk-cap';
   convictionScore: number;
   band: 'Low' | 'Moderate' | 'High';
   threshold: number;
@@ -428,6 +428,18 @@ export interface SkippedSetup {
    * price had run too far from it for an order to rest there.
    */
   watchPrice?: number | null;
+  /**
+   * What the smallest lot would have risked, when the risk guard refused the
+   * setup for it, and the balance at which the same trade fits the setting.
+   */
+  riskCap?: {
+    actualRiskDollars: number;
+    budgetDollars: number;
+    actualPercent: number;
+    riskPercentage: number;
+    balanceNeeded: number;
+    accountType: AccountType;
+  } | null;
   direction: 'long' | 'short';
   notes: string[];
   rationale: string;
@@ -519,6 +531,8 @@ export interface InstitutionalTradingSetup {
    *  the broker's minimum lot is larger than the budget allows. */
   actualRiskDollars?: number;
   exceedsRiskBudget?: boolean;
+  /** The balance the lot was sized from, so the loss can be shown as a share of it. */
+  balanceAtSetup?: number;
   riskPercentage: number;
   multiTimeframeAlignment: {
     d1: SmcStructure;

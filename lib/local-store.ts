@@ -33,6 +33,8 @@ export const LOCAL_KEYS = {
   quickTarget: 'xauusd_quick_target',
   /** Whether live trades re-tune the engine; see DEFAULT_SELF_LEARNING. */
   selfLearning: 'xauusd_self_learning',
+  /** Whether setups the smallest lot cannot size within the risk are refused. */
+  riskGuard: 'xauusd_risk_guard',
   /** Dark or light, so the app opens looking the way it was left. */
   theme: 'xauusd_theme',
   /**
@@ -76,6 +78,7 @@ export interface LocalProfile {
   quickTarget: boolean | null;
   /** Self-learning on or off, or null when never chosen and the default applies. */
   selfLearning: boolean | null;
+  riskGuard: boolean | null;
   /** Dark or light, or null when the user has never chosen. */
   theme: 'dark' | 'light' | null;
 }
@@ -172,6 +175,10 @@ export function readLocalProfile(): LocalProfile {
       const raw = readRaw(LOCAL_KEYS.selfLearning);
       return raw === 'true' ? true : raw === 'false' ? false : null;
     })(),
+    riskGuard: (() => {
+      const raw = readRaw(LOCAL_KEYS.riskGuard);
+      return raw === 'true' ? true : raw === 'false' ? false : null;
+    })(),
     theme: (() => {
       const raw = readRaw(LOCAL_KEYS.theme);
       return raw === 'dark' || raw === 'light' ? raw : null;
@@ -242,6 +249,7 @@ export interface ProfileSettings {
   dailyLossLimit: number;
   quickTarget: boolean;
   selfLearning: boolean;
+  riskGuard: boolean;
   backtestPrior: PriorWeights | null;
   theme: 'dark' | 'light';
 }
@@ -261,6 +269,7 @@ export const CLOUD_FIELDS: Record<keyof ProfileSettings, string> = {
   dailyLossLimit: 'dailyLossLimit',
   quickTarget: 'quickTarget',
   selfLearning: 'selfLearning',
+  riskGuard: 'riskGuard',
   backtestPrior: 'backtestPrior',
   theme: 'theme',
 };
@@ -297,6 +306,7 @@ export function writeLocalSettings(patch: Partial<ProfileSettings>): void {
   if (patch.dailyLossLimit !== undefined) writeRaw(LOCAL_KEYS.dailyLossLimit, String(patch.dailyLossLimit));
   if (patch.quickTarget !== undefined) writeRaw(LOCAL_KEYS.quickTarget, String(patch.quickTarget));
   if (patch.selfLearning !== undefined) writeRaw(LOCAL_KEYS.selfLearning, String(patch.selfLearning));
+  if (patch.riskGuard !== undefined) writeRaw(LOCAL_KEYS.riskGuard, String(patch.riskGuard));
   if (patch.backtestPrior !== undefined) {
     writeRaw(LOCAL_KEYS.backtestPrior, patch.backtestPrior === null ? null : JSON.stringify(patch.backtestPrior));
   }
@@ -360,6 +370,7 @@ export function settingsMissingFromCloud(
   }
   if (absent(CLOUD_FIELDS.quickTarget) && local.quickTarget !== null) missing.quickTarget = local.quickTarget;
   if (absent(CLOUD_FIELDS.selfLearning) && local.selfLearning !== null) missing.selfLearning = local.selfLearning;
+  if (absent(CLOUD_FIELDS.riskGuard) && local.riskGuard !== null) missing.riskGuard = local.riskGuard;
   if (absent(CLOUD_FIELDS.backtestPrior) && local.backtestPrior !== null) {
     missing.backtestPrior = local.backtestPrior;
   }

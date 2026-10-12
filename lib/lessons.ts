@@ -9,6 +9,8 @@
  */
 
 import type { SelfLearningMemoryRecord } from './types';
+import { expectancyInterval, MIN_INTERVAL_TRADES } from './robustness';
+import { TESTED_EXPECTANCY_R } from './tested-configuration';
 
 export interface Lesson {
   tone: 'good' | 'bad' | 'info';
@@ -100,6 +102,44 @@ function lessonsFor(
     });
   }
   return out;
+}
+
+/**
+ * Whether the user's live trades are behaving like the replay the settings
+ * rest on. A backtest is a claim; live fills are the check on it. With few
+ * trades the honest answer is that the two cannot be told apart yet.
+ */
+export function liveVersusReplay(records: SelfLearningMemoryRecord[]): Lesson {
+  const filled = records.filter((r) => !r.id.startsWith('bt_') && (r.outcome === 'TP' || r.outcome === 'SL'));
+  const replay = signedR(TESTED_EXPECTANCY_R);
+  const range = expectancyInterval(filled.map(rOf));
+  if (!range) {
+    return {
+      tone: 'info',
+      title: `Live against the replay: ${filled.length} closed trades`,
+      detail: `The replay earned ${replay} a trade. A fair comparison needs at least ${MIN_INTERVAL_TRADES} closed live trades.`,
+    };
+  }
+  const span = `${signedR(range.low)} to ${signedR(range.high)}`;
+  if (range.high < TESTED_EXPECTANCY_R) {
+    return {
+      tone: 'bad',
+      title: `Live trades are doing worse than the replay`,
+      detail: `${range.trades} trades averaged ${signedR(range.mean)}, and even the top of the 95% range (${span}) is under the replay's ${replay}. Real fills, costs or the market are not what was tested: cut the risk, or trade on paper, until this changes.`,
+    };
+  }
+  if (range.low > TESTED_EXPECTANCY_R) {
+    return {
+      tone: 'good',
+      title: `Live trades are doing better than the replay`,
+      detail: `${range.trades} trades averaged ${signedR(range.mean)}, with the whole 95% range (${span}) above the replay's ${replay}. Good luck counts too; do not raise the risk on it.`,
+    };
+  }
+  return {
+    tone: 'info',
+    title: `Live trades are in line with the replay so far`,
+    detail: `${range.trades} trades averaged ${signedR(range.mean)}. The 95% range (${span}) includes the replay's ${replay}, so the difference is still within chance. More trades narrow the range.`,
+  };
 }
 
 /**
