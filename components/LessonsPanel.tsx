@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { GraduationCap, TrendingUp, AlertTriangle, Info, Brain } from 'lucide-react';
-import { tradeLessons, type Lesson } from '@/lib/lessons';
+import { liveVersusReplay, tradeLessons, type Lesson } from '@/lib/lessons';
 import { deriveAdaptiveWeights, type PriorWeights } from '@/lib/learning-engine';
 import type { SelfLearningMemoryRecord, TradingStyle } from '@/lib/types';
 
@@ -27,7 +27,10 @@ export default function LessonsPanel({
   theme = 'dark',
 }: LessonsPanelProps) {
   const isDark = theme === 'dark';
-  const lessons = useMemo(() => tradeLessons(learningRecords), [learningRecords]);
+  const lessons = useMemo(
+    () => [liveVersusReplay(learningRecords), ...tradeLessons(learningRecords)],
+    [learningRecords]
+  );
   // The same calculation the analysis runs with self-learning on, so what is
   // listed here is what the next setup is built with.
   const changes = useMemo(

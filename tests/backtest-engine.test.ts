@@ -391,6 +391,28 @@ describe('replay', () => {
   });
 });
 
+describe('the risk guard', () => {
+  const candles = walk(3200);
+
+  test('refuses every setup the smallest lot cannot size within the risk', () => {
+    // Ten cent at one percent is a tenth of a cent; no stop fits that.
+    const small = { accountType: 'Cent' as const, startingEquity: 0.1, riskPercentage: 1, warmupBars: 1400 };
+    const guarded = runBacktest(config(candles, { ...small, riskGuard: true }));
+    const open = runBacktest(config(candles, small));
+    expect(open.trades.length).toBeGreaterThan(0);
+    expect(guarded.trades).toHaveLength(0);
+    expect(guarded.summary.riskCapSkips).toBeGreaterThan(0);
+  });
+
+  test('changes nothing on an account the budget can size', () => {
+    const guarded = runBacktest(config(candles, { warmupBars: 1400, riskGuard: true }));
+    const open = runBacktest(config(candles, { warmupBars: 1400 }));
+    expect(guarded.trades.length).toBe(open.trades.length);
+    expect(guarded.summary.riskCapSkips).toBe(0);
+    for (const t of guarded.trades) expect(t.minimumLotForced).toBe(false);
+  });
+});
+
 describe('a conviction floor', () => {
   const candles = walk(6000);
 

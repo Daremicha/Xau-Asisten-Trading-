@@ -83,7 +83,12 @@ import {
   BrokerId,
   ForexFactoryEvent,
 } from '@/lib/types';
-import { calculateXAUUSDLotSize, getICTKillZoneStatus, recalculateEngineWeights } from '@/lib/market-engine';
+import {
+  calculateXAUUSDLotSize,
+  DEFAULT_RISK_GUARD,
+  getICTKillZoneStatus,
+  recalculateEngineWeights,
+} from '@/lib/market-engine';
 import {
   evaluatePriceProximity,
   getNotificationPermission,
@@ -317,6 +322,8 @@ export default function Home() {
   const [learningRecords, setLearningRecords] = useState<SelfLearningMemoryRecord[]>([]);
   // Whether live trades re-tune the engine. The user's switch, on by default.
   const [selfLearning, setSelfLearning] = useState<boolean>(DEFAULT_SELF_LEARNING);
+  // Refuse setups the minimum lot cannot size within the risk percentage.
+  const [riskGuard, setRiskGuard] = useState<boolean>(DEFAULT_RISK_GUARD);
   // The weights the engine trades with: what the live trades taught it when
   // self-learning is on, the tested starting point (or an adopted backtest
   // prior) when it is off. The same calculation the analysis runs.
@@ -391,6 +398,7 @@ export default function Home() {
     if (profile.dailyLossLimit !== null) setDailyLossLimit(profile.dailyLossLimit);
     if (profile.quickTarget !== null) setQuickTarget(profile.quickTarget);
     if (profile.selfLearning !== null) setSelfLearning(profile.selfLearning);
+    if (profile.riskGuard !== null) setRiskGuard(profile.riskGuard);
     if (profile.skipConvictionBand) setSkipConvictionBand(profile.skipConvictionBand);
     if (profile.learningRecords.length > 0) {
       setLearningRecords(profile.learningRecords);
@@ -571,6 +579,7 @@ export default function Home() {
       dailyLossLimitPercent: dailyLossLimit,
       protectAtR: protectStopAtR,
       quickTarget,
+      riskGuard,
       recentResults: closedResults(learningRecords).filter((r) => r.closedAt >= since),
       // The scan sees only each trade's result, not what it was taken under,
       // so with self-learning on it is handed the weights the trades taught.
@@ -586,6 +595,7 @@ export default function Home() {
     dailyLossLimit,
     protectStopAtR,
     quickTarget,
+    riskGuard,
     learningRecords,
     backtestPrior,
     selfLearning,
@@ -787,6 +797,7 @@ export default function Home() {
             }
             if (typeof data.quickTarget === 'boolean') setQuickTarget(data.quickTarget);
             if (typeof data.selfLearning === 'boolean') setSelfLearning(data.selfLearning);
+            if (typeof data.riskGuard === 'boolean') setRiskGuard(data.riskGuard);
             const band = data.skipConvictionBand as { min?: unknown; max?: unknown } | null;
             if (
               band &&
@@ -826,6 +837,7 @@ export default function Home() {
               ...(typeof data.dailyLossLimit === 'number' ? { dailyLossLimit: data.dailyLossLimit } : {}),
               ...(typeof data.quickTarget === 'boolean' ? { quickTarget: data.quickTarget } : {}),
               ...(typeof data.selfLearning === 'boolean' ? { selfLearning: data.selfLearning } : {}),
+              ...(typeof data.riskGuard === 'boolean' ? { riskGuard: data.riskGuard } : {}),
               ...(data.theme === 'dark' || data.theme === 'light' ? { theme: data.theme } : {}),
             });
             markMirrorOwner(user.uid);
@@ -1269,6 +1281,13 @@ export default function Home() {
     void persistSettings({ selfLearning: on });
   };
 
+  /** Turns the minimum-lot risk guard on or off. */
+  const handleChangeRiskGuard = (on: boolean) => {
+    setRiskGuard(on);
+    setSkippedSetup(null);
+    void persistSettings({ riskGuard: on });
+  };
+
   /** Turns the quick target on or off. */
   const handleChangeQuickTarget = (on: boolean) => {
     setQuickTarget(on);
@@ -1389,6 +1408,7 @@ export default function Home() {
           dailyLossLimitPercent: dailyLossLimit,
           quickTarget,
           selfLearning,
+          riskGuard,
           // What the engine shrinks toward. Null keeps its own defaults.
           priorWeights: backtestPrior,
         }),
@@ -2195,7 +2215,7 @@ export default function Home() {
             summary={{
               equity,
               accountType,
-              settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget, selfLearning },
+              settings: { tradingStyle, minConviction, protectStopAtR, dailyLossLimit, quickTarget, selfLearning, riskGuard },
             }}
             theme={theme}
           />
@@ -2231,6 +2251,7 @@ export default function Home() {
             skipConvictionBand={skipConvictionBand}
             dailyLossLimit={dailyLossLimit}
             quickTarget={quickTarget}
+            riskGuard={riskGuard}
             onSkipBand={handleSkipBand}
             theme={theme}
           />
@@ -2258,6 +2279,8 @@ export default function Home() {
             onChangeQuickTarget={handleChangeQuickTarget}
             selfLearning={selfLearning}
             onChangeSelfLearning={handleChangeSelfLearning}
+            riskGuard={riskGuard}
+            onChangeRiskGuard={handleChangeRiskGuard}
             onLockEquity={handleLockEquity}
             onSetEquity={handleSetEquity}
             onChangeRiskPct={handleChangeRiskPercentage}

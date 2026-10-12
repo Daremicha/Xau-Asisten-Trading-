@@ -32,6 +32,12 @@ export const TESTED_STYLE: TradingStyle = 'Intraday';
 export const TESTED_FLOOR = 40;
 /** Multiple of risk at which the stop moves to entry. */
 export const TESTED_PROTECT_AT_R = 1;
+/**
+ * What the replay earned per filled trade, Intraday, take-all, stop to entry
+ * at 1R, slippage and news included: 0.122R. Live trades are compared with it
+ * to see whether real fills are behaving like the replay.
+ */
+export const TESTED_EXPECTANCY_R = 0.12;
 
 /** Every Intraday floor the app offers held up, taking everything included. */
 export function followsTestedConfiguration(style: TradingStyle, floor: number): boolean {

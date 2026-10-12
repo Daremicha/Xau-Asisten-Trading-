@@ -502,10 +502,11 @@ describe('lot sizing reports the risk actually taken', () => {
     expect(calc.exceedsRiskBudget).toBe(true);
   });
 
-  test('the actual risk always matches lot times stop distance', () => {
+  test('the actual risk always matches lot times the loss at the stop, costs included', () => {
     for (const account of ['Standard', 'Cent', 'Pro'] as const) {
       const calc = calculateXAUUSDLotSize(5000, 2, 4200, 4185, account, 'Intraday', 'EXNESS');
-      const perLot = account === 'Cent' ? 15 : 15 * 100 + calc.contractSpecs.commissionPerLot;
+      const perOz = 15 + calc.contractSpecs.typicalSpreadPips * 0.1 + 0.2;
+      const perLot = account === 'Cent' ? perOz : perOz * 100 + calc.contractSpecs.commissionPerLot;
       expect(calc.actualRiskDollars).toBeCloseTo(calc.lotSize * perLot, 1);
     }
   });
@@ -642,8 +643,9 @@ describe('the risk budget keeps cent precision', () => {
 
   test('what the lot actually risks is reported at the same precision', () => {
     const calc = calculateXAUUSDLotSize(9.01, 0.5, 4300, 4290.45, 'Cent', 'Intraday', 'EXNESS');
-    // The minimum lot of 0.01 over a 9.55 dollar stop risks 9.55 cent.
-    expect(calc.actualRiskDollars).toBeCloseTo(0.0955, 6);
+    // The minimum lot of 0.01 over a 9.55 dollar stop, with the 2.4 pip spread
+    // and the 0.20 slip, risks 9.99 cent.
+    expect(calc.actualRiskDollars).toBeCloseTo(0.0999, 6);
     expect(calc.exceedsRiskBudget).toBe(true);
   });
 });

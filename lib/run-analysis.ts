@@ -573,6 +573,42 @@ Reply with JSON only:
       input.brokerId
     );
 
+    // The risk percentage is a ceiling. When the broker's smallest lot loses
+    // more than it allows, the honest answer is no trade, not a trade at a
+    // size the user never agreed to. The user can turn this off, and the card
+    // then shows the real figure instead.
+    const budgetDollars = input.equity * (input.riskPercentage / 100);
+    if (input.riskGuard && lotCalculation.actualRiskDollars > budgetDollars + 0.005) {
+      const actualPercent = (lotCalculation.actualRiskDollars / input.equity) * 100;
+      const balanceNeeded = lotCalculation.actualRiskDollars / (input.riskPercentage / 100);
+      return reply({
+        success: true,
+        setup: null,
+        skipped: {
+          reason: 'risk-cap',
+          convictionScore: conviction.convictionScore,
+          band: conviction.band,
+          threshold: input.minConviction,
+          direction: decision.direction,
+          notes: [
+            `The setup was a ${finalOrder.orderType} at ${finalOrder.entryPrice.toFixed(2)} with the stop at ${finalOrder.stopLoss.toFixed(2)}.`,
+            ...conviction.notes,
+          ],
+          rationale: decision.rationale,
+          nextCheck: nextCheck(input.tradingStyle),
+          riskCap: {
+            actualRiskDollars: lotCalculation.actualRiskDollars,
+            budgetDollars,
+            actualPercent: parseFloat(actualPercent.toFixed(2)),
+            riskPercentage: input.riskPercentage,
+            balanceNeeded: parseFloat(balanceNeeded.toFixed(2)),
+            accountType: input.accountType,
+          },
+        },
+        dataStatus: snapshot.status,
+      });
+    }
+
     const validity = breakout
       ? {
           ...computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming),
@@ -751,6 +787,7 @@ Reply with JSON only:
       riskDollarAmount: lotCalculation.riskDollars,
       actualRiskDollars: lotCalculation.actualRiskDollars,
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
+      balanceAtSetup: input.equity,
       riskPercentage: input.riskPercentage,
       effectiveRiskPercentage: riskPercentUsed,
       // A breakout is not scored by the structural engine, so it carries no

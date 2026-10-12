@@ -42,6 +42,8 @@ import {
 import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { factorReliability, NOISE_BAR_STANDARD_ERRORS } from '@/lib/factor-learning';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
+import RobustnessCard from '@/components/RobustnessCard';
+import type { RResult } from '@/lib/robustness';
 
 interface BacktestLabProps {
   tradingStyle: TradingStyle;
@@ -67,6 +69,8 @@ interface BacktestLabProps {
   dailyLossLimit: number;
   /** A single target at 0.5R, as the live setups use when it is on. */
   quickTarget?: boolean;
+  /** Refuse setups the minimum lot cannot size within the risk, as live analysis does. */
+  riskGuard?: boolean;
   onSkipBand: (band: { min: number; max: number } | null) => void;
   theme?: 'dark' | 'light';
 }
@@ -93,6 +97,7 @@ export default function BacktestLab({
   skipConvictionBand,
   dailyLossLimit,
   quickTarget = false,
+  riskGuard = false,
   onSkipBand,
   theme = 'dark',
 }: BacktestLabProps) {
@@ -128,6 +133,7 @@ export default function BacktestLab({
         skipConvictionBand,
         dailyLossLimitPercent: dailyLossLimit,
         quickTarget,
+        riskGuard,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -230,6 +236,13 @@ export default function BacktestLab({
   );
 
   const money = (value: number, signed = false) => formatAccountMoney(value, accountType, { signed });
+  const robustResults = useMemo<RResult[]>(
+    () =>
+      (result?.control.trades ?? [])
+        .filter((t) => t.filled)
+        .map((t) => ({ openedAt: t.openedAt, rMultiple: t.rMultiple, riskDistance: Math.abs(t.fillPrice - t.stopLoss) })),
+    [result]
+  );
 
   /**
    * How a switch's button should look and read.
@@ -518,6 +531,10 @@ export default function BacktestLab({
                 ' Yahoo only serves sixty days of fifteen minute candles. For a longer replay, set a Twelve Data key or switch to the H1 base.'}
               {(result.control.summary.dailyLimitSkips ?? 0) > 0 &&
                 ` The daily loss limit stopped trading for the rest of the day ${result.control.summary.dailyLimitSkips} times.`}
+              {(result.control.summary.riskCapSkips ?? 0) > 0 &&
+                ` The risk guard refused ${(result.control.summary.riskCapSkips ?? 0).toLocaleString(
+                  'en-US'
+                )} setups because the smallest lot would have lost more than ${riskPercentage}% of the balance at the time. Turn the guard off in Account to replay them at the smallest lot.`}
               {result.news &&
                 ` News: ${result.news.releases} high impact dollar releases in this period${
                   result.news.archived > 0 ? `, ${result.news.archived} of them from the archived live calendar` : ''
@@ -566,6 +583,9 @@ export default function BacktestLab({
               {adoption?.reason}
             </p>
           </div>
+
+          {/* The fixed run pushed harder: by quarter, with a range, with worse costs. */}
+          <RobustnessCard results={robustResults} theme={theme} />
 
           {/* Side by side */}
           <div className="overflow-x-auto">

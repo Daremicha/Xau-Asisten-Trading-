@@ -6,11 +6,17 @@ import {
   getGlobalTradingSessions,
   getICTKillZoneStatus,
   recalculateEngineWeights,
+  STOP_SLIPPAGE_DOLLARS,
 } from '../lib/market-engine';
 import { deriveAdaptiveWeights } from '../lib/learning-engine';
 import { BROKER_PROFILES, type AccountType, type BrokerId, type TradingStyle } from '../lib/types';
 
 const BROKERS = Object.keys(BROKER_PROFILES) as BrokerId[];
+
+/** What one ounce loses at the stop: the distance, the spread, and the slip. */
+function lossPerOz(calc: ReturnType<typeof calculateXAUUSDLotSize>): number {
+  return calc.priceDistance + calc.contractSpecs.typicalSpreadPips * 0.1 + STOP_SLIPPAGE_DOLLARS;
+}
 const ACCOUNTS: AccountType[] = ['Standard', 'Cent', 'Pro'];
 const STYLES: TradingStyle[] = ['Scalping', 'Intraday', 'Swing'];
 
@@ -79,20 +85,39 @@ describe('what a lot is worth on each account', () => {
 
 describe('the lot never risks more than the budget allows', () => {
   test('a normal account sizes to the budget and stays under it', () => {
+    // A ten dollar stop loses 10.38 an ounce once the 1.8 pip spread and the
+    // 0.20 stop slip are paid, so 50 dollars buys 0.04 lots, not 0.05.
     const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4190, 'Standard', 'Intraday', 'EXNESS');
     expect(calc.riskDollars).toBe(50);
-    expect(calc.lotSize).toBe(0.05);
-    expect(calc.actualRiskDollars).toBe(50);
+    expect(calc.lotSize).toBe(0.04);
+    expect(calc.actualRiskDollars).toBeCloseTo(0.04 * 1038, 4);
+    expect(calc.actualRiskDollars).toBeLessThanOrEqual(calc.riskDollars);
     expect(calc.exceedsRiskBudget).toBe(false);
   });
 
   test('a lot that does not divide evenly is rounded down, never up', () => {
-    // 50 dollars over a 3.70 dollar stop is 0.135 lots. Rounding to 0.14 would
-    // risk 51.80 — more than the trader asked for — so the floor matters.
+    // 50 dollars over a 3.70 stop that loses 4.08 with costs is 0.1225 lots.
+    // Rounding to 0.13 would risk 53.04, more than the trader asked for.
     const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4196.3, 'Standard', 'Intraday', 'EXNESS');
-    expect(calc.lotSize).toBe(0.13);
-    expect(calc.actualRiskDollars).toBeCloseTo(48.1, 4);
+    expect(calc.lotSize).toBe(0.12);
+    expect(calc.actualRiskDollars).toBeCloseTo(48.96, 4);
     expect(calc.actualRiskDollars).toBeLessThanOrEqual(calc.riskDollars);
+  });
+
+  test('the spread and the stop slip are part of the risk, not extra to it', () => {
+    // Sizing on the stop distance alone let the real loss run past the budget
+    // by the spread and the slip on every trade.
+    for (const brokerId of BROKERS) {
+      for (const account of ACCOUNTS) {
+        for (const style of STYLES) {
+          const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4187.37, account, style, brokerId);
+          if (calc.exceedsRiskBudget) continue;
+          const realLoss =
+            calc.lotSize * (lossPerOz(calc) * calc.contractSpecs.contractSizeOz + calc.contractSpecs.commissionPerLot);
+          expect(realLoss).toBeLessThanOrEqual(calc.riskDollars + 0.005);
+        }
+      }
+    }
   });
 
   test('rounding down holds across every account, style and broker', () => {
@@ -109,14 +134,12 @@ describe('the lot never risks more than the budget allows', () => {
     }
   });
 
-  test('the ECN commission buys a smaller lot than the same stop on Standard', () => {
-    // 3.50 a lot sounds like nothing until it is priced as risk: the same
-    // 100 dollar budget buys 0.09 lots on Pro against 0.10 on Standard.
+  test('the ECN commission is priced into the risk', () => {
+    // 3.50 a lot sounds like nothing until it is priced as risk.
     const pro = calculateXAUUSDLotSize(5000, 2, 4200, 4190, 'Pro', 'Intraday', 'EXNESS');
-    const standard = calculateXAUUSDLotSize(5000, 2, 4200, 4190, 'Standard', 'Intraday', 'EXNESS');
     expect(pro.lotSize).toBe(0.09);
-    expect(standard.lotSize).toBe(0.1);
-    expect(pro.actualRiskDollars).toBeCloseTo(0.09 * (10 * 100 + 3.5), 4);
+    expect(pro.actualRiskDollars).toBeCloseTo(0.09 * (lossPerOz(pro) * 100 + 3.5), 4);
+    expect(pro.actualRiskDollars).toBeLessThanOrEqual(pro.riskDollars);
   });
 
   test('a commission free ECN book sizes exactly like Standard', () => {
@@ -128,13 +151,13 @@ describe('the lot never risks more than the budget allows', () => {
     expect(pro.lotSize).toBe(standard.lotSize);
   });
 
-  test('a cent lot loses a dollar for a dollar of stop', () => {
-    // One ounce a lot, so a ten dollar stop costs ten dollars per whole cent
-    // lot — and the reported risk has to say so.
+  test('a cent lot loses a dollar for a dollar of stop, plus the costs', () => {
+    // One ounce a lot, so a ten dollar stop costs 10.44 per whole cent lot
+    // with the 2.4 pip spread and the slip, and the reported risk says so.
     const calc = calculateXAUUSDLotSize(200, 1, 4200, 4190, 'Cent', 'Intraday', 'EXNESS');
     expect(calc.riskDollars).toBe(2);
-    expect(calc.lotSize).toBe(0.2);
-    expect(calc.actualRiskDollars).toBeCloseTo(2, 4);
+    expect(calc.lotSize).toBe(0.19);
+    expect(calc.actualRiskDollars).toBeCloseTo(0.19 * 10.44, 4);
   });
 
   test('the risk reported matches the contract the same call describes', () => {
@@ -143,7 +166,7 @@ describe('the lot never risks more than the budget allows', () => {
     // wrong the day one of them moves, so the test holds them together.
     for (const account of ACCOUNTS) {
       const calc = calculateXAUUSDLotSize(5000, 2, 4200, 4185, account, 'Intraday', 'EXNESS');
-      const perLot = calc.priceDistance * calc.contractSpecs.contractSizeOz + calc.contractSpecs.commissionPerLot;
+      const perLot = lossPerOz(calc) * calc.contractSpecs.contractSizeOz + calc.contractSpecs.commissionPerLot;
       expect(calc.actualRiskDollars).toBeCloseTo(calc.lotSize * perLot, 4);
     }
   });
@@ -166,15 +189,16 @@ describe('when the budget cannot buy the smallest lot', () => {
     const calc = calculateXAUUSDLotSize(10, 1, 4200, 4182, 'Cent', 'Intraday', 'EXNESS');
     expect(calc.lotSize).toBe(0.01);
     expect(calc.riskDollars).toBeCloseTo(0.1, 4);
-    expect(calc.actualRiskDollars).toBeCloseTo(0.18, 4);
+    expect(calc.actualRiskDollars).toBeCloseTo(0.01 * (18 + 0.24 + STOP_SLIPPAGE_DOLLARS), 4);
     expect(calc.exceedsRiskBudget).toBe(true);
   });
 
   test('a budget met exactly is not reported as an overshoot', () => {
     // The flag carries a half cent of tolerance so floating point noise on an
     // exact fit does not raise a warning about nothing.
-    const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4190, 'Standard', 'Intraday', 'EXNESS');
-    expect(calc.actualRiskDollars).toBe(calc.riskDollars);
+    // 9.62 of stop plus 0.38 of costs is exactly ten dollars an ounce.
+    const calc = calculateXAUUSDLotSize(5000, 1, 4200, 4190.38, 'Standard', 'Intraday', 'EXNESS');
+    expect(calc.actualRiskDollars).toBeCloseTo(calc.riskDollars, 4);
     expect(calc.exceedsRiskBudget).toBe(false);
   });
 

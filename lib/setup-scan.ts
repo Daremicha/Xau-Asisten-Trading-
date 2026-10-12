@@ -25,6 +25,8 @@ export interface ScanSettings {
   protectAtR: number | null;
   /** A single target at 0.5R, when the user turned it on. */
   quickTarget: boolean;
+  /** Refuse setups the minimum lot cannot size within the risk; on unless turned off. */
+  riskGuard: boolean;
   /** Trades closed in the last two days, for the daily loss limit. */
   recentResults: Array<{ closedAt: number; net: number }>;
   priorWeights?: unknown;
@@ -71,6 +73,7 @@ export function sanitiseScanSettings(value: unknown): ScanSettings | null {
     dailyLossLimitPercent,
     protectAtR: num(s.protectAtR, 0.5, 3),
     quickTarget: s.quickTarget === true,
+    riskGuard: s.riskGuard !== false,
     recentResults: recent
       .map((r) => r as { closedAt?: unknown; net?: unknown })
       .filter((r) => num(r.closedAt, 0, 1e14) !== null && num(r.net, -1e7, 1e7) !== null)
@@ -90,6 +93,7 @@ export function scanRequest(scan: ScanSettings): ValidatedAnalyzeRequest | null 
     minConviction: scan.minConviction,
     dailyLossLimitPercent: scan.dailyLossLimitPercent,
     quickTarget: scan.quickTarget,
+    riskGuard: scan.riskGuard,
     priorWeights: scan.priorWeights,
     // Only what the daily loss limit reads: when each trade closed and what it made.
     pastLearningRecords: scan.recentResults.map((r, i) => ({
@@ -140,6 +144,8 @@ export function noSetupNote(body: Record<string, unknown>): string {
       return 'price feed unavailable for XAUUSD';
     case 'unfillable':
       return 'price had already run past the level';
+    case 'risk-cap':
+      return 'the minimum lot would risk more than your risk setting';
     case 'dead-band':
       return `setup scored ${skipped.convictionScore}/100, a band the backtest showed loses`;
     default:

@@ -4,6 +4,8 @@ A Next.js terminal for XAUUSD (gold) that reads live market data, derives Smart
 Money Concepts structure from real candles, and sizes an executable MetaTrader 5
 order against your account risk.
 
+Live app: <https://xau-asisten-trading-fz2o.vercel.app>
+
 ## Where the API key goes
 
 **Never put the key in GitHub.** `.env.local` is listed in `.gitignore` on
