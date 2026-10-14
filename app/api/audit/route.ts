@@ -45,13 +45,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ success: false, error: 'Request body is not valid JSON.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Isi permintaan bukan JSON yang valid.' }, { status: 400 });
   }
 
   const raw = (body as { records?: unknown })?.records;
   if (!Array.isArray(raw)) {
     return NextResponse.json(
-      { success: false, error: 'Send a records array of resolved rows to examine.' },
+      { success: false, error: 'Kirim array records berisi baris yang sudah selesai untuk diperiksa.' },
       { status: 400 }
     );
   }
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       genuine: 0,
       unknown: 0,
       results: [],
-      message: 'There are no rows left to examine.',
+      message: 'Tidak ada baris lagi yang perlu diperiksa.',
     });
   }
 
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       .filter((t): t is number => t !== null);
     if (times.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'None of these rows record when their order was placed.' },
+        { success: false, error: 'Tidak ada baris yang mencatat kapan ordernya dipasang.' },
         { status: 400 }
       );
     }
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         unknown: 0,
         results: [],
         // Not a verdict. The rows stay exactly as they are.
-        message: message || 'Past prices could not be fetched, so nothing was examined.',
+        message: message || 'Harga lama tidak bisa diambil, jadi tidak ada yang diperiksa.',
       });
     }
 
@@ -132,13 +132,13 @@ export async function POST(request: Request) {
       results,
       message:
         contradicted === 0
-          ? `All ${results.length} rows stand up to the price history.`
-          : `${contradicted} of ${results.length} describe something the market never did.`,
+          ? `Semua ${results.length} baris sesuai dengan riwayat harga.`
+          : `${contradicted} dari ${results.length} baris menggambarkan sesuatu yang tidak pernah dilakukan pasar.`,
     });
   } catch (err: unknown) {
     console.error('Audit error:', err);
     return NextResponse.json(
-      { success: false, error: publicErrorMessage(err, 'The audit could not be completed.') },
+      { success: false, error: publicErrorMessage(err, 'Pemeriksaan tidak bisa diselesaikan.') },
       { status: 500 }
     );
   }

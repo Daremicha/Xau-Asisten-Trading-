@@ -101,7 +101,7 @@ describe('asking the models', () => {
     const result = await reviewSetup(setup, null);
     expect(result?.answered).toBe(0);
     expect(result?.reviews[0].verdict).toBeNull();
-    expect(result?.reviews[0].error).toContain('not available');
+    expect(result?.reviews[0].error).toContain('tidak tersedia');
     expect(reviewLabel(result)).toBeNull();
   });
 });
@@ -159,7 +159,7 @@ describe('the trade summary', () => {
         settings: { tradingStyle: 'Intraday', minConviction: 0, protectStopAtR: 1, dailyLossLimit: 3 },
       }
     );
-    expect(text).toContain('AI majority agreed: 1/2 won (50%) - otherwise: 0/1 won (0%)');
+    expect(text).toContain('Mayoritas AI setuju: 1/2 menang (50%) - selain itu: 0/1 menang (0%)');
     expect(text).toContain('|+1.40|3/3');
     expect(text).toContain('|+1.40|-');
   });
@@ -175,7 +175,7 @@ describe('a provider failure, in words a trader can act on', () => {
 
   test('an overloaded model is called temporary', () => {
     expect(explainFailure('gemini', '{"error":{"code":503,"message":"This model is currently experiencing high demand."}}')).toContain(
-      'overloaded'
+      'sedang sibuk'
     );
   });
 

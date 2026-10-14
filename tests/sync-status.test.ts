@@ -16,7 +16,7 @@ describe('explaining a rejected write', () => {
   });
 
   test('an expired session tells the user to sign in again', () => {
-    expect(describeSyncError({ code: 'unauthenticated' })).toContain('Sign out and back in');
+    expect(describeSyncError({ code: 'unauthenticated' })).toContain('Keluar lalu masuk lagi');
   });
 
   test('a missing database is distinguished from a rules problem', () => {
@@ -26,18 +26,18 @@ describe('explaining a rejected write', () => {
   });
 
   test('a quota stop says it resets', () => {
-    expect(describeSyncError({ code: 'resource-exhausted' })).toContain('resets daily');
+    expect(describeSyncError({ code: 'resource-exhausted' })).toContain('di-reset setiap hari');
   });
 
   test('an unknown failure still reassures that the browser copy survives', () => {
     const msg = describeSyncError({ code: 'weird-thing' });
     expect(msg).toContain('weird-thing');
-    expect(msg).toContain('still in this browser');
+    expect(msg).toContain('masih ada di browser ini');
   });
 
   test('a non Firestore error does not crash the formatter', () => {
-    expect(describeSyncError(new Error('boom'))).toContain('failed');
-    expect(describeSyncError(null)).toContain('failed');
+    expect(describeSyncError(new Error('boom'))).toContain('gagal');
+    expect(describeSyncError(null)).toContain('gagal');
   });
 });
 
@@ -70,7 +70,7 @@ describe('status transitions', () => {
 
   test('a failure never claims the data is saved', () => {
     const failed = failedStatus(GUEST_STATUS, { code: 'unavailable' });
-    expect(failed.label).toContain('Not saved');
+    expect(failed.label).toContain('Belum tersimpan');
   });
 });
 
@@ -78,11 +78,11 @@ describe('describing when the last save happened', () => {
   const base = new Date('2026-09-16T10:00:00Z');
 
   test('a fresh save reads as just now', () => {
-    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:00:05Z'))).toBe('just now');
+    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:00:05Z'))).toBe('baru saja');
   });
 
   test('seconds, minutes and hours are each phrased naturally', () => {
-    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:00:30Z'))).toBe('30 seconds ago');
+    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:00:30Z'))).toBe('30 detik lalu');
     expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:01:00Z'))).toBe('1 minute ago');
     expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T10:05:00Z'))).toBe('5 minutes ago');
     expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T12:00:00Z'))).toBe('2 hours ago');
@@ -97,6 +97,6 @@ describe('describing when the last save happened', () => {
   });
 
   test('a clock that jumped backwards does not produce a negative age', () => {
-    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T09:00:00Z'))).toBe('just now');
+    expect(formatLastSaved(savedStatus(base), new Date('2026-09-16T09:00:00Z'))).toBe('baru saja');
   });
 });

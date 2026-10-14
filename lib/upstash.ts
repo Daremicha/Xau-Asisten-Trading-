@@ -18,7 +18,7 @@ export function redisConfigured(): boolean {
 
 export async function redis<T = unknown>(...args: Array<string | number>): Promise<T> {
   const creds = credentials();
-  if (!creds) throw new Error('Storage is not configured.');
+  if (!creds) throw new Error('Penyimpanan belum diatur.');
   const res = await fetch(creds.url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${creds.token}`, 'Content-Type': 'application/json' },

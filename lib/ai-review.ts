@@ -77,19 +77,21 @@ const BILLING: Record<ReviewProvider, string> = {
 export function explainFailure(provider: ReviewProvider, message: string): string {
   const m = message.toLowerCase();
   if (/credit balance|no credits|insufficient_quota|exceeded your current quota|billing/.test(m)) {
-    return `API credit is used up. Top it up at ${BILLING[provider]}. A ChatGPT Plus or Claude Pro subscription does not include API credit.`;
+    return `Kredit API habis. Isi ulang di ${BILLING[provider]}. Langganan ChatGPT Plus atau Claude Pro tidak termasuk kredit API.`;
   }
   if (/\b503\b|high demand|overloaded|unavailable|\b529\b/.test(m)) {
-    return 'The model is overloaded right now. Usually temporary; ask again in a few minutes.';
+    return 'Model sedang sibuk. Biasanya sementara; tanya lagi beberapa menit lagi.';
   }
   if (/\b401\b|\b403\b|api key|unauthori[sz]ed|permission/.test(m)) {
-    return 'The API key was rejected. Check the key set in Vercel.';
+    return 'API key ditolak. Cek key yang dipasang di Vercel.';
   }
   if (/\b404\b|not found|does not exist|not available/.test(m)) {
-    return 'This model is not available to the key. Set another in the *_REVIEW_MODEL variable.';
+    return 'Model ini tidak tersedia untuk key tersebut. Pasang model lain di variabel *_REVIEW_MODEL.';
   }
-  if (/\b429\b|rate limit/.test(m)) return 'Too many requests at once. Ask again in a minute.';
-  if (/within 20 seconds|timeout|timed out/.test(m)) return 'No answer within 20 seconds.';
+  if (/\b429\b|rate limit/.test(m)) return 'Terlalu banyak permintaan sekaligus. Tanya lagi semenit lagi.';
+  if (/within 20 seconds|timeout|timed out/.test(m)) return 'Tidak ada jawaban dalam 20 detik.';
+  if (/readable verdict/.test(m)) return 'Jawaban AI tidak bisa dibaca sebagai pendapat.';
+  if (/declined to review/.test(m)) return 'Model menolak meninjau setup ini.';
   return message.slice(0, 160);
 }
 

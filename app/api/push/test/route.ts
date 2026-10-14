@@ -16,22 +16,22 @@ const DELAY_MS = 10_000;
  */
 export async function POST(request: Request) {
   if (!storeConfigured()) {
-    return NextResponse.json({ success: false, error: 'Push storage is not configured.' }, { status: 503 });
+    return NextResponse.json({ success: false, error: 'Penyimpanan push belum diatur.' }, { status: 503 });
   }
   const body = (await request.json().catch(() => null)) as { subscription?: unknown } | null;
   const subscription = sanitiseSubscription(body?.subscription);
   if (!subscription) {
-    return NextResponse.json({ success: false, error: 'Invalid push subscription.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Langganan push tidak valid.' }, { status: 400 });
   }
   const id = recordId(subscription.endpoint);
 
   try {
     // Only phones that signed up here, and one test a minute each.
     if (!(await loadRecord(id))) {
-      return NextResponse.json({ success: false, error: 'This phone is not signed up for alerts yet.' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'HP ini belum terdaftar untuk notifikasi.' }, { status: 404 });
     }
     if (!(await claimTest(id))) {
-      return NextResponse.json({ success: false, error: 'A test was sent less than a minute ago.' }, { status: 429 });
+      return NextResponse.json({ success: false, error: 'Tes baru dikirim kurang dari semenit lalu.' }, { status: 429 });
     }
 
     // Answered at once and sent afterwards, so closing the app, which ends the
@@ -40,8 +40,8 @@ export async function POST(request: Request) {
       await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
       await sendPush(subscription, {
         key: 'test',
-        title: '✅ TEST: alerts reach this phone',
-        body: 'If you see this with the app closed, fill, TP, SL and missed-order alerts will reach you the same way.',
+        title: '✅ TES: notifikasi sampai ke HP ini',
+        body: 'Kalau ini muncul saat aplikasi tertutup, notifikasi order terisi, TP, SL, dan order missed akan sampai dengan cara yang sama.',
         tag: 'push-test',
         final: false,
       });
@@ -49,6 +49,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, delaySeconds: DELAY_MS / 1000 });
   } catch (err) {
     console.warn('Push test failed:', err);
-    return NextResponse.json({ success: false, error: 'The test could not be sent.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Tes tidak bisa dikirim.' }, { status: 502 });
   }
 }

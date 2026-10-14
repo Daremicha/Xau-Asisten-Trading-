@@ -132,7 +132,7 @@ export function replayOrder(
 ): ReplayVerdict {
   const issuedAt = Date.parse(setup.timestamp ?? '');
   if (!Number.isFinite(issuedAt)) {
-    return { kind: 'unknown', reason: 'The order carries no readable timestamp, so its history cannot be found.' };
+    return { kind: 'unknown', reason: 'Order tidak punya waktu yang terbaca, jadi riwayatnya tidak bisa dicari.' };
   }
 
   // A bar cannot describe what has not happened. This is not a hypothetical
@@ -146,7 +146,7 @@ export function replayOrder(
   const candles = allCandles.filter((c) => c.time <= now + FUTURE_TOLERANCE_MS);
 
   if (candles.length === 0) {
-    return { kind: 'unknown', reason: 'No price history is loaded, so what happened cannot be established.' };
+    return { kind: 'unknown', reason: 'Belum ada riwayat harga yang dimuat, jadi apa yang terjadi belum bisa dipastikan.' };
   }
 
   const first = candles[0];
@@ -156,7 +156,7 @@ export function replayOrder(
     return {
       kind: 'unknown',
       reason:
-        'The order is older than the price history the app can see, so what happened to it cannot be established from the chart.',
+        'Order ini lebih tua dari riwayat harga yang bisa dilihat aplikasi, jadi apa yang terjadi tidak bisa dipastikan dari grafik.',
     };
   }
 
@@ -224,9 +224,9 @@ export function replayOrder(
           kind: 'missed',
           cause: 'invalidated',
           at: iso(c.time),
-          reason: `Price reached the ${setup.stopLoss.toFixed(
+          reason: `Harga mencapai titik invalidasi ${setup.stopLoss.toFixed(
             2
-          )} invalidation without the order ever filling. The idea was void before it could open.`,
+          )} tanpa order pernah terisi. Idenya batal sebelum sempat terbuka.`,
         };
       }
 
@@ -237,9 +237,9 @@ export function replayOrder(
           kind: 'missed',
           cause: 'ran-away',
           at: iso(c.time),
-          reason: `Price ran ${
-            multiple === 1 ? 'a full stop distance' : `${multiple} times the stop distance`
-          } past the ${setup.entryPrice.toFixed(2)} entry without ever filling it. The move happened without the entry.`,
+          reason: `Harga lari ${
+            multiple === 1 ? 'sejauh satu jarak stop' : `${multiple} kali jarak stop`
+          } melewati entry ${setup.entryPrice.toFixed(2)} tanpa pernah mengisinya. Pergerakannya terjadi tanpa entry.`,
         };
       }
 
@@ -248,7 +248,7 @@ export function replayOrder(
           kind: 'missed',
           cause: 'expired',
           at: iso(expiresAt),
-          reason: 'The validity window closed with price never reaching the entry.',
+          reason: 'Masa berlaku order habis tanpa harga pernah mencapai entry.',
         };
       }
     }
@@ -261,10 +261,10 @@ export function replayOrder(
           kind: 'missed',
           cause: 'expired',
           at: iso(expiresAt),
-          reason: 'The validity window closed with price never reaching the entry.',
+          reason: 'Masa berlaku order habis tanpa harga pernah mencapai entry.',
         };
       }
-      return { kind: 'pending', reason: `Still waiting for price to reach ${setup.entryPrice.toFixed(2)}.` };
+      return { kind: 'pending', reason: `Masih menunggu harga mencapai ${setup.entryPrice.toFixed(2)}.` };
     }
   }
 
@@ -299,8 +299,8 @@ export function replayOrder(
         breakEven: protectedAt !== undefined,
         reason:
           protectedAt !== undefined
-            ? `The position filled at ${fillPrice.toFixed(2)}, the stop moved to the entry once it was ${setup.protectAtR}R up, and price came back to it: closed at break-even.`
-            : `The position filled at ${fillPrice.toFixed(2)} and price traded through the stop at ${setup.stopLoss.toFixed(2)}.`,
+            ? `Posisi terisi di ${fillPrice.toFixed(2)}, stop dipindah ke entry setelah untung ${setup.protectAtR}R, lalu harga kembali ke sana: tertutup impas.`
+            : `Posisi terisi di ${fillPrice.toFixed(2)} lalu harga menembus stop di ${setup.stopLoss.toFixed(2)}.`,
       };
     }
 
@@ -324,7 +324,7 @@ export function replayOrder(
         filledAt,
         exitPrice,
         at: iso(c.time),
-        reason: `The position filled at ${fillPrice.toFixed(2)} and price reached TP${level} at ${exitPrice.toFixed(
+        reason: `Posisi terisi di ${fillPrice.toFixed(2)} lalu harga mencapai TP${level} di ${exitPrice.toFixed(
           2
         )}.`,
       };
@@ -337,8 +337,8 @@ export function replayOrder(
     filledAt,
     reason:
       protectedAt !== undefined
-        ? `The position filled at ${fillPrice.toFixed(2)} and is open, with the stop now at the entry.`
-        : `The position filled at ${fillPrice.toFixed(2)} and is still open.`,
+        ? `Posisi terisi di ${fillPrice.toFixed(2)} dan masih terbuka, dengan stop sekarang di entry.`
+        : `Posisi terisi di ${fillPrice.toFixed(2)} dan masih terbuka.`,
     ...(protectedAt !== undefined ? { protectedAt } : {}),
   };
 }

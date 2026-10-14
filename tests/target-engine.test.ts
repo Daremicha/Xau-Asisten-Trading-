@@ -97,7 +97,7 @@ describe('where the targets land', () => {
     // 2015. The Asia high at 2012 is the level inside that window, and the
     // target stops short of it.
     expect(result.takeProfit1).toBeLessThan(2012);
-    expect(result.basis[0]).toContain('in front of');
+    expect(result.basis[0]).toContain('di depan');
   });
 
   test('targets step away from the entry in order', () => {
@@ -173,7 +173,7 @@ describe('where the targets land', () => {
       })
     );
     expect(result.usedFallback).toBe(true);
-    expect(result.basis[0]).toContain('no level near it');
+    expect(result.basis[0]).toContain('tanpa level di dekatnya');
     // Nothing on the chart, so the target is exactly the style's multiple.
     expect(result.takeProfit1).toBeCloseTo(2015, 2);
   });
@@ -185,9 +185,9 @@ describe('three targets, three levels', () => {
     const named = result.basis.map((line) => line.split(' at ')[0]);
     // Either each target names a different level, or the later ones say plainly
     // that nothing was left to aim at.
-    const levelBacked = result.basis.filter((line) => line.includes('in front of'));
+    const levelBacked = result.basis.filter((line) => line.includes('di depan'));
     const uniqueLevels = new Set(
-      result.basis.filter((line) => line.includes('in front of')).map((line) => line.split(' at ')[1])
+      result.basis.filter((line) => line.includes('di depan')).map((line) => line.split(' di ').at(-1))
     );
     expect(uniqueLevels.size).toBe(levelBacked.length);
     expect(named.length).toBe(3);

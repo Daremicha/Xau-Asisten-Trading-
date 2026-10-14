@@ -54,7 +54,7 @@ describe('the price that closed a trade that had just been opened', () => {
     const verdict = tickMayResolve(inputs({ issuedAt: new Date(NOW - 3_000).toISOString() }));
     expect(verdict.ok).toBe(false);
     if (verdict.ok) throw new Error('expected a refusal');
-    expect(verdict.reason).toContain('another moment');
+    expect(verdict.reason).toContain('harga dari waktu lain');
   });
 
   test('the same order a minute later may be closed', () => {
@@ -74,7 +74,7 @@ describe('a quote the app itself does not believe', () => {
     const verdict = tickMayResolve(inputs({ feedStatus: 'stale' }));
     expect(verdict.ok).toBe(false);
     if (verdict.ok) throw new Error('expected a refusal');
-    expect(verdict.reason).toContain('not live');
+    expect(verdict.reason).toContain('tidak live');
   });
 
   test('nor may an unavailable one', () => {
@@ -98,7 +98,7 @@ describe('a price that contradicts the candles', () => {
     const verdict = tickMayResolve(inputs({ price: 4390 }));
     expect(verdict.ok).toBe(false);
     if (verdict.ok) throw new Error('expected a refusal');
-    expect(verdict.reason).toContain('different moment');
+    expect(verdict.reason).toContain('menggambarkan waktu lain');
   });
 
   test('and so is one far below', () => {

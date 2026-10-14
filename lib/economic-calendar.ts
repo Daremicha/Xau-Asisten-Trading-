@@ -191,7 +191,7 @@ const NOT_CONFIGURED: CalendarResult = {
   source: null,
   configured: false,
   message:
-    'No economic calendar is connected. Set ECONOMIC_CALENDAR_URL to a feed that returns scheduled releases as JSON. Until then the engine ignores news entirely rather than inventing a schedule.',
+    'Kalender ekonomi belum tersambung. Pasang ECONOMIC_CALENDAR_URL ke feed yang mengirim jadwal rilis dalam JSON. Sampai saat itu engine mengabaikan berita sama sekali, bukan mengarang jadwal.',
 };
 
 /**
@@ -224,8 +224,8 @@ export async function getEconomicCalendar(): Promise<CalendarResult> {
       configured: true,
       message:
         events.length > 0
-          ? `Calendar from ${new URL(url).hostname}.`
-          : `Connected to ${new URL(url).hostname}, which returned no upcoming releases.`,
+          ? `Kalender dari ${new URL(url).hostname}.`
+          : `Tersambung ke ${new URL(url).hostname}, tapi tidak ada rilis mendatang.`,
     };
     cached = { at: Date.now(), result };
     return result;
@@ -236,15 +236,15 @@ export async function getEconomicCalendar(): Promise<CalendarResult> {
       events: [],
       source: null,
       configured: true,
-      message: `The economic calendar at ${
+      message: `Kalender ekonomi di ${
         (() => {
           try {
             return new URL(url).hostname;
           } catch {
-            return 'the configured address';
+            return 'alamat yang dipasang';
           }
         })()
-      } could not be reached, so news is being ignored for now.`,
+      } tidak bisa dihubungi, jadi berita diabaikan untuk sementara.`,
     };
   } finally {
     clearTimeout(timer);

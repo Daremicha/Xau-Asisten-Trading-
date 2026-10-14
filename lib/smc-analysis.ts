@@ -271,10 +271,10 @@ export function findLiquidityPools(m15: Candle[]): LiquidityPools | null {
   const sweptAsiaLow = today.some((c) => c.time >= todayStart + 6 * 3_600_000 && c.low < asiaLow);
 
   const details: string[] = [];
-  if (sweptHigh) details.push('Previous Day High taken');
-  if (sweptLow) details.push('Previous Day Low taken');
-  if (sweptAsiaHigh) details.push('Asian session high swept post London open');
-  if (sweptAsiaLow) details.push('Asian session low swept post London open');
+  if (sweptHigh) details.push('Previous Day High sudah diambil');
+  if (sweptLow) details.push('Previous Day Low sudah diambil');
+  if (sweptAsiaHigh) details.push('high sesi Asia tersapu setelah pembukaan London');
+  if (sweptAsiaLow) details.push('low sesi Asia tersapu setelah pembukaan London');
 
   return {
     pdh: round2(pdh),
@@ -282,7 +282,7 @@ export function findLiquidityPools(m15: Candle[]): LiquidityPools | null {
     asiaHigh: round2(asiaHigh),
     asiaLow: round2(asiaLow),
     swept: details.length > 0,
-    sweepDetail: details.length ? details.join('. ') + '.' : 'No major pool taken so far this session.',
+    sweepDetail: details.length ? details.join('. ') + '.' : 'Belum ada likuiditas besar yang diambil di sesi ini.',
   };
 }
 
@@ -370,7 +370,7 @@ export function analyzeTimeframe(
       asiaHigh: round2(rangeHigh),
       asiaLow: round2(rangeLow),
       swept: false,
-      sweepDetail: 'Insufficient session data.',
+      sweepDetail: 'Data sesi belum cukup.',
     },
     pricingZone: classifyPricingZone(price, rangeHigh, rangeLow),
   };
@@ -471,15 +471,15 @@ export function computeWyckoff(
   else phase = position < 0.5 ? 'Accumulation' : 'Distribution';
 
   const descriptions: Record<WyckoffVolumeAnalysis['phase'], string> = {
-    Markup: 'Structure is advancing on higher highs and higher lows, consistent with a Wyckoff markup leg.',
-    Markdown: 'Structure is declining on lower highs and lower lows, consistent with a Wyckoff markdown leg.',
-    Accumulation: 'Price is ranging in the lower half of its dealing range, the signature of Wyckoff accumulation.',
-    Distribution: 'Price is ranging in the upper half of its dealing range, the signature of Wyckoff distribution.',
+    Markup: 'Struktur naik dengan higher high dan higher low, sesuai fase markup Wyckoff.',
+    Markdown: 'Struktur turun dengan lower high dan lower low, sesuai fase markdown Wyckoff.',
+    Accumulation: 'Harga bergerak sideways di separuh bawah range-nya, ciri akumulasi Wyckoff.',
+    Distribution: 'Harga bergerak sideways di separuh atas range-nya, ciri distribusi Wyckoff.',
   };
 
   let description = descriptions[phase];
-  if (volumeClimaxDetected) description += ' A volume climax has just printed, so expect a reaction.';
-  else if (absorptionPresent) description += ' Heavy volume on a small body suggests absorption.';
+  if (volumeClimaxDetected) description += ' Volume klimaks baru saja terjadi, jadi bersiaplah untuk reaksi harga.';
+  else if (absorptionPresent) description += ' Volume besar pada body kecil menandakan penyerapan.';
 
   return {
     phase,

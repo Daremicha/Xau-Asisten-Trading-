@@ -33,8 +33,8 @@ const side = (setup: AlertSetup) => (setup.orderType.startsWith('BUY') ? 'BUY' :
 /** The pending order triggered and the position is open. */
 export function filledAlert(setup: AlertSetup, fillPrice: number): TradeAlert {
   return {
-    title: `✅ ORDER FILLED: ${setup.orderType} @ ${price(fillPrice)}`,
-    body: `Your pending order triggered and the ${side(setup)} position is now open. SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}.`,
+    title: `✅ ORDER TERISI: ${setup.orderType} @ ${price(fillPrice)}`,
+    body: `Order pending kamu terpicu dan posisi ${side(setup)} sekarang terbuka. SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}.`,
     tag: `${setup.id}_filled`,
   };
 }
@@ -42,8 +42,8 @@ export function filledAlert(setup: AlertSetup, fillPrice: number): TradeAlert {
 /** Price reached the break-even trigger: the stop should now go to the entry. */
 export function protectAlert(setup: AlertSetup, atR: number, fillPrice: number = setup.entryPrice): TradeAlert {
   return {
-    title: `🔒 MOVE SL TO ENTRY: ${side(setup)} is ${atR}R in profit`,
-    body: `Move the stop of your ${setup.orderType} to ${price(fillPrice)} in MT5 now, so the trade can no longer turn into a full loss.`,
+    title: `🔒 PINDAH SL KE ENTRY: ${side(setup)} sudah untung ${atR}R`,
+    body: `Pindahkan stop ${setup.orderType} kamu ke ${price(fillPrice)} di MT5 sekarang, supaya trade ini tidak bisa lagi berubah jadi rugi penuh.`,
     tag: `${setup.id}_protect`,
   };
 }
@@ -58,8 +58,8 @@ export function closedAlert(
 ): TradeAlert {
   if (breakEven) {
     return {
-      title: `⚖️ BREAK-EVEN: ${side(setup)} closed at entry`,
-      body: `${setup.orderType} from ${price(fillPrice)} came back to its entry after the stop was moved there. No loss; only the spread is paid. The result is recorded when you open the app.`,
+      title: `⚖️ IMPAS: ${side(setup)} tertutup di entry`,
+      body: `${setup.orderType} dari ${price(fillPrice)} kembali ke entry setelah stop dipindah ke sana. Tidak rugi; hanya bayar spread. Hasilnya dicatat saat kamu membuka aplikasi.`,
       tag: `${setup.id}_closed`,
     };
   }
@@ -67,11 +67,11 @@ export function closedAlert(
   const moved = pips(exitPrice - fillPrice);
   return {
     title: won
-      ? `🎯 TAKE PROFIT ${trigger.slice(2)} HIT: ${side(setup)} closed in profit`
-      : `🛑 STOP LOSS HIT: ${side(setup)} closed at a loss`,
+      ? `🎯 KENA TAKE PROFIT ${trigger.slice(2)}: ${side(setup)} tertutup untung`
+      : `🛑 KENA STOP LOSS: ${side(setup)} tertutup rugi`,
     body: won
-      ? `${setup.orderType} from ${price(fillPrice)} reached TP${trigger.slice(2)} at ${price(exitPrice)} (+${moved}). The result is recorded when you open the app.`
-      : `${setup.orderType} from ${price(fillPrice)} was stopped out at ${price(exitPrice)} (-${moved}). The result is recorded when you open the app.`,
+      ? `${setup.orderType} dari ${price(fillPrice)} mencapai TP${trigger.slice(2)} di ${price(exitPrice)} (+${moved}). Hasilnya dicatat saat kamu membuka aplikasi.`
+      : `${setup.orderType} dari ${price(fillPrice)} kena stop di ${price(exitPrice)} (-${moved}). Hasilnya dicatat saat kamu membuka aplikasi.`,
     tag: `${setup.id}_closed`,
   };
 }
@@ -79,8 +79,8 @@ export function closedAlert(
 /** The pending order will not fill any more and should be deleted. */
 export function missedAlert(setup: AlertSetup, reason: string): TradeAlert {
   return {
-    title: `⚠️ ORDER NOT FILLED: delete ${setup.orderType} @ ${price(setup.entryPrice)}`,
-    body: `${reason} Delete this pending order in MT5 and do not chase it at market.`,
+    title: `⚠️ ORDER TIDAK TERISI: hapus ${setup.orderType} @ ${price(setup.entryPrice)}`,
+    body: `${reason} Hapus order pending ini di MT5 dan jangan dikejar dengan order market.`,
     tag: `${setup.id}_missed`,
   };
 }
@@ -91,13 +91,13 @@ export function nearLevelAlert(setup: AlertSetup, level: 'SL' | 'TP1', marketPri
   const distance = pips(target - marketPrice);
   return level === 'SL'
     ? {
-        title: `⚠️ NEAR STOP LOSS: ${side(setup)} ${distance} from SL ${price(target)}`,
-        body: `XAUUSD is at ${price(marketPrice)}. Your ${setup.orderType} from ${price(setup.entryPrice)} is close to its stop.`,
+        title: `⚠️ DEKAT STOP LOSS: ${side(setup)} ${distance} dari SL ${price(target)}`,
+        body: `XAUUSD di ${price(marketPrice)}. ${setup.orderType} kamu dari ${price(setup.entryPrice)} sudah dekat stop-nya.`,
         tag: `${setup.id}_SL`,
       }
     : {
-        title: `📈 NEAR TAKE PROFIT 1: ${side(setup)} ${distance} from TP1 ${price(target)}`,
-        body: `XAUUSD is at ${price(marketPrice)}. Your ${setup.orderType} from ${price(setup.entryPrice)} is close to its first target.`,
+        title: `📈 DEKAT TAKE PROFIT 1: ${side(setup)} ${distance} dari TP1 ${price(target)}`,
+        body: `XAUUSD di ${price(marketPrice)}. ${setup.orderType} kamu dari ${price(setup.entryPrice)} sudah dekat target pertamanya.`,
         tag: `${setup.id}_TP1`,
       };
 }
@@ -110,8 +110,8 @@ export function newSetupAlert(
   const lot = typeof setup.recommendedLotSize === 'number' ? ` · lot ${setup.recommendedLotSize.toFixed(2)}` : '';
   const ai = reviewLabel(setup.aiReview);
   return {
-    title: `📊 NEW SETUP: ${setup.orderType} @ ${price(setup.entryPrice)}`,
-    body: `SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}${lot}.${ai ? ` ${ai}.` : ''} Open the app to load it, then place the order in MT5.`,
+    title: `📊 SETUP BARU: ${setup.orderType} @ ${price(setup.entryPrice)}`,
+    body: `SL ${price(setup.stopLoss)} · TP1 ${price(setup.takeProfit1)}${lot}.${ai ? ` ${ai}.` : ''} Buka aplikasi untuk memuatnya, lalu pasang ordernya di MT5.`,
     tag: `${scanId}_new`,
   };
 }

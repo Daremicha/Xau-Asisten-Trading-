@@ -136,21 +136,21 @@ export function noSetupNote(body: Record<string, unknown>): string {
   const skipped = body.skipped as
     | { reason?: string; convictionScore?: number; threshold?: number; declinedBy?: string }
     | undefined;
-  if (!skipped) return 'no setup found';
+  if (!skipped) return 'tidak ada setup';
   switch (skipped.reason) {
     case 'daily-limit':
-      return 'daily loss limit reached, scanning resumes with the next trading day';
+      return 'batas rugi harian tercapai, pemindaian dilanjutkan hari trading berikutnya';
     case 'feed-mismatch':
-      return 'price feed unavailable for XAUUSD';
+      return 'feed harga XAUUSD tidak tersedia';
     case 'unfillable':
-      return 'price had already run past the level';
+      return 'harga sudah lari melewati level';
     case 'risk-cap':
-      return 'the minimum lot would risk more than your risk setting';
+      return 'lot minimum akan berisiko lebih dari setelan risikomu';
     case 'dead-band':
-      return `setup scored ${skipped.convictionScore}/100, a band the backtest showed loses`;
+      return `skor setup ${skipped.convictionScore}/100, rentang yang menurut backtest rugi`;
     default:
-      return `best setup scored ${skipped.convictionScore}/100, needs ${skipped.threshold}${
-        skipped.declinedBy === 'session' ? ' in the Asian session' : ''
+      return `skor setup terbaik ${skipped.convictionScore}/100, butuh ${skipped.threshold}${
+        skipped.declinedBy === 'session' ? ' di sesi Asia' : ''
       }`;
   }
 }

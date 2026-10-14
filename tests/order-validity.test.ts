@@ -56,13 +56,13 @@ describe('what ends a pending order besides a fill', () => {
   test('price through the invalidation without filling voids the idea', () => {
     const v = evaluatePendingOrder(pending, 4180, NOW);
     expect(v.state).toBe('invalidated');
-    expect(v.reason).toContain('void');
+    expect(v.reason).toContain('batal');
   });
 
   test('price running a full stop distance past the entry means the move ran away', () => {
     const v = evaluatePendingOrder(pending, 4206, NOW);
     expect(v.state).toBe('ran-away');
-    expect(v.reason).toContain('without ever filling it');
+    expect(v.reason).toContain('tanpa pernah mengisinya');
   });
 
   test('the clock running out expires it', () => {
@@ -95,30 +95,30 @@ describe('what ends a pending order besides a fill', () => {
 
 describe('the countdown reads naturally', () => {
   test('minutes, hours and days each phrase correctly', () => {
-    expect(formatTimeLeft(45)).toBe('45m left');
-    expect(formatTimeLeft(90)).toBe('1h 30m left');
-    expect(formatTimeLeft(120)).toBe('2h left');
-    expect(formatTimeLeft(3000)).toBe('2d 2h left');
+    expect(formatTimeLeft(45)).toBe('45 mnt lagi');
+    expect(formatTimeLeft(90)).toBe('1 jam 30 mnt lagi');
+    expect(formatTimeLeft(120)).toBe('2 jam lagi');
+    expect(formatTimeLeft(3000)).toBe('2 hari 2 jam lagi');
   });
 
   test('a passed deadline reads as expired, never as a negative', () => {
-    expect(formatTimeLeft(0)).toBe('expired');
-    expect(formatTimeLeft(-10)).toBe('expired');
-    expect(formatTimeLeft(Infinity)).toBe('expired');
+    expect(formatTimeLeft(0)).toBe('kedaluwarsa');
+    expect(formatTimeLeft(-10)).toBe('kedaluwarsa');
+    expect(formatTimeLeft(Infinity)).toBe('kedaluwarsa');
   });
 });
 
 describe('the cause of a miss is specific, since each teaches a different lesson', () => {
   test('a runaway says the entry sat too deep', () => {
-    expect(missCause('ran-away')).toContain('deeper than the market retraced');
+    expect(missCause('ran-away')).toContain('terlalu dalam dibanding koreksi pasar');
   });
 
   test('an invalidation says the directional read was wrong', () => {
-    expect(missCause('invalidated')).toContain('directional read was wrong');
+    expect(missCause('invalidated')).toContain('bacaan arahnya salah');
   });
 
   test('an expiry says the level never came back', () => {
-    expect(missCause('expired')).toContain('never reaching the entry');
+    expect(missCause('expired')).toContain('tanpa harga pernah mencapai entry');
   });
 
   test('the three causes are all different, so learning can tell them apart', () => {
@@ -127,7 +127,7 @@ describe('the cause of a miss is specific, since each teaches a different lesson
   });
 
   test('a waiting order has no miss cause to report', () => {
-    expect(missCause('waiting')).toBe('The order did not fill.');
+    expect(missCause('waiting')).toBe('Order tidak terisi.');
   });
 });
 
@@ -180,6 +180,6 @@ describe('the quick target waits longer before calling a miss', () => {
   test('one and a half stop distances is a miss under the quick target', () => {
     const v = evaluatePendingOrder({ ...pending, missAtR: 1.5 }, 4202, NOW);
     expect(v.state).toBe('ran-away');
-    expect(v.reason).toContain('1.5 times the stop distance');
+    expect(v.reason).toContain('1.5 kali jarak stop');
   });
 });

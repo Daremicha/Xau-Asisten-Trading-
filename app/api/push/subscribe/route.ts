@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   if (!storeConfigured()) {
-    return NextResponse.json({ success: false, error: 'Push storage is not configured.' }, { status: 503 });
+    return NextResponse.json({ success: false, error: 'Penyimpanan push belum diatur.' }, { status: 503 });
   }
   const body = (await request.json().catch(() => null)) as {
     subscription?: unknown;
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   } | null;
   const subscription = sanitiseSubscription(body?.subscription);
   if (!subscription) {
-    return NextResponse.json({ success: false, error: 'Invalid push subscription.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Langganan push tidak valid.' }, { status: 400 });
   }
 
   const setup = sanitiseWatchedSetup(body?.setup);
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, watching: setup !== null && !finished });
   } catch (err) {
     console.warn('Push subscribe failed:', err);
-    return NextResponse.json({ success: false, error: 'Could not save the subscription.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Langganan tidak bisa disimpan.' }, { status: 502 });
   }
 }
 
@@ -65,12 +65,12 @@ export async function DELETE(request: Request) {
   if (!storeConfigured()) return NextResponse.json({ success: true });
   const body = (await request.json().catch(() => null)) as { endpoint?: unknown } | null;
   if (typeof body?.endpoint !== 'string') {
-    return NextResponse.json({ success: false, error: 'endpoint is required.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'endpoint wajib diisi.' }, { status: 400 });
   }
   try {
     await deleteRecord(recordId(body.endpoint));
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ success: false, error: 'Could not remove the subscription.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Langganan tidak bisa dihapus.' }, { status: 502 });
   }
 }

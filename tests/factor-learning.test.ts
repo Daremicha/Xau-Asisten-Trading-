@@ -225,7 +225,7 @@ describe('what the learning engine does with it', () => {
   test('the multiplier reaches the weights the signal engine reads, with a reason', () => {
     const learned = deriveAdaptiveWeights(misleading, 'Intraday');
     expect(learned.factorMultipliers.RSI).toBeLessThan(1);
-    expect(learned.adjustments.some((line) => line.startsWith('RSI kept pointing the wrong way'))).toBe(true);
+    expect(learned.adjustments.some((line) => line.startsWith('RSI terus salah arah'))).toBe(true);
     expect(learned.factorReliability.length).toBeGreaterThan(0);
   });
 
@@ -259,7 +259,7 @@ describe('a backtest can hand its verdicts to live trading', () => {
   test('live analysis starts from the adopted verdicts', () => {
     const learned = deriveAdaptiveWeights([], 'Intraday', { factorMultipliers: { RSI: 0.7 } });
     expect(learned.factorMultipliers).toEqual({ RSI: 0.7 });
-    expect(learned.adjustments.some((line) => line.includes('Carried from the adopted backtest: RSI 0.7x'))).toBe(true);
+    expect(learned.adjustments.some((line) => line.includes('Dibawa dari backtest yang dipakai: RSI 0.7x'))).toBe(true);
   });
 
   test('the account’s own verdict replaces the backtest’s once it has one', () => {

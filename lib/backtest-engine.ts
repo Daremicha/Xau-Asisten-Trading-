@@ -278,7 +278,7 @@ function snapshotFor(window: Candle[]): MarketSnapshot {
     // exactly as the live app does when no daily series is available. Handing
     // it real daily candles would be lookahead.
     candlesD1: [],
-    message: 'Historical replay.',
+    message: 'Uji ulang historis.',
   };
 }
 
@@ -290,15 +290,15 @@ function rootCauseFor(
   return {
     primaryFactor:
       outcome === 'TP'
-        ? `${anchor} held and the target was reached.`
+        ? `${anchor} bertahan dan target tercapai.`
         : outcome === 'SL'
-        ? `${anchor} failed and the invalidation was traded through.`
-        : `Price never returned to the ${anchor.toLowerCase()}.`,
+        ? `${anchor} gagal dan titik invalidasi tertembus.`
+        : `Harga tidak pernah kembali ke ${anchor}.`,
     institutionalFlowExplanation: reason,
     liquidityBehavior:
       outcome === 'MISSED'
-        ? 'The order rested outside the range price actually traded.'
-        : 'The level was traded through in the direction recorded.',
+        ? 'Order berada di luar range harga yang benar-benar terjadi.'
+        : 'Level tertembus searah yang tercatat.',
   };
 }
 
@@ -425,7 +425,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         return {
           kind: 'missed',
           index: j,
-          reason: 'Price traded through the invalidation without ever reaching the entry.',
+          reason: 'Harga menembus titik invalidasi tanpa pernah mencapai entry.',
         };
       }
       // The same rule the live app uses: a full stop distance beyond the entry
@@ -436,11 +436,11 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         return {
           kind: 'missed',
           index: j,
-          reason: 'Price ran a full stop distance past the entry without ever filling it.',
+          reason: 'Harga lari sejauh satu jarak stop melewati entry tanpa pernah mengisinya.',
         };
       }
       if (c.time > plan.expiresAt) {
-        return { kind: 'missed', index: j, reason: 'The order expired without filling.' };
+        return { kind: 'missed', index: j, reason: 'Order kedaluwarsa tanpa terisi.' };
       }
     }
     if (fillIndex === -1) return { kind: 'unresolved' };
@@ -486,8 +486,8 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         exitPrice: (gapped ? c.open : stop) + adverseExit,
         outcome: 'SL',
         reason: protectedStop
-          ? 'Price came back to the entry after the stop had been moved there, so the trade cost only its spread.'
-          : 'Price traded through the invalidation.',
+          ? 'Harga kembali ke entry setelah stop dipindah ke sana, jadi trade hanya memakan spread.'
+          : 'Harga menembus titik invalidasi.',
         protectedExit: protectedStop,
       };
     }
@@ -509,7 +509,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         exitIndex: j,
         exitPrice: plan.takeProfit1,
         outcome: 'TP',
-        reason: 'The first target was reached.',
+        reason: 'Target pertama tercapai.',
       };
     }
     if (c.time >= deadline) {
@@ -521,7 +521,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
         exitIndex: j,
         exitPrice: c.close + adverseExit,
         outcome: profitable ? 'TP' : 'SL',
-        reason: `Closed at market after the ${Math.round(plan.maxHoldMs / 3_600_000)} hour holding limit.`,
+        reason: `Ditutup di harga market setelah batas waktu ${Math.round(plan.maxHoldMs / 3_600_000)} jam.`,
       };
     }
   }

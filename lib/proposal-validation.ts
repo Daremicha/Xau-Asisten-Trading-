@@ -53,10 +53,10 @@ export function parseProposal(raw: string): { proposal: ProposedOrder | null; re
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { proposal: null, reasons: ['The model did not return valid JSON.'] };
+    return { proposal: null, reasons: ['Model tidak mengembalikan JSON yang valid.'] };
   }
   if (typeof parsed !== 'object' || parsed === null) {
-    return { proposal: null, reasons: ['The model returned something other than an object.'] };
+    return { proposal: null, reasons: ['Model mengembalikan sesuatu yang bukan objek.'] };
   }
 
   const p = parsed as Record<string, unknown>;
@@ -64,18 +64,18 @@ export function parseProposal(raw: string): { proposal: ProposedOrder | null; re
 
   const direction = String(p.direction ?? '').toLowerCase();
   if (direction !== 'long' && direction !== 'short') {
-    reasons.push('Direction must be exactly "long" or "short".');
+    reasons.push('Arah harus tepat "long" atau "short".');
   }
 
   const numeric: Record<string, number> = {};
   for (const field of ['entryPrice', 'stopLoss', 'takeProfit1', 'takeProfit2', 'takeProfit3']) {
     const value = p[field];
-    if (!isUsableNumber(value)) reasons.push(`${field} is missing or not a positive number.`);
+    if (!isUsableNumber(value)) reasons.push(`${field} kosong atau bukan angka positif.`);
     else numeric[field] = value;
   }
 
   const rationale = typeof p.rationale === 'string' ? p.rationale.trim() : '';
-  if (rationale.length < 20) reasons.push('The rationale is missing or too short to review.');
+  if (rationale.length < 20) reasons.push('Alasannya kosong atau terlalu pendek untuk ditinjau.');
 
   if (reasons.length > 0) return { proposal: null, reasons };
 
@@ -100,22 +100,22 @@ export function structuralLevels(
   const out: Array<{ name: string; price: number }> = [];
   for (const [label, s] of Object.entries(ctx.structures)) {
     const tf = label.toUpperCase();
-    out.push({ name: `${tf} order block high`, price: s.orderBlock.high });
-    out.push({ name: `${tf} order block low`, price: s.orderBlock.low });
-    out.push({ name: `${tf} order block mean`, price: (s.orderBlock.high + s.orderBlock.low) / 2 });
+    out.push({ name: `high order block ${tf}`, price: s.orderBlock.high });
+    out.push({ name: `low order block ${tf}`, price: s.orderBlock.low });
+    out.push({ name: `tengah order block ${tf}`, price: (s.orderBlock.high + s.orderBlock.low) / 2 });
     if (s.fairValueGap.detected) {
-      out.push({ name: `${tf} fair value gap top`, price: s.fairValueGap.top });
-      out.push({ name: `${tf} fair value gap bottom`, price: s.fairValueGap.bottom });
+      out.push({ name: `atas fair value gap ${tf}`, price: s.fairValueGap.top });
+      out.push({ name: `bawah fair value gap ${tf}`, price: s.fairValueGap.bottom });
       out.push({
-        name: `${tf} fair value gap midpoint`,
+        name: `tengah fair value gap ${tf}`,
         price: (s.fairValueGap.top + s.fairValueGap.bottom) / 2,
       });
     }
-    if (typeof s.bosLevel === 'number') out.push({ name: `${tf} break of structure`, price: s.bosLevel });
-    out.push({ name: `${tf} previous day high`, price: s.liquidityPools.pdh });
-    out.push({ name: `${tf} previous day low`, price: s.liquidityPools.pdl });
-    out.push({ name: `${tf} Asian high`, price: s.liquidityPools.asiaHigh });
-    out.push({ name: `${tf} Asian low`, price: s.liquidityPools.asiaLow });
+    if (typeof s.bosLevel === 'number') out.push({ name: `break of structure ${tf}`, price: s.bosLevel });
+    out.push({ name: `high hari sebelumnya ${tf}`, price: s.liquidityPools.pdh });
+    out.push({ name: `low hari sebelumnya ${tf}`, price: s.liquidityPools.pdl });
+    out.push({ name: `high Asia ${tf}`, price: s.liquidityPools.asiaHigh });
+    out.push({ name: `low Asia ${tf}`, price: s.liquidityPools.asiaLow });
   }
   out.push({ name: `EMA ${ctx.indicators.emaFastPeriod}`, price: ctx.indicators.ema50 });
   out.push({ name: `EMA ${ctx.indicators.emaSlowPeriod}`, price: ctx.indicators.ema200 });
@@ -138,23 +138,23 @@ export function validateProposal(proposal: ProposedOrder, ctx: ProposalContext):
   for (const [label, value] of Object.entries({ entryPrice, stopLoss, takeProfit1, takeProfit2, takeProfit3 })) {
     if (Math.abs(value - ctx.price) > band) {
       reasons.push(
-        `${label} at ${value.toFixed(2)} is ${priceToPips(value - ctx.price)} pips from the market, beyond the ${priceToPips(band)} pip sanity band.`
+        `${label} di ${value.toFixed(2)} berjarak ${priceToPips(value - ctx.price)} pips dari harga, di luar batas wajar ${priceToPips(band)} pip.`
       );
     }
   }
 
   // Geometry must match the stated direction.
   if (isLong) {
-    if (stopLoss >= entryPrice) reasons.push('A long stop loss must sit below the entry.');
-    if (takeProfit1 <= entryPrice) reasons.push('A long first target must sit above the entry.');
+    if (stopLoss >= entryPrice) reasons.push('Stop loss posisi long harus di bawah entry.');
+    if (takeProfit1 <= entryPrice) reasons.push('Target pertama posisi long harus di atas entry.');
     if (takeProfit2 <= takeProfit1 || takeProfit3 <= takeProfit2) {
-      reasons.push('Long targets must ascend from the first to the third.');
+      reasons.push('Target long harus naik dari yang pertama sampai yang ketiga.');
     }
   } else {
-    if (stopLoss <= entryPrice) reasons.push('A short stop loss must sit above the entry.');
-    if (takeProfit1 >= entryPrice) reasons.push('A short first target must sit below the entry.');
+    if (stopLoss <= entryPrice) reasons.push('Stop loss posisi short harus di atas entry.');
+    if (takeProfit1 >= entryPrice) reasons.push('Target pertama posisi short harus di bawah entry.');
     if (takeProfit2 >= takeProfit1 || takeProfit3 >= takeProfit2) {
-      reasons.push('Short targets must descend from the first to the third.');
+      reasons.push('Target short harus turun dari yang pertama sampai yang ketiga.');
     }
   }
 
@@ -162,12 +162,12 @@ export function validateProposal(proposal: ProposedOrder, ctx: ProposalContext):
   const risk = Math.abs(entryPrice - stopLoss);
   if (risk < profile.minStopDollars - 0.005) {
     reasons.push(
-      `A ${ctx.tradingStyle} stop of ${priceToPips(risk)} pips is tighter than the ${priceToPips(profile.minStopDollars)} pip minimum for this style.`
+      `Stop ${ctx.tradingStyle} sebesar ${priceToPips(risk)} pips lebih sempit dari minimum ${priceToPips(profile.minStopDollars)} pip untuk gaya ini.`
     );
   }
   if (risk > profile.maxStopDollars + 0.005) {
     reasons.push(
-      `A ${ctx.tradingStyle} stop of ${priceToPips(risk)} pips is wider than the ${priceToPips(profile.maxStopDollars)} pip ceiling for this style.`
+      `Stop ${ctx.tradingStyle} sebesar ${priceToPips(risk)} pips lebih lebar dari batas ${priceToPips(profile.maxStopDollars)} pip untuk gaya ini.`
     );
   }
 
@@ -176,7 +176,7 @@ export function validateProposal(proposal: ProposedOrder, ctx: ProposalContext):
   const distance = Math.abs(entryPrice - ctx.price);
   if (distance > reach) {
     reasons.push(
-      `The entry sits ${priceToPips(distance)} pips away, beyond the ${priceToPips(reach)} pip reach of a ${ctx.tradingStyle} setup.`
+      `Entry berjarak ${priceToPips(distance)} pips, di luar jangkauan ${priceToPips(reach)} pip untuk setup ${ctx.tradingStyle}.`
     );
   }
 
@@ -184,7 +184,7 @@ export function validateProposal(proposal: ProposedOrder, ctx: ProposalContext):
   const reward = Math.abs(takeProfit1 - entryPrice);
   if (risk > 0 && reward / risk < MIN_REWARD_RATIO) {
     reasons.push(
-      `The first target pays ${(reward / risk).toFixed(2)} times the risk, below the ${MIN_REWARD_RATIO.toFixed(2)} minimum.`
+      `Target pertama membayar ${(reward / risk).toFixed(2)} kali risiko, di bawah minimum ${MIN_REWARD_RATIO.toFixed(2)}.`
     );
   }
 
@@ -199,7 +199,7 @@ export function validateProposal(proposal: ProposedOrder, ctx: ProposalContext):
   }
   if (!anchoredTo) {
     reasons.push(
-      `The entry at ${entryPrice.toFixed(2)} matches no measured level; the nearest is ${priceToPips(closest)} pips away, outside the ${priceToPips(tolerance)} pip tolerance.`
+      `Entry di ${entryPrice.toFixed(2)} tidak cocok dengan level terukur mana pun; yang terdekat berjarak ${priceToPips(closest)} pips, di luar toleransi ${priceToPips(tolerance)} pip.`
     );
   }
 

@@ -106,18 +106,18 @@ describe('live trades against the replay', () => {
 
   test('a short run near break-even is still within chance of the replay', () => {
     const rows = Array.from({ length: 35 }, (_, i) => record(i, i % 2 === 0 ? 1 : -1));
-    expect(liveVersusReplay(rows).title).toContain('in line with the replay');
+    expect(liveVersusReplay(rows).title).toContain('sejalan dengan backtest');
   });
 
   test('a long run clearly under the replay is called out', () => {
     const rows = Array.from({ length: 300 }, (_, i) => record(i, i % 3 === 0 ? 1 : -1));
     const lesson = liveVersusReplay(rows);
     expect(lesson.tone).toBe('bad');
-    expect(lesson.title).toContain('worse than the replay');
+    expect(lesson.title).toContain('lebih buruk daripada backtest');
   });
 
   test('replayed rows are not counted as live trades', () => {
     const rows = Array.from({ length: 40 }, (_, i) => ({ ...record(i, -1), id: `bt_${i}` }));
-    expect(liveVersusReplay(rows).title).toContain('0 closed trades');
+    expect(liveVersusReplay(rows).title).toContain('0 trade tertutup');
   });
 });

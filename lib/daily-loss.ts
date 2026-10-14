@@ -91,5 +91,5 @@ export function dailyLossNote(net: number, equityNow: number, limitPercent: numb
     minute: '2-digit',
     hour12: false,
   });
-  return `Today's closed trades have lost ${lostPercent.toFixed(1)}% of the balance the day started with, which reaches your daily limit of ${limitPercent}%. No new setup until the next trading day starts, ${resumes} WIB.`;
+  return `Trade tertutup hari ini sudah rugi ${lostPercent.toFixed(1)}% dari saldo awal hari ini, mencapai batas harianmu ${limitPercent}%. Tidak ada setup baru sampai hari trading berikutnya dimulai, ${resumes} WIB.`;
 }

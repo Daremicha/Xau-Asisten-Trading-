@@ -355,7 +355,7 @@ describe('the four sessions on the dashboard', () => {
   test('an inactive session says when it opens, an active one when it closes', () => {
     for (const session of sessions) {
       if (session.statusText.startsWith('Weekend Recess')) continue;
-      expect(session.statusText).toContain(session.isActive ? 'Closes in' : 'Opens in');
+      expect(session.statusText).toContain(session.isActive ? 'Tutup dalam' : 'Buka dalam');
     }
   });
 });
@@ -400,19 +400,19 @@ describe('kill zones, asked about a specific moment', () => {
   test('the weekend recess starts Friday at twenty one hundred UTC', () => {
     // 2026-09-25 is a Friday. The last hour before the close is still a kill
     // zone's tail end of a trading week, not a recess.
-    expect(getICTKillZoneStatus(utc(2026, 9, 25, 20, 59)).description).not.toContain('Weekend');
+    expect(getICTKillZoneStatus(utc(2026, 9, 25, 20, 59)).description).not.toContain('akhir pekan');
     const shut = getICTKillZoneStatus(utc(2026, 9, 25, 21));
     expect(shut.currentZone).toBe('Off-Hours');
     expect(shut.isHighVolatilityTiming).toBe(false);
-    expect(shut.description).toContain('Weekend');
+    expect(shut.description).toContain('akhir pekan');
   });
 
   test('Saturday is closed all day and Sunday reopens at twenty two hundred UTC', () => {
     for (const hour of [0, 8, 13, 23]) {
-      expect(getICTKillZoneStatus(utc(2026, 9, 26, hour)).description).toContain('Weekend');
+      expect(getICTKillZoneStatus(utc(2026, 9, 26, hour)).description).toContain('akhir pekan');
     }
-    expect(getICTKillZoneStatus(utc(2026, 9, 27, 21, 59)).description).toContain('Weekend');
-    expect(getICTKillZoneStatus(utc(2026, 9, 27, 22)).description).not.toContain('Weekend');
+    expect(getICTKillZoneStatus(utc(2026, 9, 27, 21, 59)).description).toContain('akhir pekan');
+    expect(getICTKillZoneStatus(utc(2026, 9, 27, 22)).description).not.toContain('akhir pekan');
   });
 
   test('called with no moment at all it answers about now, without throwing', () => {

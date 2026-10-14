@@ -44,7 +44,7 @@ describe('what the phone is told', () => {
     const candles = bars([4302, 4306], [4299, 4306]);
     const first = run(candles, 4305);
     expect(first.map((m) => m.key)).toEqual(['setup-1:filled']);
-    expect(first[0].title).toBe('✅ ORDER FILLED: BUY LIMIT @ 4300.00');
+    expect(first[0].title).toBe('✅ ORDER TERISI: BUY LIMIT @ 4300.00');
     expect(first[0].tag).toBe('setup-1_filled');
     expect(run(candles, 4305, ['setup-1:filled'])).toEqual([]);
   });
@@ -64,15 +64,15 @@ describe('what the phone is told', () => {
   test('a stop out is final, and names the exit', () => {
     const messages = run(bars([4302, 4306], [4299, 4306], [4288, 4301]), 4289, ['setup-1:filled']);
     expect(messages).toHaveLength(1);
-    expect(messages[0].title).toBe('🛑 STOP LOSS HIT: BUY closed at a loss');
-    expect(messages[0].body).toContain('stopped out at 4290.00 (-100 pips)');
+    expect(messages[0].title).toBe('🛑 KENA STOP LOSS: BUY tertutup rugi');
+    expect(messages[0].body).toContain('kena stop di 4290.00 (-100 pips)');
     expect(messages[0].final).toBe(true);
   });
 
   test('a target hit is final', () => {
     const messages = run(bars([4302, 4306], [4299, 4306], [4305, 4332]), 4331, ['setup-1:filled']);
-    expect(messages[0].title).toBe('🎯 TAKE PROFIT 2 HIT: BUY closed in profit');
-    expect(messages[0].body).toContain('reached TP2 at 4330.00 (+300 pips)');
+    expect(messages[0].title).toBe('🎯 KENA TAKE PROFIT 2: BUY tertutup untung');
+    expect(messages[0].body).toContain('mencapai TP2 di 4330.00 (+300 pips)');
     expect(messages[0].final).toBe(true);
   });
 
@@ -80,8 +80,8 @@ describe('what the phone is told', () => {
     // Ran a full stop distance past the entry without ever filling.
     const messages = run(bars([4302, 4306], [4309, 4312]), 4311);
     expect(messages.map((m) => m.key)).toEqual(['setup-1:missed']);
-    expect(messages[0].title).toBe('⚠️ ORDER NOT FILLED: delete BUY LIMIT @ 4300.00');
-    expect(messages[0].body).toContain('do not chase it');
+    expect(messages[0].title).toBe('⚠️ ORDER TIDAK TERISI: hapus BUY LIMIT @ 4300.00');
+    expect(messages[0].body).toContain('jangan dikejar');
     expect(messages[0].final).toBe(true);
   });
 });
@@ -96,7 +96,7 @@ describe('the stop moved to entry at 1R', () => {
   test('reaching 1R tells the phone to move the stop', () => {
     const messages = runGuarded(bars([4302, 4306], [4299, 4306], [4305, 4311]), 4309, ['setup-1:filled']);
     expect(messages.map((m) => m.key)).toEqual(['setup-1:protect']);
-    expect(messages[0].title).toBe('🔒 MOVE SL TO ENTRY: BUY is 1R in profit');
+    expect(messages[0].title).toBe('🔒 PINDAH SL KE ENTRY: BUY sudah untung 1R');
   });
 
   test('coming back to the entry afterwards is a break-even, not a stop loss', () => {
@@ -106,7 +106,7 @@ describe('the stop moved to entry at 1R', () => {
       ['setup-1:filled', 'setup-1:protect']
     );
     expect(messages).toHaveLength(1);
-    expect(messages[0].title).toBe('⚖️ BREAK-EVEN: BUY closed at entry');
+    expect(messages[0].title).toBe('⚖️ IMPAS: BUY tertutup di entry');
     expect(messages[0].final).toBe(true);
   });
 

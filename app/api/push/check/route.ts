@@ -52,20 +52,20 @@ async function run(request: Request) {
     const presented =
       request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? url.searchParams.get('key') ?? '';
     if (presented !== secret) {
-      return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Tidak diizinkan.' }, { status: 401 });
     }
   }
 
   if (!storeConfigured() || !vapidPublicKey()) {
     return NextResponse.json(
-      { success: false, error: 'Closed-app alerts are not configured on this deployment.' },
+      { success: false, error: 'Notifikasi saat aplikasi tertutup belum diatur di deployment ini.' },
       { status: 503 }
     );
   }
 
   try {
     if (!(await claimCheck(CHECK_GAP_SECONDS))) {
-      return NextResponse.json({ success: true, skipped: 'A check ran moments ago.' });
+      return NextResponse.json({ success: true, skipped: 'Pemeriksaan baru saja berjalan.' });
     }
 
     const ids = await watchingIds();
@@ -130,7 +130,7 @@ async function run(request: Request) {
     return NextResponse.json({ success: true, watching: ids.length, sent, offered: scanned, price });
   } catch (err) {
     console.warn('Push check failed:', err);
-    return NextResponse.json({ success: false, error: 'The check could not complete.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Pemeriksaan tidak bisa diselesaikan.' }, { status: 502 });
   }
 }
 
@@ -159,23 +159,23 @@ async function scanForSetups(): Promise<number> {
     // A trade in play, or a setup already announced and not yet loaded, is
     // enough to be getting on with.
     if (record.setup && !record.finished) {
-      await note('held', 'a trade is in play on this phone');
+      await note('held', 'ada trade yang sedang berjalan di HP ini');
       continue;
     }
     if (record.offer && now - Date.parse(record.offer.at) < OFFER_TTL_MS) {
-      await note('held', 'an announced setup is waiting to be opened');
+      await note('held', 'ada setup yang diumumkan dan menunggu dibuka');
       continue;
     }
 
     const input = scanRequest(record.scan);
     if (!input) {
-      await note('error', 'the settings sent by the app could not be read');
+      await note('error', 'pengaturan dari aplikasi tidak bisa dibaca');
       continue;
     }
     const result = await runAnalysis(input).catch(() => null);
     if (!result || result.status !== 200) {
       const error = (result?.body as { error?: unknown } | undefined)?.error;
-      await note('error', `analysis failed${typeof error === 'string' ? `: ${error.slice(0, 120)}` : ''}`);
+      await note('error', `analisis gagal${typeof error === 'string' ? `: ${error.slice(0, 120)}` : ''}`);
       continue;
     }
     const setup = (result.body as { setup?: InstitutionalTradingSetup | null }).setup;
@@ -186,7 +186,7 @@ async function scanForSetups(): Promise<number> {
 
     const key = offerKey(setup);
     if (isRepeat(key, record.lastOffer, now)) {
-      await note('held', `same ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} already announced`);
+      await note('held', `sama: ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} sudah diumumkan`);
       continue;
     }
 
@@ -214,8 +214,8 @@ async function scanForSetups(): Promise<number> {
     await note(
       outcome === 'sent' ? 'announced' : 'error',
       outcome === 'sent'
-        ? `announced ${setup.orderType} @ ${setup.entryPrice.toFixed(2)}`
-        : `found ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} but the notification could not be sent`,
+        ? `diumumkan ${setup.orderType} @ ${setup.entryPrice.toFixed(2)}`
+        : `ditemukan ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} tapi notifikasi tidak bisa dikirim`,
       { offer: { setup: stored, at }, lastOffer: { key, at } }
     );
   }

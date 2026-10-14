@@ -586,7 +586,7 @@ export async function getMarketSnapshot(live = false): Promise<MarketSnapshot> {
     candlesD1: [],
     instrument: 'spot',
     message:
-      'No market data provider could be reached. Set TWELVE_DATA_API_KEY for a spot XAU/USD feed, or check outbound network access.',
+      'Tidak ada provider data pasar yang bisa dihubungi. Pasang TWELVE_DATA_API_KEY untuk feed spot XAU/USD, atau cek akses jaringan keluar.',
   };
 }
 
@@ -612,7 +612,7 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
   // user trades. It is worth showing, and worth refusing to quote orders from.
   const instrumentNote =
     result.instrument === 'futures'
-      ? ` This is the COMEX futures contract, not spot XAUUSD: it trades at the cost of carry away from the price your broker quotes, so no order levels are produced from it.`
+      ? ` Ini kontrak futures COMEX, bukan XAUUSD spot: harganya berbeda dari harga brokermu sebesar biaya carry, jadi tidak ada level order yang dibuat darinya.`
       : '';
 
   return {
@@ -631,14 +631,14 @@ function toSnapshot(result: ProviderResult, now: number, status: 'live' | 'stale
     candlesD1: result.candlesD1,
     message:
       (effective === 'live'
-        ? `Live data from ${result.source}.`
+        ? `Data live dari ${result.source}.`
         : status === 'live'
-        ? `${result.source} is answering, but the freshest price it gave is ${Math.round(
+        ? `${result.source} menjawab, tapi harga terbarunya sudah berumur ${Math.round(
             ageMs / 1000
-          )} seconds old, which is not current enough for a market order.`
-        : `Provider unreachable. Showing the last known quote from ${result.source}, ${Math.round(
+          )} detik, belum cukup baru untuk order market.`
+        : `Provider tidak bisa dihubungi. Menampilkan harga terakhir dari ${result.source}, ${Math.round(
             ageMs / 1000
-          )} seconds old. Do not trade on it.`) + instrumentNote,
+          )} detik lalu. Jangan trading dengan harga ini.`) + instrumentNote,
   };
 }
 
@@ -666,11 +666,11 @@ export async function fetchHistoricalCandles(
   if (!twelveDataConfigured()) {
     return {
       candles: [],
-      message: 'No market data key is configured, so past prices cannot be fetched.',
+      message: 'Key data pasar belum dipasang, jadi harga lama tidak bisa diambil.',
     };
   }
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-    return { candles: [], message: 'The period to examine is not a valid range.' };
+    return { candles: [], message: 'Periode yang mau diperiksa bukan rentang yang valid.' };
   }
 
   // An audit is a deliberate act by the user, so it spends from the essential
@@ -678,7 +678,7 @@ export async function fetchHistoricalCandles(
   if (!takeRequest(true)) {
     return {
       candles: [],
-      message: 'The daily market data allowance is spent. The audit can run again tomorrow.',
+      message: 'Jatah data pasar harian sudah habis. Pemeriksaan bisa dijalankan lagi besok.',
     };
   }
 
@@ -695,17 +695,17 @@ export async function fetchHistoricalCandles(
   try {
     const reply = (await requestTwelveData(url, fetchWithTimeout))!;
     if (!reply.ok) {
-      return { candles: [], message: `The market data provider returned HTTP ${reply.status}.` };
+      return { candles: [], message: `Provider data pasar mengembalikan HTTP ${reply.status}.` };
     }
     const payload = reply.payload;
     if ((payload as { status?: string })?.status === 'error') {
-      return { candles: [], message: 'The market data provider declined the request for this period.' };
+      return { candles: [], message: 'Provider data pasar menolak permintaan untuk periode ini.' };
     }
     const candles = tradingCandles(mapTwelveDataCandles(payload));
     return candles.length === 0
-      ? { candles: [], message: 'The provider returned no candles for this period.' }
+      ? { candles: [], message: 'Provider tidak mengirim candle untuk periode ini.' }
       : { candles, message: '' };
   } catch {
-    return { candles: [], message: 'The market data provider could not be reached.' };
+    return { candles: [], message: 'Provider data pasar tidak bisa dihubungi.' };
   }
 }

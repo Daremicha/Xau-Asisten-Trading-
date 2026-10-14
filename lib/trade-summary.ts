@@ -50,9 +50,9 @@ function aiLine(live: SelfLearningMemoryRecord[], results: Result[]): string {
       return (c.aiAgree ?? 0) * 2 > c.aiAnswered === agreed;
     });
     const wins = picked.filter((r) => resultOf(r) === 'TP').length;
-    return picked.length ? `${wins}/${picked.length} won (${((wins / picked.length) * 100).toFixed(0)}%)` : 'none yet';
+    return picked.length ? `${wins}/${picked.length} menang (${((wins / picked.length) * 100).toFixed(0)}%)` : 'belum ada';
   };
-  return `AI majority agreed: ${group(true)} - otherwise: ${group(false)}`;
+  return `Mayoritas AI setuju: ${group(true)} - selain itu: ${group(false)}`;
 }
 
 export function tradeSummaryText(
@@ -75,24 +75,24 @@ export function tradeSummaryText(
   const avgR = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
 
   const lines = [
-    'XAUUSD Assistant - trade summary',
-    `Generated: ${wib(new Date(options.now ?? Date.now()).toISOString())} WIB`,
-    `Account: ${accountType} - balance ${money(equity)}`,
-    `Settings: ${settings.tradingStyle} - conviction ${
-      settings.minConviction === 0 ? 'Take all' : settings.minConviction
-    } - ${settings.protectStopAtR ? `SL to entry at ${settings.protectStopAtR}R` : 'no break-even move'} - daily limit ${
-      settings.dailyLossLimit ? `${settings.dailyLossLimit}%` : 'off'
-    }${settings.quickTarget ? ' - quick target 0.5R' : ''}${
-      settings.selfLearning === undefined ? '' : settings.selfLearning ? ' - self-learning on' : ' - self-learning off'
-    }${settings.riskGuard === undefined ? '' : settings.riskGuard ? ' - risk guard on' : ' - risk guard off'}`,
-    `Trades: ${closed.length} closed (TP ${wins} - SL ${count('SL')} - BE ${count('BE')}) - ${count('MISSED')} missed`,
-    `Win rate: ${closed.length ? ((wins / closed.length) * 100).toFixed(1) : '-'}% - Net: ${money(net, true)} - Avg R: ${
+    'Asisten XAUUSD - ringkasan trade',
+    `Dibuat: ${wib(new Date(options.now ?? Date.now()).toISOString())} WIB`,
+    `Akun: ${accountType} - saldo ${money(equity)}`,
+    `Setelan: ${settings.tradingStyle} - conviction ${
+      settings.minConviction === 0 ? 'Ambil semua' : settings.minConviction
+    } - ${settings.protectStopAtR ? `SL ke entry di ${settings.protectStopAtR}R` : 'tanpa pindah ke impas'} - batas harian ${
+      settings.dailyLossLimit ? `${settings.dailyLossLimit}%` : 'mati'
+    }${settings.quickTarget ? ' - TP cepat 0.5R' : ''}${
+      settings.selfLearning === undefined ? '' : settings.selfLearning ? ' - self-learning aktif' : ' - self-learning mati'
+    }${settings.riskGuard === undefined ? '' : settings.riskGuard ? ' - penjaga risiko aktif' : ' - penjaga risiko mati'}`,
+    `Trade: ${closed.length} tertutup (TP ${wins} - SL ${count('SL')} - BE ${count('BE')}) - ${count('MISSED')} missed`,
+    `Win rate: ${closed.length ? ((wins / closed.length) * 100).toFixed(1) : '-'}% - Bersih: ${money(net, true)} - Rata-rata R: ${
       avgR === null ? '-' : signed(avgR)
     }`,
     '',
     aiLine(live, results),
     '',
-    '#|Closed (WIB)|Setup|Order|Entry|Exit|Result|P/L|R|AI agree',
+    '#|Ditutup (WIB)|Setup|Order|Entry|Exit|Hasil|L/R|R|AI setuju',
     ...live.map((r, i) =>
       [
         i + 1,

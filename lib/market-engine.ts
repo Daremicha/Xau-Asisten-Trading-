@@ -31,7 +31,7 @@ export function getContractSpecification(
         accountCurrency: 'USC (Cents)',
         brokerId,
         brokerName: profile.name,
-        explanation: `1 Cent Lot = 1 Troy Oz (1/100 Standard) on ${profile.name}. Typical spread is ${profile.spreadCentPips || 2.5} pips with $0 commission. Calibrated for micro-capital to keep risk strictly within 1-2%.`,
+        explanation: `1 Cent Lot = 1 Troy Oz (1/100 Standard) di ${profile.name}. Spread biasa ${profile.spreadCentPips || 2.5} pips tanpa komisi. Cocok untuk modal mikro supaya risiko tetap di 1-2%.`,
       };
     case 'Pro':
       return {
@@ -42,7 +42,7 @@ export function getContractSpecification(
         accountCurrency: 'USD ($)',
         brokerId,
         brokerName: profile.name,
-        explanation: `1 Pro Lot = 100 Troy Oz on ${profile.name}. Direct ECN access with raw spreads (~${profile.spreadProPips} pips). Fixed $${profile.commissionProPerLot.toFixed(2)}/lot round turn commission is factored into risk math.`,
+        explanation: `1 Pro Lot = 100 Troy Oz di ${profile.name}. Akses ECN langsung dengan spread raw (~${profile.spreadProPips} pips). Komisi tetap $${profile.commissionProPerLot.toFixed(2)}/lot pulang-pergi sudah dihitung dalam risiko.`,
       };
     case 'Standard':
     default:
@@ -54,7 +54,7 @@ export function getContractSpecification(
         accountCurrency: 'USD ($)',
         brokerId,
         brokerName: profile.name,
-        explanation: `1 Standard Lot = 100 Troy Oz on ${profile.name}. Floating spread is ~${profile.spreadStandardPips} pips. Zero commission; all execution fees are incorporated into the floating spread.`,
+        explanation: `1 Standard Lot = 100 Troy Oz di ${profile.name}. Spread mengambang sekitar ${profile.spreadStandardPips} pips. Tanpa komisi; semua biaya eksekusi sudah termasuk dalam spread mengambang.`,
       };
   }
 }
@@ -225,43 +225,43 @@ export function getGlobalTradingSessions(): TradingSessionInfo[] {
   const sessionConfigs = [
     {
       id: 'tokyo' as const,
-      name: 'Asian Session',
+      name: 'Sesi Asia',
       city: 'Tokyo / Sydney',
       region: 'Asia-Pacific',
       utcOpen: 0,
       utcClose: 9,
       volatilityLevel: 'Moderate' as const,
-      characteristics: 'Consolidation range. Sets Asian High & Low liquidity boundaries for London sweeps.',
+      characteristics: 'Range konsolidasi. Membentuk batas likuiditas High & Low Asia untuk sweep London.',
     },
     {
       id: 'london' as const,
-      name: 'European Session',
+      name: 'Sesi Eropa',
       city: 'London / Frankfurt',
-      region: 'Europe',
+      region: 'Eropa',
       utcOpen: 7,
       utcClose: 16,
       volatilityLevel: 'High' as const,
-      characteristics: 'Judas swings, aggressive liquidity injection, and institutional trend initiation.',
+      characteristics: 'Judas swing, masuknya likuiditas agresif, dan awal tren institusional.',
     },
     {
       id: 'newyork' as const,
-      name: 'American Session',
+      name: 'Sesi Amerika',
       city: 'New York',
-      region: 'North America',
+      region: 'Amerika Utara',
       utcOpen: 12,
       utcClose: 21,
       volatilityLevel: 'Extreme' as const,
-      characteristics: 'Peak US Dollar volume, Tier-1 economic news releases, and institutional trend expansion.',
+      characteristics: 'Volume dolar AS tertinggi, rilis berita ekonomi utama, dan perluasan tren institusional.',
     },
     {
       id: 'overlap' as const,
-      name: 'London & NY Overlap',
+      name: 'Tumpang Tindih London & NY',
       city: 'London + New York',
-      region: 'Transatlantic Peak',
+      region: 'Puncak Transatlantik',
       utcOpen: 12,
       utcClose: 16,
       volatilityLevel: 'Extreme' as const,
-      characteristics: 'Highest liquidity window of the 24-hour cycle. Ideal for rapid take-profit delivery.',
+      characteristics: 'Jendela likuiditas tertinggi dalam siklus 24 jam. Ideal untuk take profit yang cepat.',
     },
   ];
 
@@ -286,7 +286,7 @@ export function getGlobalTradingSessions(): TradingSessionInfo[] {
       }
       const h = Math.floor(hoursUntilOpen);
       const m = Math.round((hoursUntilOpen - h) * 60);
-      statusText = `Weekend Recess • Opens in ${h}h ${m}m`;
+      statusText = `Libur Akhir Pekan • Buka dalam ${h}j ${m}m`;
     } else if (currentUtcDec >= cfg.utcOpen && currentUtcDec < cfg.utcClose) {
       isActive = true;
       const elapsedHours = currentUtcDec - cfg.utcOpen;
@@ -294,7 +294,7 @@ export function getGlobalTradingSessions(): TradingSessionInfo[] {
       const remainingMinutes = Math.round((cfg.utcClose - currentUtcDec) * 60);
       const remH = Math.floor(remainingMinutes / 60);
       const remM = remainingMinutes % 60;
-      statusText = `Active • Closes in ${remH > 0 ? `${remH}h ` : ''}${remM}m`;
+      statusText = `Aktif • Tutup dalam ${remH > 0 ? `${remH}j ` : ''}${remM}m`;
     } else {
       let minutesUntilOpen = 0;
       if (currentUtcDec < cfg.utcOpen) {
@@ -304,7 +304,7 @@ export function getGlobalTradingSessions(): TradingSessionInfo[] {
       }
       const untilH = Math.floor(minutesUntilOpen / 60);
       const untilM = minutesUntilOpen % 60;
-      statusText = `Opens in ${untilH > 0 ? `${untilH}h ` : ''}${untilM}m`;
+      statusText = `Buka dalam ${untilH > 0 ? `${untilH}j ` : ''}${untilM}m`;
     }
 
     return {
@@ -342,7 +342,7 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     return {
       currentZone: 'Off-Hours',
       isHighVolatilityTiming: false,
-      description: 'Weekend market recess. Institutional liquidity pools are dormant until Sunday 22:00 UTC.',
+      description: 'Pasar libur akhir pekan. Likuiditas institusional tidur sampai Minggu 22:00 UTC.',
     };
   }
 
@@ -358,7 +358,7 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     return {
       currentZone: 'London Open',
       isHighVolatilityTiming: true,
-      description: 'London Open Kill Zone active. High institutional liquidity injection & Judas swings.',
+      description: 'Kill Zone Pembukaan London aktif. Masuknya likuiditas institusional tinggi & Judas swing.',
     };
   }
   // New York Open Kill Zone: 12:00 - 15:00 UTC
@@ -366,7 +366,7 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     return {
       currentZone: 'New York Open',
       isHighVolatilityTiming: true,
-      description: 'New York Open Kill Zone active. Peak US dollar volume, high-impact news releases.',
+      description: 'Kill Zone Pembukaan New York aktif. Volume dolar AS puncak, rilis berita berdampak tinggi.',
     };
   }
   // London Close Kill Zone: 15:00 - 17:00 UTC
@@ -374,7 +374,7 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     return {
       currentZone: 'London Close',
       isHighVolatilityTiming: true,
-      description: 'London Close Kill Zone active. Profit taking & institutional daily trend continuations.',
+      description: 'Kill Zone Penutupan London aktif. Ambil untung & kelanjutan tren harian institusional.',
     };
   }
   // Asian Session: 00:00 - 06:00 UTC
@@ -382,14 +382,14 @@ export function getICTKillZoneStatus(now: Date = new Date()): {
     return {
       currentZone: 'Asian Session',
       isHighVolatilityTiming: false,
-      description: 'Asian consolidation session. Building buy-side & sell-side liquidity pools for London sweep.',
+      description: 'Sesi konsolidasi Asia. Membentuk likuiditas buy-side & sell-side untuk sweep London.',
     };
   }
 
   return {
     currentZone: 'Off-Hours',
     isHighVolatilityTiming: false,
-    description: 'Transition window between major institutional trading sessions.',
+    description: 'Jendela transisi antar sesi trading institusional utama.',
   };
 }
 

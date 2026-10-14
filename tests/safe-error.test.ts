@@ -39,16 +39,16 @@ describe('nothing a provider says reaches the browser intact', () => {
 describe('what the user is told instead', () => {
   test('recognised failures get a specific, safe sentence', () => {
     expect(publicErrorMessage(new Error('The operation was aborted'), 'fallback')).toContain(
-      'did not answer in time'
+      'tidak menjawab tepat waktu'
     );
     expect(publicErrorMessage(new Error('HTTP 429 too many requests'), 'fallback')).toContain(
-      'rate limiting'
+      'membatasi akun ini'
     );
     expect(publicErrorMessage(new Error('Twelve Data HTTP 401'), 'fallback')).toContain(
-      'rejected the server credentials'
+      'menolak kredensial server'
     );
     expect(publicErrorMessage(new Error('fetch failed'), 'fallback')).toContain(
-      'could not reach the data provider'
+      'tidak bisa menghubungi provider data'
     );
   });
 

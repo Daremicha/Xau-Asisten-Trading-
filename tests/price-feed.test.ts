@@ -215,7 +215,7 @@ describe('a market order needs a price that still exists', () => {
       'live'
     );
     expect(snapshot.status).toBe('stale');
-    expect(snapshot.message).toContain('not current enough for a market order');
+    expect(snapshot.message).toContain('belum cukup baru untuk order market');
   });
 
   test('a live tick is live, and says nothing alarming', () => {
@@ -236,7 +236,7 @@ describe('a market order needs a price that still exists', () => {
     );
     expect(snapshot.status).toBe('live');
     expect(snapshot.ageMs).toBeLessThan(1000);
-    expect(snapshot.message).toContain('Live data from');
+    expect(snapshot.message).toContain('Data live dari');
   });
 });
 
@@ -281,8 +281,8 @@ describe('which instrument the quote actually is', () => {
       'live'
     );
     expect(snapshot.instrument).toBe('futures');
-    expect(snapshot.message).toContain('not spot XAUUSD');
-    expect(snapshot.message).toContain('no order levels are produced from it');
+    expect(snapshot.message).toContain('bukan XAUUSD spot');
+    expect(snapshot.message).toContain('tidak ada level order yang dibuat darinya');
   });
 });
 

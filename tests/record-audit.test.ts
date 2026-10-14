@@ -119,7 +119,7 @@ describe('a stop loss booked against a level the market never touched', () => {
     const verdict = auditRecord(phantom, candles);
     expect(verdict.kind).toBe('contradicted');
     if (verdict.kind !== 'contradicted') throw new Error('expected a contradiction');
-    expect(verdict.reason).toContain('never reached the stop');
+    expect(verdict.reason).toContain('tidak pernah mencapai stop');
     expect(contradictsRecord(verdict)).toBe(true);
   });
 
@@ -149,7 +149,7 @@ describe('a take profit booked against a level the market never reached', () => 
     const verdict = auditRecord(claimedWin, candles);
     expect(verdict.kind).toBe('contradicted');
     if (verdict.kind !== 'contradicted') throw new Error('expected a contradiction');
-    expect(verdict.reason).toContain('never reached 4329.00');
+    expect(verdict.reason).toContain('tidak pernah mencapai 4329.00');
   });
 
   test('is confirmed when it did', () => {
@@ -165,7 +165,7 @@ describe('a take profit booked against a level the market never reached', () => 
     const verdict = auditRecord(real, candles);
     expect(verdict.kind).toBe('contradicted');
     if (verdict.kind !== 'contradicted') throw new Error('expected a contradiction');
-    expect(verdict.reason).toContain('not a take profit');
+    expect(verdict.reason).toContain('bukan take profit');
   });
 });
 
@@ -189,7 +189,7 @@ describe('a missed entry', () => {
     const verdict = auditRecord(record(), candles);
     expect(verdict.kind).toBe('contradicted');
     if (verdict.kind !== 'contradicted') throw new Error('expected a contradiction');
-    expect(verdict.reason).toContain('stop loss, not a missed entry');
+    expect(verdict.reason).toContain('stop loss, bukan entry missed');
   });
 });
 
@@ -278,7 +278,7 @@ describe('the candle the order was placed inside', () => {
     ];
     const v = auditRecord(straddling(), candles);
     expect(v.kind).toBe('unknown');
-    expect(v.reason).toContain('placed in');
+    expect(v.reason).toContain('saat order dipasang');
   });
 
   test('may still refute, because a level it never reached was never reached', () => {

@@ -193,20 +193,20 @@ export async function closedAppAlertStatus(): Promise<ClosedAppAlertStatus> {
 
 /** Asks the server for a test notification in a few seconds. Returns an error to show, or null. */
 export async function sendTestPush(): Promise<string | null> {
-  if (!supported()) return 'This browser cannot receive push notifications.';
+  if (!supported()) return 'Browser ini tidak bisa menerima notifikasi push.';
   try {
     const registration = await navigator.serviceWorker.getRegistration();
     const subscription = await registration?.pushManager.getSubscription();
-    if (!subscription) return 'This phone is not signed up yet. Allow notifications first.';
+    if (!subscription) return 'HP ini belum terdaftar. Izinkan notifikasi dulu.';
     const res = await fetch('/api/push/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: subscription.toJSON() }),
     });
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    return res.ok ? null : data?.error ?? `The test failed (HTTP ${res.status}).`;
+    return res.ok ? null : data?.error ?? `Tes gagal (HTTP ${res.status}).`;
   } catch {
-    return 'The test could not be requested.';
+    return 'Tes tidak bisa diminta.';
   }
 }
 

@@ -98,19 +98,19 @@ export function collectTargetLevels(inputs: TargetInputs): TargetLevel[] {
     ['D1', structures.d1],
   ] as const) {
     const pools = structure.liquidityPools;
-    add(direction === 'long' ? pools.pdh : pools.pdl, `${timeframe} previous day ${direction === 'long' ? 'high' : 'low'}`);
-    add(direction === 'long' ? pools.asiaHigh : pools.asiaLow, `${timeframe} Asia session ${direction === 'long' ? 'high' : 'low'}`);
+    add(direction === 'long' ? pools.pdh : pools.pdl, `${timeframe} ${direction === 'long' ? 'high' : 'low'} hari sebelumnya`);
+    add(direction === 'long' ? pools.asiaHigh : pools.asiaLow, `${timeframe} ${direction === 'long' ? 'high' : 'low'} sesi Asia`);
 
     // The far side of an opposing order block is where the move is likely to be
     // met by the other side.
     const block = structure.orderBlock;
-    add(direction === 'long' ? block.low : block.high, `${timeframe} opposing order block edge`);
+    add(direction === 'long' ? block.low : block.high, `${timeframe} tepi order block lawan`);
 
     // An unfilled imbalance ahead tends to be filled.
     if (structure.fairValueGap.detected) {
       add(
         direction === 'long' ? structure.fairValueGap.bottom : structure.fairValueGap.top,
-        `${timeframe} imbalance edge`
+        `${timeframe} tepi imbalance`
       );
     }
   }
@@ -119,17 +119,17 @@ export function collectTargetLevels(inputs: TargetInputs): TargetLevel[] {
   if (pivotBias) {
     const pivotLevels = direction === 'long' ? pivotBias.keyResistanceLevels : pivotBias.keySupportLevels;
     pivotLevels.forEach((level, index) => add(level, `Pivot ${direction === 'long' ? 'R' : 'S'}${index + 1}`));
-    add(pivotBias.pivotPoint, 'Daily pivot');
+    add(pivotBias.pivotPoint, 'Pivot harian');
   }
 
   // The level a Quasimodo break projects toward.
-  if (quasimodo?.detected) add(quasimodo.breakLevel, 'Quasimodo break level');
+  if (quasimodo?.detected) add(quasimodo.breakLevel, 'Level break Quasimodo');
 
   // Recent swings, which is where a move most often pauses.
   const swings = findSwingPoints(candles.slice(-120), 2);
   for (const swing of swings.slice(-8)) {
-    if (direction === 'long' && swing.kind === 'high') add(swing.price, 'Recent swing high');
-    if (direction === 'short' && swing.kind === 'low') add(swing.price, 'Recent swing low');
+    if (direction === 'long' && swing.kind === 'high') add(swing.price, 'Swing high terakhir');
+    if (direction === 'short' && swing.kind === 'low') add(swing.price, 'Swing low terakhir');
   }
 
   // Nearest first, and never two targets on top of each other.
@@ -215,13 +215,13 @@ export function selectTargets(inputs: TargetInputs): SelectedTargets {
       const placed = Math.max(distance - toll, low);
       chosen.push(round2(entry + sign * placed));
       basis.push(
-        `${(placed / Math.max(risk, 0.0001)).toFixed(2)}R, in front of ${candidate.label.toLowerCase()} at ${candidate.price.toFixed(2)}`
+        `${(placed / Math.max(risk, 0.0001)).toFixed(2)}R, di depan ${candidate.label.toLowerCase()} di ${candidate.price.toFixed(2)}`
       );
     } else {
       usedFallback = true;
       chosen.push(round2(entry + sign * base));
       basis.push(
-        `${rewardMultiples[i].toFixed(1)}R, with no level near it to sit in front of`
+        `${rewardMultiples[i].toFixed(1)}R, tanpa level di dekatnya untuk dijadikan patokan`
       );
     }
   }

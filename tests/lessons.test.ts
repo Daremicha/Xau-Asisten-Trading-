@@ -36,7 +36,7 @@ describe('lessons from the user’s trades', () => {
   test('says plainly when there are too few closed trades', () => {
     const lessons = tradeLessons([trade('TP'), trade('SL'), trade('MISSED')]);
     expect(lessons).toHaveLength(1);
-    expect(lessons[0].title).toContain('Not enough');
+    expect(lessons[0].title).toContain('belum cukup');
   });
 
   test('names the kind of setup that has been losing, and how much evidence it rests on', () => {
@@ -47,11 +47,11 @@ describe('lessons from the user’s trades', () => {
       trade('SL', { order: 'SELL LIMIT' }),
     ];
     const lessons = tradeLessons(records);
-    const losing = lessons.find((l) => l.title.startsWith('Orders filled at market'));
+    const losing = lessons.find((l) => l.title.startsWith('Order yang terisi di harga market'));
     expect(losing?.tone).toBe('bad');
-    expect(losing?.detail).toContain('1 of 5 won');
-    expect(losing?.detail).toContain('early sign');
-    expect(lessons.find((l) => l.title.startsWith('Resting orders'))?.tone).toBe('good');
+    expect(losing?.detail).toContain('1 dari 5 menang');
+    expect(losing?.detail).toContain('tanda awal');
+    expect(lessons.find((l) => l.title.startsWith('Order pending'))?.tone).toBe('good');
   });
 
   test('leaves replayed backtest rows out', () => {
@@ -60,7 +60,7 @@ describe('lessons from the user’s trades', () => {
       trade('SL'),
       trade('TP'),
     ];
-    expect(tradeLessons(records)[0].title).toContain('Not enough');
+    expect(tradeLessons(records)[0].title).toContain('belum cukup');
   });
 
   test('says that many misses cost nothing', () => {
@@ -68,13 +68,13 @@ describe('lessons from the user’s trades', () => {
       ...Array.from({ length: 5 }, () => trade('TP')),
       ...Array.from({ length: 6 }, () => trade('MISSED')),
     ];
-    expect(tradeLessons(records).some((l) => l.title === '6 of 11 orders never filled')).toBe(true);
+    expect(tradeLessons(records).some((l) => l.title === '6 dari 11 order tidak pernah terisi')).toBe(true);
   });
 
   test('places trades in their WIB session', () => {
     expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T08:00:00.000Z' }))).toContain('London'); // 15:00 WIB
-    expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T01:00:00.000Z' }))).toContain('Asian'); // 08:00 WIB
+    expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T01:00:00.000Z' }))).toContain('Asia'); // 08:00 WIB
     expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T13:00:00.000Z' }))).toContain('New York'); // 20:00 WIB
-    expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T20:00:00.000Z' }))).toContain('late'); // 03:00 WIB
+    expect(sessionOfTrade(trade('TP', { placed: '2026-09-29T20:00:00.000Z' }))).toContain('larut'); // 03:00 WIB
   });
 });

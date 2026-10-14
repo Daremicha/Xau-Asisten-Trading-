@@ -254,12 +254,12 @@ export function evaluatePriceProximity(
 
         const title =
           t.type === 'TP'
-            ? `Take Profit Proximity: ${t.label} at $${t.price.toFixed(2)}`
-            : `Warning: Approaching ${t.label} at $${t.price.toFixed(2)}`;
+            ? `Dekat Take Profit: ${t.label} di $${t.price.toFixed(2)}`
+            : `Peringatan: Mendekati ${t.label} di $${t.price.toFixed(2)}`;
 
         const message = isBreached
-          ? `XAUUSD price $${currentPrice.toFixed(2)} has reached ${t.label} ($${t.price.toFixed(2)}).`
-          : `XAUUSD price $${currentPrice.toFixed(2)} is within ${distancePips} pips ($${distanceDollars.toFixed(2)}) of ${t.label} ($${t.price.toFixed(2)}).`;
+          ? `Harga XAUUSD $${currentPrice.toFixed(2)} sudah mencapai ${t.label} ($${t.price.toFixed(2)}).`
+          : `Harga XAUUSD $${currentPrice.toFixed(2)} tinggal ${distancePips} pips ($${distanceDollars.toFixed(2)}) dari ${t.label} ($${t.price.toFixed(2)}).`;
 
         if (options.enableSound !== false) {
           playProximityChime(t.type);

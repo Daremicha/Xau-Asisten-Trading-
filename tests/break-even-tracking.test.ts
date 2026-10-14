@@ -23,7 +23,7 @@ describe('the tick tracker under the break-even rule', () => {
   test('once armed, the entry is the stop, and reaching it closes at break-even', () => {
     const live = trackPosition(setup, 4280.5, true, true);
     expect(live.closedBy).toBe('SL');
-    expect(live.summary).toBe('Position closed at break-even.');
+    expect(live.summary).toBe('Posisi tertutup impas.');
   });
 
   test('once armed, the original stop is no longer the level that matters', () => {

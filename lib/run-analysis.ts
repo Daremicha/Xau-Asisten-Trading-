@@ -87,11 +87,11 @@ function breakoutWaitingNote(
   const share = (found.lot.actualRiskDollars / input.equity) * 100;
   const needed = found.lot.actualRiskDollars / (input.riskPercentage / 100);
   const money = input.accountType === 'Cent' ? `${Math.ceil(needed * 100).toLocaleString('en-US')} Cent` : `$${Math.ceil(needed)}`;
-  return `A London breakout is set up (${found.plan.orderType} ${found.plan.entryPrice.toFixed(2)}), but its ${Math.round(
+  return `London breakout sudah terbentuk (${found.plan.orderType} ${found.plan.entryPrice.toFixed(2)}), tapi stop ${Math.round(
     Math.abs(found.plan.entryPrice - found.plan.stopLoss) * 10
-  )} pip stop would risk ${share.toFixed(1)}% of the balance at the minimum lot, over your ${
+  )} pip-nya akan berisiko ${share.toFixed(1)}% saldo dengan lot minimum, di atas risiko ${
     input.riskPercentage
-  }%. It is offered from a balance of about ${money}.`;
+  }% kamu. Setup ini ditawarkan mulai saldo sekitar ${money}.`;
 }
 
 /**
@@ -119,7 +119,7 @@ export async function runAnalysis(input: ValidatedAnalyzeRequest): Promise<Analy
         rationale: '',
         nextCheck: {
           at: new Date(resumesAt).toISOString(),
-          reason: 'The daily loss limit resets when the next trading day starts, at the daily open of gold.',
+          reason: 'Batas rugi harian di-reset saat hari trading berikutnya dimulai, yaitu saat pembukaan harian emas.',
           marketClosed: false,
           session: null,
         },
@@ -142,7 +142,7 @@ export async function runAnalysis(input: ValidatedAnalyzeRequest): Promise<Analy
       return reply(
         {
           success: false,
-          error: `The feed returned only ${snapshot.candlesM15.length} candles, which is not enough to derive market structure.`,
+          error: `Feed hanya mengirim ${snapshot.candlesM15.length} candle, belum cukup untuk membaca struktur pasar.`,
           dataStatus: snapshot.status,
         },
         { status: 503 }
@@ -193,7 +193,7 @@ export async function runAnalysis(input: ValidatedAnalyzeRequest): Promise<Analy
     let institutionalRationale = decision.rationale;
     let engineMetadata: EngineGenerationMetadata = {
       provider: 'algorithmic',
-      model: 'Structural SMC/ICT engine',
+      model: 'Engine struktur SMC/ICT',
       isFallback: false,
       timestamp: new Date().toISOString(),
     };
@@ -334,9 +334,9 @@ Reply with JSON only:
                 riskRewardRatio: risk > 0 ? `1:${(reward / risk).toFixed(2)}` : '1:0',
               };
 
-              institutionalRationale = `${clean.rationale}\n\nValidated against ${
+              institutionalRationale = `${clean.rationale}\n\nDivalidasi terhadap ${
                 verdict.anchoredTo
-              }. Engine reference: ${decision.rationale}`;
+              }. Referensi engine: ${decision.rationale}`;
               engineMetadata = {
                 provider: synth.provider,
                 model: synth.model,
@@ -346,7 +346,7 @@ Reply with JSON only:
               };
             } else {
               // A rejected proposal still contributes its reading, but never a price.
-              institutionalRationale = `${decision.rationale}\n\nA language model proposal was rejected: ${verdict.reasons.join(
+              institutionalRationale = `${decision.rationale}\n\nUsulan model bahasa (AI) ditolak: ${verdict.reasons.join(
                 ' '
               )}`;
             }
@@ -354,7 +354,7 @@ Reply with JSON only:
         }
       } catch (err) {
         // Never the provider's own words: they can quote the key back.
-        proposalOutcome.reasons = [safeProviderNote(err, 'Provider error')];
+        proposalOutcome.reasons = [safeProviderNote(err, 'Gangguan provider')];
       }
     }
 
@@ -374,9 +374,9 @@ Reply with JSON only:
           threshold: input.minConviction,
           direction: decision.direction,
           notes: [
-            `The only market data available right now is ${snapshot.source}.`,
-            'That contract settles for future delivery, so it trades at the cost of carry away from spot XAUUSD — commonly tens of dollars.',
-            'Entry, stop and target read from it would all be shifted by that difference and would not match your broker, so none are offered.',
+            `Satu-satunya data pasar yang tersedia sekarang adalah ${snapshot.source}.`,
+            'Kontrak itu untuk penyerahan di masa depan, jadi harganya berbeda dari XAUUSD spot sebesar biaya carry — biasanya puluhan dolar.',
+            'Entry, stop, dan target dari kontrak itu akan bergeser sebesar selisih tersebut dan tidak cocok dengan brokermu, jadi tidak ada yang ditawarkan.',
           ],
           rationale: decision.rationale,
           nextCheck: nextCheck(input.tradingStyle),
@@ -406,8 +406,8 @@ Reply with JSON only:
         takeProfit3: breakout.plan.takeProfit3,
         riskRewardRatio: `1:${LONDON_BREAKOUT.targetR.toFixed(2)}`,
       };
-      institutionalRationale = `${breakout.plan.rationale}\n\nThe structural engine had no setup to offer; its reading, for reference: ${decision.rationale}`;
-      engineMetadata = { ...engineMetadata, model: 'London breakout of the Asian range' };
+      institutionalRationale = `${breakout.plan.rationale}\n\nEngine struktur tidak punya setup; bacaannya sebagai referensi: ${decision.rationale}`;
+      engineMetadata = { ...engineMetadata, model: 'London breakout dari range Asia' };
       return true;
     };
 
@@ -429,11 +429,11 @@ Reply with JSON only:
           threshold: input.minConviction,
           direction: decision.direction,
           notes: [
-            `Market is at ${marketPrice.toFixed(2)} and the level this read is built on sits at ${finalOrder.entryPrice.toFixed(
+            `Harga sekarang ${marketPrice.toFixed(2)} dan level yang dipakai bacaan ini ada di ${finalOrder.entryPrice.toFixed(
               2
-            )}, ${priceToPips(away)} pips away.`,
-            `The trade would carry a ${priceToPips(risk)} pip stop, so an order resting there counts as a missed entry the moment it is placed.`,
-            'The level is worth watching. There is no order to leave working at it right now.',
+            )}, ${priceToPips(away)} pips jauhnya.`,
+            `Trade ini memakai stop ${priceToPips(risk)} pip, jadi order yang dipasang di sana langsung terhitung missed begitu dipasang.`,
+            'Level ini layak dipantau. Belum ada order yang bisa dipasang di sana sekarang.',
           ],
           rationale: decision.rationale,
           nextCheck: nextCheck(input.tradingStyle),
@@ -591,7 +591,7 @@ Reply with JSON only:
           threshold: input.minConviction,
           direction: decision.direction,
           notes: [
-            `The setup was a ${finalOrder.orderType} at ${finalOrder.entryPrice.toFixed(2)} with the stop at ${finalOrder.stopLoss.toFixed(2)}.`,
+            `Setup-nya ${finalOrder.orderType} at ${finalOrder.entryPrice.toFixed(2)} dengan stop di ${finalOrder.stopLoss.toFixed(2)}.`,
             ...conviction.notes,
           ],
           rationale: decision.rationale,
@@ -614,7 +614,7 @@ Reply with JSON only:
           ...computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming),
           validUntil: new Date(breakout.plan.expiresAt).toISOString(),
           validForMinutes: Math.max(1, Math.round((breakout.plan.expiresAt - Date.now()) / 60_000)),
-          basis: 'A London breakout order is only valid until 10:00 London time.',
+          basis: 'Order London breakout hanya berlaku sampai jam 10:00 waktu London.',
         }
       : computeValidity(input.tradingStyle, killZone.isHighVolatilityTiming);
 
@@ -622,38 +622,38 @@ Reply with JSON only:
     const bid = round2(marketPrice - spreadDollars);
     const ask = round2(marketPrice + spreadDollars);
 
-    const symbolHint = input.accountType === 'Cent' ? 'XAUUSDc / GOLDc (Cent Account)' : 'XAUUSD (Gold vs US Dollar)';
+    const symbolHint = input.accountType === 'Cent' ? 'XAUUSDc / GOLDc (Akun Cent)' : 'XAUUSD (Emas vs Dolar AS)';
     const specs = lotCalculation.contractSpecs;
     const styleProfile = STYLE_PROFILES[input.tradingStyle];
 
     const mt5Instructions = [
-      `1. Open MetaTrader 5 on desktop or mobile.`,
-      `2. Select symbol: [ ${symbolHint} ].`,
-      `3. Order type: [ ${finalOrder.orderType} ].`,
+      `1. Buka MetaTrader 5 di komputer atau HP.`,
+      `2. Pilih simbol: [ ${symbolHint} ].`,
+      `3. Jenis order: [ ${finalOrder.orderType} ].`,
       lotCalculation.exceedsRiskBudget
-        ? `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ]. WARNING: the broker minimum lot risks $${lotCalculation.actualRiskDollars.toFixed(
+        ? `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ]. PERINGATAN: lot minimum broker berisiko $${lotCalculation.actualRiskDollars.toFixed(
             2
-          )}, which is ${((lotCalculation.actualRiskDollars / input.equity) * 100).toFixed(
+          )}, yaitu ${((lotCalculation.actualRiskDollars / input.equity) * 100).toFixed(
             1
-          )}% of your $${input.equity.toLocaleString('en-US')}, above the ${input.riskPercentage}% you asked for. Reduce the stop distance or raise the balance to respect the budget.`
-        : `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ], sized to $${lotCalculation.actualRiskDollars.toFixed(
+          )}% dari $${input.equity.toLocaleString('en-US')} kamu, di atas risiko ${input.riskPercentage}% yang kamu pasang. Perkecil jarak stop atau tambah saldo supaya sesuai batas risiko.`
+        : `4. Volume: [ ${lotCalculation.lotSize.toFixed(2)} ${specs.lotUnit} ], disesuaikan dengan risiko $${lotCalculation.actualRiskDollars.toFixed(
             2
-          )} risk at ${input.riskPercentage}% of $${input.equity.toLocaleString('en-US')}.`,
-      `5. Entry price: [ ${finalOrder.entryPrice.toFixed(2)} ] (${breakout ? BREAKOUT_ANCHOR : decision.anchor}).`,
-      `6. Stop loss: [ ${finalOrder.stopLoss.toFixed(2)} ], ${lotCalculation.stopLossPips} pips away.`,
-      `7. Targets: TP1 [ ${finalOrder.takeProfit1.toFixed(2)} ] | TP2 [ ${finalOrder.takeProfit2.toFixed(
+          )} yaitu ${input.riskPercentage}% dari $${input.equity.toLocaleString('en-US')}.`,
+      `5. Harga entry: [ ${finalOrder.entryPrice.toFixed(2)} ] (${breakout ? BREAKOUT_ANCHOR : decision.anchor}).`,
+      `6. Stop loss: [ ${finalOrder.stopLoss.toFixed(2)} ], ${lotCalculation.stopLossPips} pips jaraknya.`,
+      `7. Target: TP1 [ ${finalOrder.takeProfit1.toFixed(2)} ] | TP2 [ ${finalOrder.takeProfit2.toFixed(
         2
       )} ] | TP3 [ ${finalOrder.takeProfit3.toFixed(2)} ].`,
       breakout
-        ? `8. London breakout: a stop order, filled only if price breaks out of the Asian range. Delete it at ${new Date(
+        ? `8. London breakout: order stop, hanya terisi kalau harga keluar dari range Asia. Hapus order ini jam ${new Date(
             breakout.plan.expiresAt
-          ).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB (10:00 London) if it has not filled.`
-        : `8. Profile: ${styleProfile.label}. Entry sits ${decision.entryDistancePips} pips from the current price${
-            decision.entryOutOfReach ? ', which is beyond this style\u2019s usual reach, so it may not fill today' : ''
+          ).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB (10:00 London) kalau belum terisi.`
+        : `8. Profil: ${styleProfile.label}. Entry berjarak ${decision.entryDistancePips} pips dari harga sekarang${
+            decision.entryOutOfReach ? ', di luar jangkauan biasa gaya ini, jadi mungkin tidak terisi hari ini' : ''
           }.`,
-      `9. Broker: ${specs.brokerName}, ${specs.typicalSpreadPips} pips typical spread.`,
-      `10. Data source: ${snapshot.source ?? 'unknown'}${
-        snapshot.status === 'stale' ? ` (STALE, ${Math.round(snapshot.ageMs / 1000)}s old)` : ''
+      `9. Broker: ${specs.brokerName}, ${specs.typicalSpreadPips} pips spread biasa.`,
+      `10. Sumber data: ${snapshot.source ?? 'unknown'}${
+        snapshot.status === 'stale' ? ` (TERTUNDA, ${Math.round(snapshot.ageMs / 1000)} detik)` : ''
       }.`,
     ];
 
@@ -663,83 +663,83 @@ Reply with JSON only:
     const nextRelease = highImpact[0];
     const inputsConsulted: EngineInputUsed[] = [
       {
-        label: 'Live chart and structure',
-        value: `D1 ${read.multiTimeframe.d1.trend}, H4 ${read.multiTimeframe.h4.trend}, H1 ${read.multiTimeframe.h1.trend}, M15 ${read.multiTimeframe.m15.trend} from ${snapshot.candlesM15.length} candles.`,
+        label: 'Grafik live dan struktur',
+        value: `D1 ${read.multiTimeframe.d1.trend}, H4 ${read.multiTimeframe.h4.trend}, H1 ${read.multiTimeframe.h1.trend}, M15 ${read.multiTimeframe.m15.trend} dari ${snapshot.candlesM15.length} candle.`,
         used: true,
       },
       {
-        label: 'Indicators',
-        value: `EMA 50 ${read.indicators.ema50.toFixed(2)} against EMA 200 ${read.indicators.ema200.toFixed(
+        label: 'Indikator',
+        value: `EMA 50 ${read.indicators.ema50.toFixed(2)} dibanding EMA 200 ${read.indicators.ema200.toFixed(
           2
         )}, RSI ${read.indicators.rsi14.toFixed(1)}, ATR ${read.indicators.atr14.toFixed(2)}.`,
         used: true,
       },
       {
-        label: 'Institutional structure and confluence',
-        value: `${read.multiTimeframe.h1.orderBlock.type} with ${
-          read.multiTimeframe.h1.fairValueGap.detected ? 'an open imbalance' : 'no imbalance'
-        }, ${read.multiTimeframe.h1.pricingZone} pricing, ${
-          read.multiTimeframe.h1.liquidityPools.swept ? 'liquidity taken' : 'pools intact'
+        label: 'Struktur institusional dan konfluensi',
+        value: `${read.multiTimeframe.h1.orderBlock.type} dengan ${
+          read.multiTimeframe.h1.fairValueGap.detected ? 'imbalance terbuka' : 'tanpa imbalance'
+        }, ${read.multiTimeframe.h1.pricingZone}, ${
+          read.multiTimeframe.h1.liquidityPools.swept ? 'likuiditas sudah diambil' : 'likuiditas masih utuh'
         }.`,
         used: true,
       },
       {
-        label: 'Pivot and directional bias',
-        value: `${read.tradingCentral.directionalBias} around the ${read.tradingCentral.pivotPoint.toFixed(
+        label: 'Pivot dan arah bias',
+        value: `${read.tradingCentral.directionalBias} di sekitar pivot ${read.tradingCentral.pivotPoint.toFixed(
           2
-        )} pivot at ${read.tradingCentral.confidenceScore}% confidence.`,
+        )} dengan keyakinan ${read.tradingCentral.confidenceScore}%.`,
         used: true,
       },
       {
-        label: 'Wyckoff and Quasimodo',
-        value: `${read.wyckoff.phase} phase${
-          read.quasimodo.detected ? `, ${read.quasimodo.type} formed` : ', no Quasimodo pattern'
+        label: 'Wyckoff dan Quasimodo',
+        value: `Fase ${read.wyckoff.phase}${
+          read.quasimodo.detected ? `, ${read.quasimodo.type} terbentuk` : ', tanpa pola Quasimodo'
         }.`,
         used: true,
       },
       {
-        label: 'Institutional trading session',
+        label: 'Sesi trading institusional',
         value: `${killZone.currentZone}${
-          killZone.isHighVolatilityTiming ? ', inside a kill zone' : ', outside the kill zones'
+          killZone.isHighVolatilityTiming ? ', di dalam kill zone' : ', di luar kill zone'
         }.`,
         used: true,
       },
       {
-        label: 'USD economic calendar',
+        label: 'Kalender ekonomi USD',
         value: calendar.configured
           ? nextRelease
-            ? `${nextRelease.title} at ${nextRelease.time}${
-                minutesToNextEvent !== null ? `, ${Math.round(minutesToNextEvent)} minutes away` : ''
+            ? `${nextRelease.title} jam ${nextRelease.time}${
+                minutesToNextEvent !== null ? `, ${Math.round(minutesToNextEvent)} menit lagi` : ''
               }.`
-            : 'No high impact USD release ahead, so no news widening applied.'
+            : 'Tidak ada rilis USD berdampak tinggi ke depan, jadi tidak ada pelebaran karena berita.'
           : calendar.message,
         used: calendar.configured,
       },
       {
-        label: 'Adaptive self-learning engine',
+        label: 'Engine self-learning adaptif',
         value:
           input.pastLearningRecords.length === 0
-            ? 'No closed trades yet, so the engine is on its starting parameters.'
-            : `${input.pastLearningRecords.length} closed trades${
+            ? 'Belum ada trade tertutup, jadi engine memakai parameter awalnya.'
+            : `${input.pastLearningRecords.length} trade tertutup${
                 measuredEdgeR === null
                   ? ''
-                  : `, and ${decision.anchor.toLowerCase()} entries have returned ${measuredEdgeR}R`
+                  : `, dan entry ${decision.anchor.toLowerCase()} menghasilkan ${measuredEdgeR}R`
               }.`,
         used: input.pastLearningRecords.length > 0,
       },
       {
-        label: 'Strategy backtest lab',
+        label: 'Lab backtest strategi',
         value: input.priorWeights
-          ? 'Starting parameters adopted from a backtest, with live results adjusting from there.'
-          : 'No backtested parameters adopted, so the engine defaults are the starting point.',
+          ? 'Parameter awal diambil dari backtest, lalu disesuaikan oleh hasil live.'
+          : 'Belum ada parameter backtest yang dipakai, jadi engine mulai dari setelan bawaannya.',
         used: Boolean(input.priorWeights),
       },
       {
-        label: 'Portfolio and equity growth',
+        label: 'Pertumbuhan portofolio dan equity',
         value:
           drawdownPercent > 0
-            ? `${drawdownPercent}% below the account high water mark. Shown for information; the daily loss limit, not the score, handles a losing run.`
-            : 'Account at its high water mark.',
+            ? `${drawdownPercent}% di bawah puncak saldo akun. Hanya informasi; rangkaian rugi ditangani oleh batas rugi harian, bukan skor.`
+            : 'Akun ada di puncak saldonya.',
         used: false,
       },
     ];
@@ -772,10 +772,10 @@ Reply with JSON only:
       // Only the engine's own targets carry a basis; a model proposal that was
       // accepted replaced them, and saying otherwise would be a fabrication.
       targetBasis: breakout
-        ? [`TP1 at ${LONDON_BREAKOUT.targetR}R, the target the breakout was tested with; TP2 and TP3 a half and a whole R further.`]
+        ? [`TP1 di ${LONDON_BREAKOUT.targetR}R, target yang dipakai saat breakout diuji; TP2 dan TP3 setengah dan satu R lebih jauh.`]
         : quick
           ? [
-              `Quick target on: one target at ${QUICK_TARGET_R}R. It wins more often and earns less per trade; turn it off in the settings for the engine's own targets.`,
+              `TP cepat aktif: satu target di ${QUICK_TARGET_R}R. Lebih sering menang tapi untung per trade lebih kecil; matikan di pengaturan untuk memakai target engine sendiri.`,
             ]
           : proposalOutcome.accepted
           ? undefined
@@ -850,7 +850,7 @@ Reply with JSON only:
     return reply(
       {
         success: false,
-        error: publicErrorMessage(err, 'The analysis engine could not complete this request.'),
+        error: publicErrorMessage(err, 'Engine analisis tidak bisa menyelesaikan permintaan ini.'),
       },
       { status: 500 }
     );

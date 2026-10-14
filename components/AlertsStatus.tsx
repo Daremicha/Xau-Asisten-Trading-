@@ -60,7 +60,7 @@ function describeScan(
   return {
     ok: true,
     text: `aktif, setiap 15 menit. Terakhir berjalan ${when}: ${last.note}.${
-      last.outcome === 'no-setup' ? ' Notifikasi 📊 NEW SETUP dikirim kalau ada setup yang lolos.' : ''
+      last.outcome === 'no-setup' ? ' Notifikasi 📊 SETUP BARU dikirim kalau ada setup yang lolos.' : ''
     }`,
   };
 }

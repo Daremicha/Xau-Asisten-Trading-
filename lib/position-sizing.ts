@@ -91,15 +91,15 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
 
   if (inputs.timeframesAligned) {
     score += 12;
-    notes.push('Every higher timeframe agrees with the direction, which raises conviction.');
+    notes.push('Semua timeframe besar searah, jadi conviction naik.');
   } else {
     score -= 8;
-    notes.push('The higher timeframes disagree with each other, which lowers conviction.');
+    notes.push('Timeframe besar tidak searah satu sama lain, jadi conviction turun.');
   }
 
   if (inputs.killZoneActive) {
     score += 6;
-    notes.push('Execution falls inside an institutional kill zone.');
+    notes.push('Eksekusi ada di dalam kill zone institusional.');
   }
 
   // The account's own state, which no amount of chart reading can see.
@@ -107,11 +107,11 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
   if (drawdown >= 20) {
     score -= 20;
     notes.push(
-      `The account is ${drawdown.toFixed(1)}% below its high water mark, so position size is cut while the edge and the market disagree.`
+      `Akun ${drawdown.toFixed(1)}% di bawah puncak saldonya, jadi ukuran posisi dipotong selama keunggulan dan pasar tidak sejalan.`
     );
   } else if (drawdown >= 10) {
     score -= 10;
-    notes.push(`The account is ${drawdown.toFixed(1)}% below its high water mark, so size is trimmed.`);
+    notes.push(`Akun ${drawdown.toFixed(1)}% di bawah puncak saldonya, jadi ukuran dikurangi sedikit.`);
   }
 
   // What this kind of setup has actually returned, when enough have closed.
@@ -119,12 +119,12 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
     if (inputs.measuredEdgeR <= -0.2) {
       score -= 12;
       notes.push(
-        `Setups like this one have returned ${inputs.measuredEdgeR.toFixed(2)}R in your own history, so less is committed to it.`
+        `Setup seperti ini menghasilkan ${inputs.measuredEdgeR.toFixed(2)}R di riwayatmu sendiri, jadi risikonya dikurangi.`
       );
     } else if (inputs.measuredEdgeR >= 0.2) {
       score += 8;
       notes.push(
-        `Setups like this one have returned ${inputs.measuredEdgeR.toFixed(2)}R in your own history.`
+        `Setup seperti ini menghasilkan ${inputs.measuredEdgeR.toFixed(2)}R di riwayatmu sendiri.`
       );
     }
   }
@@ -134,31 +134,31 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
     if (inputs.rewardToRisk < 0.75) {
       score -= 15;
       notes.push(
-        `The first target pays ${inputs.rewardToRisk.toFixed(
+        `Target pertama membayar ${inputs.rewardToRisk.toFixed(
           2
-        )} times the risk, so it needs a high strike rate to be worth taking and is sized accordingly.`
+        )} kali risiko, jadi butuh tingkat menang tinggi supaya layak, dan ukurannya disesuaikan.`
       );
     } else if (inputs.rewardToRisk < 1) {
       score -= 8;
       notes.push(
-        `The first target pays ${inputs.rewardToRisk.toFixed(2)} times the risk, a little under one to one.`
+        `Target pertama membayar ${inputs.rewardToRisk.toFixed(2)} kali risiko, sedikit di bawah satu banding satu.`
       );
     }
   }
 
   if (inputs.entryOutOfReach) {
     score -= 25;
-    notes.push('No point of interest was within reach, so the entry may never fill.');
+    notes.push('Tidak ada area menarik dalam jangkauan, jadi entry-nya mungkin tidak pernah terisi.');
   }
 
   if (inputs.dataStale) {
     score -= 30;
-    notes.push('The quote is stale, so size is cut sharply until live data returns.');
+    notes.push('Harga tertunda, jadi ukuran dipotong tajam sampai data live kembali.');
   }
 
   if (inputs.proposalRejected) {
     score -= 10;
-    notes.push('A language model proposal was rejected for breaking a structural rule.');
+    notes.push('Usulan model bahasa (AI) ditolak karena melanggar aturan struktur.');
   }
 
   const convictionScore = Math.max(0, Math.min(100, Math.round(score)));
@@ -174,7 +174,7 @@ export function assessConviction(inputs: ConvictionInputs): ConvictionResult {
     convictionScore >= 70 ? 'High' : convictionScore >= 45 ? 'Moderate' : 'Low';
 
   notes.unshift(
-    `Conviction ${convictionScore} of 100 (${band}), so ${Math.round(multiplier * 100)}% of the risk budget is committed.`
+    `Conviction ${convictionScore} dari 100 (${band}), jadi ${Math.round(multiplier * 100)}% dari batas risiko yang dipakai.`
   );
 
   return { multiplier, convictionScore, band, notes };

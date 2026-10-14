@@ -146,7 +146,7 @@ export function comparePhases(result: BacktestResult): PhaseComparison {
       expectancyDelta,
       verdict: 'insufficient',
       explanation:
-        'Too few filled trades in one half of the period to say whether learning changed anything.',
+        'Trade terisi di salah satu paruh periode terlalu sedikit untuk menilai apakah belajar mengubah sesuatu.',
     };
   }
 
@@ -160,15 +160,15 @@ export function comparePhases(result: BacktestResult): PhaseComparison {
     expectancyDelta,
     verdict: improved ? 'improved' : declined ? 'declined' : 'unchanged',
     explanation: improved
-      ? `The second half earned ${formatAccountMoney(expectancyDelta, summary.accountType, {
+      ? `Paruh kedua menghasilkan ${formatAccountMoney(expectancyDelta, summary.accountType, {
           signed: true,
-        })} more per trade than the first.`
+        })} lebih banyak per trade daripada paruh pertama.`
       : declined
-      ? `The second half earned ${formatAccountMoney(
+      ? `Paruh kedua menghasilkan ${formatAccountMoney(
           Math.abs(expectancyDelta),
           summary.accountType
-        )} less per trade than the first, so the later signals were not the better ones.`
-      : 'The two halves traded about the same, so learning made no measurable difference here.',
+        )} lebih sedikit per trade daripada paruh pertama, jadi sinyal belakangan tidak lebih baik.`
+      : 'Kedua paruh hasilnya hampir sama, jadi belajar tidak membuat perbedaan yang terukur di sini.',
   };
 }
 
@@ -217,16 +217,16 @@ export function compareRuns(control: BacktestResult, adaptive: BacktestResult): 
     verdict,
     explanation:
       verdict === 'better'
-        ? `Learning from each result earned ${formatAccountMoney(
+        ? `Belajar dari setiap hasil menghasilkan ${formatAccountMoney(
             netDelta,
             control.summary.accountType
-          )} more over the same candles than running on fixed parameters.`
+          )} lebih banyak di candle yang sama daripada parameter tetap.`
         : verdict === 'worse'
-        ? `Learning from each result earned ${formatAccountMoney(
+        ? `Belajar dari setiap hasil menghasilkan ${formatAccountMoney(
             Math.abs(netDelta),
             control.summary.accountType
-          )} less than running on fixed parameters over this period, so the adaptation did not pay here.`
-        : 'Both runs finished within noise of each other, so learning neither helped nor hurt over this period.',
+          )} lebih sedikit daripada parameter tetap di periode ini, jadi penyesuaian tidak menguntungkan di sini.`
+        : 'Kedua run selesai dengan selisih sebatas noise, jadi belajar tidak membantu maupun merugikan di periode ini.',
   };
 }
 
@@ -244,10 +244,10 @@ export function rollingWinRate(trades: BacktestTrade[], window = 20): Array<{ se
 
 /** Conviction bands, chosen to match the Low / Moderate / High labels. */
 export const CONVICTION_BANDS: Array<{ label: string; min: number; max: number }> = [
-  { label: 'Below 40', min: 0, max: 40 },
-  { label: '40 to 54', min: 40, max: 55 },
-  { label: '55 to 69', min: 55, max: 70 },
-  { label: '70 and above', min: 70, max: 101 },
+  { label: 'Di bawah 40', min: 0, max: 40 },
+  { label: '40 sampai 54', min: 40, max: 55 },
+  { label: '55 sampai 69', min: 55, max: 70 },
+  { label: '70 ke atas', min: 70, max: 101 },
 ];
 
 export interface ConvictionBucket {
@@ -412,7 +412,7 @@ export function assessFloors(
   const baseline = outcomes.find((o) => o.floor === 0) ?? outcomes[0];
   const amount = (value: number) => formatAccountMoney(value, accountType, { signed: true });
   const describe = (o: FloorOutcome) =>
-    `${amount(o.netDollars)} from ${o.trades} trades with a worst drawdown of ${o.maxDrawdownPercent}%`;
+    `${amount(o.netDollars)} dari ${o.trades} trade dengan drawdown terburuk ${o.maxDrawdownPercent}%`;
 
   const eligible = outcomes.filter(
     (o) => o.trades >= MIN_FLOOR_TRADES && o.consistent && o.netDollars > 0 && o.returnToDrawdown !== null
@@ -422,7 +422,7 @@ export function assessFloors(
     return {
       floors: outcomes,
       recommended: 0,
-      reason: `No floor made money in both halves of this period with at least ${MIN_FLOOR_TRADES} trades, so none of them is a rule this period supports. Taking everything earned ${describe(
+      reason: `Tidak ada batas yang untung di kedua paruh periode ini dengan minimal ${MIN_FLOOR_TRADES} trade, jadi tidak ada yang layak dijadikan aturan. Mengambil semua setup menghasilkan ${describe(
         baseline
       )}.`,
     };
@@ -438,21 +438,21 @@ export function assessFloors(
     return {
       floors: outcomes,
       recommended: 0,
-      reason: `Taking everything earned ${describe(
+      reason: `Mengambil semua setup menghasilkan ${describe(
         baseline
-      )}, and no floor paid clearly more for each point of drawdown, so a floor would not have helped.`,
+      )}, dan tidak ada batas yang jelas lebih untung per poin drawdown, jadi batas tidak akan membantu.`,
     };
   }
 
   const multiple =
-    baselineRatio > 0 ? ` That is ${round((best.returnToDrawdown ?? 0) / baselineRatio, 1)} times the return per point of drawdown.` : '';
+    baselineRatio > 0 ? ` Itu ${round((best.returnToDrawdown ?? 0) / baselineRatio, 1)} kali hasil per poin drawdown.` : '';
 
   return {
     floors: outcomes,
     recommended: best.floor,
-    reason: `A floor of ${best.floor} earned ${describe(best)}, against ${describe(
+    reason: `Batas ${best.floor} menghasilkan ${describe(best)}, dibanding ${describe(
       baseline
-    )} for taking everything, and made money in both halves of the period.${multiple} Set it above and re-run to trade it properly, with compounding and position sizing applied.`,
+    )} kalau mengambil semua, dan untung di kedua paruh periode.${multiple} Pasang batas itu di atas lalu jalankan ulang untuk mengujinya dengan benar, lengkap dengan ukuran lot dan pertumbuhan saldo.`,
   };
 }
 
@@ -488,12 +488,12 @@ export function confirmFloor(estimate: FloorOutcome, run: BacktestResult): Floor
   };
   const held = actual.consistent && actual.netDollars > 0;
   const amount = (value: number) => formatAccountMoney(value, accountType, { signed: true });
-  const traded = `Traded for real with a floor of ${estimate.floor}, the period earned ${amount(actual.netDollars)} from ${
+  const traded = `Diuji sungguhan dengan batas ${estimate.floor}, periode ini menghasilkan ${amount(actual.netDollars)} dari ${
     actual.trades
-  } trades with a worst drawdown of ${actual.maxDrawdownPercent}%`;
+  } trade dengan drawdown terburuk ${actual.maxDrawdownPercent}%`;
   const why =
     actual.trades !== estimate.trades
-      ? ` It took ${actual.trades} trades rather than the ${estimate.trades} estimated: with weaker setups refused, the engine was free to take others.`
+      ? ` Jumlahnya ${actual.trades} trade, bukan ${estimate.trades} seperti perkiraan: karena setup lemah ditolak, engine bebas mengambil setup lain.`
       : '';
 
   return {
@@ -502,12 +502,12 @@ export function confirmFloor(estimate: FloorOutcome, run: BacktestResult): Floor
     actual,
     held,
     reason: held
-      ? `${traded}, and made money in both halves. The recommendation held up.${why}`
+      ? `${traded}, dan untung di kedua paruh. Rekomendasinya bertahan.${why}`
       : `${traded}, ${
-          actual.netDollars > 0 ? 'but did not make money in both halves' : 'and lost money overall'
-        } (${amount(actual.firstHalfNet)} then ${amount(
+          actual.netDollars > 0 ? 'tapi tidak untung di kedua paruh' : 'dan rugi secara keseluruhan'
+        } (${amount(actual.firstHalfNet)} lalu ${amount(
           actual.secondHalfNet
-        )}). The estimate did not hold up, so this period does not support the floor.${why}`,
+        )}). Perkiraannya tidak bertahan, jadi periode ini tidak mendukung batas tersebut.${why}`,
   };
 }
 
@@ -547,7 +547,7 @@ export function assessAdoption(control: BacktestResult, frozen: BacktestResult):
   const netDelta = money(frozenStats.netDollars - controlStats.netDollars);
   const drawdownDelta = round(frozenStats.maxDrawdownPercent - controlStats.maxDrawdownPercent, 1);
   const amount = (value: number) => formatAccountMoney(Math.abs(value), accountType);
-  const drawdowns = `${frozenStats.maxDrawdownPercent}% against ${controlStats.maxDrawdownPercent}%`;
+  const drawdowns = `${frozenStats.maxDrawdownPercent}% dibanding ${controlStats.maxDrawdownPercent}%`;
 
   const no = (reason: string): AdoptionVerdict => ({
     worthAdopting: false,
@@ -558,15 +558,15 @@ export function assessAdoption(control: BacktestResult, frozen: BacktestResult):
 
   if (matchesDefaultPrior(frozen.finalWeights)) {
     return no(
-      'The learning run found nothing worth changing and ended on the engine’s own defaults, which is what live analysis already uses. There is nothing here to adopt.'
+      'Run belajar tidak menemukan yang layak diubah dan berakhir di setelan bawaan engine, yang sudah dipakai analisis live. Tidak ada yang perlu dipakai.'
     );
   }
 
   if (netDelta <= 0) {
     return no(
-      `Held fixed from the first candle, these parameters earned ${amount(
+      `Dipakai tetap sejak candle pertama, parameter ini menghasilkan ${amount(
         netDelta
-      )} less than the engine defaults. Adopting them would have cost money over this period.`
+      )} lebih sedikit daripada setelan bawaan engine. Memakainya akan merugikan di periode ini.`
     );
   }
 
@@ -579,25 +579,25 @@ export function assessAdoption(control: BacktestResult, frozen: BacktestResult):
 
   if (netDelta < margin) {
     return no(
-      `Held fixed, these parameters earned ${amount(
+      `Dipakai tetap, parameter ini menghasilkan ${amount(
         netDelta
-      )} more than the defaults, which is too small a margin to be more than chance over a single period.`
+      )} lebih banyak daripada setelan bawaan, selisih yang terlalu kecil untuk dibedakan dari kebetulan dalam satu periode.`
     );
   }
 
   if (drawdownDelta > 0) {
     return no(
-      `Held fixed, these parameters earned ${amount(
+      `Dipakai tetap, parameter ini menghasilkan ${amount(
         netDelta
-      )} more than the defaults, but took a deeper worst drawdown, ${drawdowns}. That is a rougher ride for the same edge.`
+      )} lebih banyak daripada setelan bawaan, tapi drawdown terburuknya lebih dalam, ${drawdowns}. Perjalanannya lebih berat untuk keunggulan yang sama.`
     );
   }
 
   return {
     worthAdopting: true,
-    reason: `Held fixed from the first candle, these parameters earned ${amount(
+    reason: `Dipakai tetap sejak candle pertama, parameter ini menghasilkan ${amount(
       netDelta
-    )} more than the engine defaults, with a worst drawdown of ${drawdowns}. This period supports adopting them.`,
+    )} lebih banyak daripada setelan bawaan engine, dengan drawdown terburuk ${drawdowns}. Periode ini mendukung untuk memakainya.`,
     netDelta,
     drawdownDelta,
   };
@@ -641,7 +641,7 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
   const drawdownDelta = round(guardedStats.maxDrawdownPercent - controlStats.maxDrawdownPercent, 1);
   const savedTrades = guarded.trades.filter((t) => t.protectedExit).length;
   const amount = (value: number) => formatAccountMoney(Math.abs(value), accountType);
-  const drawdowns = `${guardedStats.maxDrawdownPercent}% against ${controlStats.maxDrawdownPercent}%`;
+  const drawdowns = `${guardedStats.maxDrawdownPercent}% dibanding ${controlStats.maxDrawdownPercent}%`;
 
   const base = { savedTrades, netDelta, drawdownDelta, winRate: guardedStats.winRate };
 
@@ -650,7 +650,7 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
       ...base,
       worthUsing: false,
       reason:
-        'No trade over this period ever went far enough in profit to move its stop, so the rule would have changed nothing.',
+        'Tidak ada trade di periode ini yang cukup jauh untung untuk memindah stop-nya, jadi aturan ini tidak akan mengubah apa pun.',
     };
   }
 
@@ -665,9 +665,9 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
     return {
       ...base,
       worthUsing: true,
-      reason: `The stop was moved to entry on ${savedTrades} trades, and the period earned ${amount(
+      reason: `Stop dipindah ke entry di ${savedTrades} trade, dan periode ini menghasilkan ${amount(
         netDelta
-      )} more that way, with a worst drawdown of ${drawdowns}. This period supports using it.`,
+      )} lebih banyak dengan cara itu, dengan drawdown terburuk ${drawdowns}. Periode ini mendukung untuk memakainya.`,
     };
   }
 
@@ -677,9 +677,9 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
     return {
       ...base,
       worthUsing: true,
-      reason: `The stop was moved to entry on ${savedTrades} trades. The period earned ${amount(
+      reason: `Stop dipindah ke entry di ${savedTrades} trade. Periode ini menghasilkan ${amount(
         netDelta
-      )} more and the worst drawdown fell to ${drawdowns}, so the same money came with a calmer ride.`,
+      )} lebih banyak dan drawdown terburuk turun ke ${drawdowns}, jadi hasil yang sama didapat dengan perjalanan lebih tenang.`,
     };
   }
 
@@ -687,18 +687,18 @@ export function assessProtection(control: BacktestResult, guarded: BacktestResul
     return {
       ...base,
       worthUsing: false,
-      reason: `The stop was moved to entry on ${savedTrades} trades, and it cost ${amount(
+      reason: `Stop dipindah ke entry di ${savedTrades} trade, dan itu merugikan ${amount(
         netDelta
-      )} over the period: the trades it scratched were on their way to the target more often than they were on their way back. Worst drawdown ${drawdowns}.`,
+      )} selama periode ini: trade yang ditutup impas lebih sering sedang menuju target daripada berbalik. Drawdown terburuk ${drawdowns}.`,
     };
   }
 
   return {
     ...base,
     worthUsing: false,
-    reason: `The stop was moved to entry on ${savedTrades} trades and the period ended ${amount(
+    reason: `Stop dipindah ke entry di ${savedTrades} trade dan periode ini berakhir ${amount(
       netDelta
-    )} ahead, which is too small a margin to be more than chance. Worst drawdown ${drawdowns}.`,
+    )} lebih untung, selisih yang terlalu kecil untuk dibedakan dari kebetulan. Drawdown terburuk ${drawdowns}.`,
   };
 }
 
@@ -765,10 +765,10 @@ export function assessRiskFloor(result: BacktestResult): RiskFloorReport {
     askedPercent: asked,
     actualPercent,
     balanceNeeded,
-    message: `The ${asked}% risk setting could not be honoured on ${share}% of the filled trades: the broker's smallest lot already risked about ${actualPercent}% of the balance. Until the balance is nearer ${formatAccountMoney(
+    message: `Setelan risiko ${asked}% tidak bisa dipenuhi di ${share}% trade yang terisi: lot terkecil broker sudah berisiko sekitar ${actualPercent}% saldo. Sampai saldo mendekati ${formatAccountMoney(
       balanceNeeded,
       accountType
-    )}, changing the risk percentage changes nothing, because every trade is the same minimum lot either way.`,
+    )}, mengubah persentase risiko tidak berpengaruh, karena setiap trade tetap memakai lot minimum yang sama.`,
   };
 }
 
@@ -831,12 +831,12 @@ export function assessDeadBand(control: BacktestResult): DeadBandVerdict {
   if (candidates.length === 0) {
     const losing = buckets.filter((b) => b.netDollars < 0 && b.filled > 0);
     if (losing.length === 0) {
-      return none('Every conviction band paid for itself over this period, so there is nothing to refuse.');
+      return none('Semua rentang conviction untung di periode ini, jadi tidak ada yang perlu ditolak.');
     }
     return none(
-      `${losing[0].label} lost ${amount(
+      `Rentang ${losing[0].label} rugi ${amount(
         losing[0].netDollars
-      )} over the period, but not consistently across both halves of it, or on too few trades to tell a bad band from a bad stretch. Refusing it would be reading one period's accidents as a rule.`
+      )} selama periode ini, tapi tidak konsisten di kedua paruh, atau trade-nya terlalu sedikit untuk membedakan rentang yang buruk dari periode yang sial. Menolaknya berarti menjadikan kebetulan satu periode sebagai aturan.`
     );
   }
 
@@ -849,13 +849,13 @@ export function assessDeadBand(control: BacktestResult): DeadBandVerdict {
     worthSkipping: true,
     band: { label: worst.label, min: worst.min, max: worst.max },
     estimatedGain: money(-worst.netDollars),
-    reason: `Setups scoring ${worst.label.toLowerCase()} lost ${amount(
+    reason: `Setup dengan skor ${worst.label.toLowerCase()} rugi ${amount(
       worst.netDollars
-    )} over ${worst.filled} filled trades, losing ${amount(
+    )} dari ${worst.filled} trade terisi, rugi ${amount(
       worst.firstHalfPerTrade ?? 0
-    )} per trade in the first half of the period and ${amount(
+    )} per trade di paruh pertama dan ${amount(
       worst.secondHalfPerTrade ?? 0
-    )} per trade in the second. Refusing that band alone, and keeping everything else, would have added about ${amount(
+    )} per trade di paruh kedua. Menolak rentang itu saja, dan tetap mengambil sisanya, akan menambah sekitar ${amount(
       worst.netDollars
     )}.`,
   };

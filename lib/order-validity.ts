@@ -70,11 +70,11 @@ export function computeValidity(
   const basis =
     tradingStyle === 'Scalping'
       ? killZoneActive
-        ? 'A scalp reads the current kill zone, so the order is void once that window closes.'
-        : 'A scalp reads the last few M15 candles, which stop describing the market within about ninety minutes.'
+        ? 'Scalp membaca kill zone saat ini, jadi order batal setelah jendela itu tutup.'
+        : 'Scalp membaca beberapa candle M15 terakhir, yang berhenti relevan dalam sekitar sembilan puluh menit.'
       : tradingStyle === 'Intraday'
-      ? 'An intraday setup reads the current session, so the order is void by the end of the trading day.'
-      : 'A swing setup reads the daily chart, which stays meaningful for about three trading days.';
+      ? 'Setup intraday membaca sesi saat ini, jadi order batal di akhir hari trading.'
+      : 'Setup swing membaca grafik harian, yang tetap relevan sekitar tiga hari trading.';
 
   return {
     validUntil: new Date(now.getTime() + minutes * 60_000).toISOString(),
@@ -130,9 +130,9 @@ export function evaluatePendingOrder(
   if (throughStop) {
     return {
       state: 'invalidated',
-      reason: `Price reached ${currentPrice.toFixed(2)}, through the ${setup.stopLoss.toFixed(
+      reason: `Harga mencapai ${currentPrice.toFixed(2)}, menembus titik invalidasi ${setup.stopLoss.toFixed(
         2
-      )} invalidation, without the order ever filling. The idea is void.`,
+      )}, tanpa order pernah terisi. Idenya batal.`,
     };
   }
 
@@ -150,9 +150,9 @@ export function evaluatePendingOrder(
   if (risk > 0 && runFromEntry >= risk * multiple) {
     return {
       state: 'ran-away',
-      reason: `Price ran ${runFromEntry.toFixed(2)} past the ${setup.entryPrice.toFixed(2)} entry, ${
-        multiple === 1 ? 'a full stop distance' : `${multiple} times the stop distance`
-      }, without ever filling it. The move happened without the entry.`,
+      reason: `Harga lari ${runFromEntry.toFixed(2)} melewati entry ${setup.entryPrice.toFixed(2)}, ${
+        multiple === 1 ? 'sejauh satu jarak stop' : `${multiple} kali jarak stop`
+      }, tanpa pernah mengisinya. Pergerakannya terjadi tanpa entry.`,
     };
   }
 
@@ -163,18 +163,18 @@ export function evaluatePendingOrder(
       if (minutesLeft <= 0) {
         return {
           state: 'expired',
-          reason: `The order passed its validity window without filling. The structure it was based on no longer describes the market.`,
+          reason: `Masa berlaku order habis tanpa terisi. Struktur yang jadi dasarnya sudah tidak menggambarkan pasar.`,
         };
       }
       return {
         state: 'waiting',
         minutesLeft: Math.round(minutesLeft),
-        reason: `Waiting for price to reach ${setup.entryPrice.toFixed(2)}.`,
+        reason: `Menunggu harga mencapai ${setup.entryPrice.toFixed(2)}.`,
       };
     }
   }
 
-  return { state: 'waiting', minutesLeft: Infinity, reason: 'Waiting for price to reach the entry.' };
+  return { state: 'waiting', minutesLeft: Infinity, reason: 'Menunggu harga mencapai entry.' };
 }
 
 /**
@@ -186,23 +186,23 @@ export function evaluatePendingOrder(
 export function missCause(state: PendingVerdict['state']): string {
   switch (state) {
     case 'ran-away':
-      return 'Price reached the target without filling, so the entry sat deeper than the market retraced.';
+      return 'Harga mencapai target tanpa mengisi order, jadi entry-nya terlalu dalam dibanding koreksi pasar.';
     case 'invalidated':
-      return 'Price broke the invalidation before filling, so the directional read was wrong.';
+      return 'Harga menembus titik invalidasi sebelum order terisi, jadi bacaan arahnya salah.';
     case 'expired':
-      return 'The validity window closed with price never reaching the entry.';
+      return 'Masa berlaku order habis tanpa harga pernah mencapai entry.';
     default:
-      return 'The order did not fill.';
+      return 'Order tidak terisi.';
   }
 }
 
 /** Human readable time remaining, for the countdown on the signal card. */
 export function formatTimeLeft(minutes: number): string {
-  if (!Number.isFinite(minutes) || minutes <= 0) return 'expired';
-  if (minutes < 60) return `${Math.round(minutes)}m left`;
+  if (!Number.isFinite(minutes) || minutes <= 0) return 'kedaluwarsa';
+  if (minutes < 60) return `${Math.round(minutes)} mnt lagi`;
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
-  if (hours < 24) return rest > 0 ? `${hours}h ${rest}m left` : `${hours}h left`;
+  if (hours < 24) return rest > 0 ? `${hours} jam ${rest} mnt lagi` : `${hours} jam lagi`;
   const days = Math.floor(hours / 24);
-  return `${days}d ${hours % 24}h left`;
+  return `${days} hari ${hours % 24} jam lagi`;
 }

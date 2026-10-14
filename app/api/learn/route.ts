@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   try {
     rawBody = await request.json();
   } catch {
-    return NextResponse.json({ success: false, error: 'Request body is not valid JSON.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Isi permintaan bukan JSON yang valid.' }, { status: 400 });
   }
 
   const { value: input, errors } = validateLearnBody(rawBody);
@@ -39,38 +39,38 @@ export async function POST(request: Request) {
     const riskShare = plannedRiskPips > 0 ? distancePips / plannedRiskPips : 0;
 
     let primaryFactor = isProfit
-      ? `Target delivered ${distancePips} pips from entry`
+      ? `Target tercapai ${distancePips} pips dari entry`
       : isMissed
       ? // The engine knows which of the three ways it missed, and they teach
         // different lessons, so the recorded cause is specific.
-        missCause ?? `Pending order never filled, price held ${distancePips} pips away`
-      : `Stop taken ${distancePips} pips against entry`;
+        missCause ?? `Order pending tidak pernah terisi, harga tertahan ${distancePips} pips jauhnya`
+      : `Stop tersentuh ${distancePips} pips melawan entry`;
 
     let institutionalFlowExplanation = isProfit
-      ? `Entry at ${setup.entryPrice.toFixed(2)} was defended and price expanded ${distancePips} pips to ${closedPrice.toFixed(
+      ? `Entry di ${setup.entryPrice.toFixed(2)} bertahan dan harga bergerak ${distancePips} pips ke ${closedPrice.toFixed(
           2
-        )}, delivering ${riskShare.toFixed(2)} times the ${plannedRiskPips} pip risk that was committed.`
+        )}, menghasilkan ${riskShare.toFixed(2)} kali risiko ${plannedRiskPips} pip yang dipasang.`
       : isMissed
-      ? `Price turned ${distancePips} pips short of the resting order at ${setup.entryPrice.toFixed(
+      ? `Harga berbalik ${distancePips} pips sebelum order pending di ${setup.entryPrice.toFixed(
           2
-        )}, reversing from ${closedPrice.toFixed(2)} without offering the fill. The level was read correctly; the entry simply sat deeper than the market was willing to retrace.`
-      : `Price traded through the ${plannedRiskPips} pip invalidation at ${setup.stopLoss.toFixed(
+        )}, berbalik dari ${closedPrice.toFixed(2)} tanpa mengisi order. Levelnya terbaca benar; entry-nya saja terlalu dalam dibanding koreksi pasar.`
+      : `Harga menembus titik invalidasi ${plannedRiskPips} pip di ${setup.stopLoss.toFixed(
           2
-        )}, closing the position at ${closedPrice.toFixed(2)}. The structural level failed to hold on this attempt.`;
+        )}, menutup posisi di ${closedPrice.toFixed(2)}. Level struktur gagal bertahan kali ini.`;
 
     let liquidityBehavior = isProfit
-      ? `Opposing liquidity was cleared and the move ran ${distancePips} pips without reclaiming the entry zone.`
+      ? `Likuiditas lawan sudah diambil dan harga bergerak ${distancePips} pips tanpa kembali ke zona entry.`
       : isMissed
-      ? `Buyers stepped in ${distancePips} pips above the order, so the deeper pool went untouched.`
-      : `The sweep extended past the planned ${plannedRiskPips} pip buffer before any reversal developed.`;
+      ? `Pembeli masuk ${distancePips} pips di atas order, jadi likuiditas yang lebih dalam tidak tersentuh.`
+      : `Sweep melewati jarak aman ${plannedRiskPips} pip yang direncanakan sebelum ada pembalikan.`;
 
     let strategyEvolutionLesson = isProfit
-      ? `The ${setup.tradingStyle || 'Intraday'} entry was placed correctly on a ${setup.accountType || 'Standard'} account. Keep the ${plannedRiskPips} pip invalidation and the current entry depth.`
+      ? `Entry ${setup.tradingStyle || 'Intraday'} dipasang dengan benar di akun ${setup.accountType || 'Standard'}. Pertahankan invalidasi ${plannedRiskPips} pip dan kedalaman entry saat ini.`
       : isMissed
-      ? `Place the next ${setup.tradingStyle || 'Intraday'} entry roughly ${Math.ceil(
+      ? `Pasang entry ${setup.tradingStyle || 'Intraday'} berikutnya sekitar ${Math.ceil(
           distancePips * 0.75
-        )} pips shallower, or take the fill at market when momentum is already in the intended direction.`
-      : `Widen the ${setup.tradingStyle || 'Intraday'} invalidation beyond ${plannedRiskPips} pips, or wait for the level to be confirmed before committing risk.`;
+        )} pips lebih dangkal, atau masuk di harga market kalau momentum sudah searah.`
+      : `Perlebar invalidasi ${setup.tradingStyle || 'Intraday'} melebihi ${plannedRiskPips} pips, atau tunggu levelnya terkonfirmasi sebelum mengambil risiko.`;
 
     let fvgWeightDelta = isProfit ? 0.02 : isMissed ? 0.03 : -0.01;
     let orderBlockWeightDelta = isProfit ? 0.02 : isMissed ? -0.01 : 0.01;
@@ -97,7 +97,7 @@ Setup Context:
 
 IMPORTANT RULES:
 - DO NOT use the two-letter word "A" followed by "I" anywhere in your text.
-- Write in English with rigorous institutional finance vocabulary.
+- Write every text field in Indonesian (Bahasa Indonesia), plain and clear for a retail trader. Keep trading terms traders use as-is (entry, stop loss, take profit, order block, FVG, liquidity sweep) in English.
 - Perform a deep post-mortem diagnostic:
   1. What exact institutional flow or order book behavior caused this ${outcome} within ${setup.tradingStyle || 'Intraday'} execution dynamics?
   2. What is the concrete strategic adaptation rule that the trading engine must incorporate into future predictive models for ${setup.tradingStyle || 'Intraday'} and ${setup.accountType || 'Standard'} account to enhance long-term win rate and expectancy?
@@ -242,7 +242,7 @@ Respond strictly in valid JSON format:
     return NextResponse.json(
       {
         success: false,
-        error: publicErrorMessage(err, 'The trade could not be evaluated right now.'),
+        error: publicErrorMessage(err, 'Trade ini belum bisa dievaluasi sekarang.'),
       },
       { status: 500 }
     );

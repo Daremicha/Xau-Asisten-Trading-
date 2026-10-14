@@ -40,17 +40,17 @@ describe('when the next candle closes', () => {
 describe('when the next session opens', () => {
   test('before London, the next opening is London', () => {
     const next = nextSessionOpen(THURSDAY(6, 30));
-    expect(next.name).toBe('London open');
+    expect(next.name).toBe('Pembukaan London');
     expect(next.at.toISOString()).toBe('2026-09-17T07:00:00.000Z');
   });
 
   test('inside London, the next opening is New York', () => {
-    expect(nextSessionOpen(THURSDAY(8)).name).toBe('New York open');
+    expect(nextSessionOpen(THURSDAY(8)).name).toBe('Pembukaan New York');
   });
 
   test('after the last opening, it rolls to tomorrow’s Asian session', () => {
     const next = nextSessionOpen(THURSDAY(20));
-    expect(next.name).toBe('Asian session');
+    expect(next.name).toBe('Sesi Asia');
     expect(next.at.toISOString()).toBe('2026-09-18T00:00:00.000Z');
   });
 });
@@ -77,7 +77,7 @@ describe('the weekend recess', () => {
     const check = nextCheck('Intraday', new Date(Date.UTC(2026, 8, 19, 12, 0)));
     expect(check.marketClosed).toBe(true);
     expect(check.at).toBe('2026-09-20T22:00:00.000Z');
-    expect(check.reason).toContain('closed for the weekend');
+    expect(check.reason).toContain('tutup di akhir pekan');
   });
 });
 
@@ -86,13 +86,13 @@ describe('what the user is told', () => {
     const check = nextCheck('Intraday', THURSDAY(11, 40));
     expect(check.marketClosed).toBe(false);
     expect(check.at).toBe('2026-09-17T12:00:00.000Z');
-    expect(check.reason).toContain('H1 candle closes in about 20 minutes');
-    expect(check.session).toEqual({ name: 'New York open', at: '2026-09-17T12:00:00.000Z' });
+    expect(check.reason).toContain('Candle H1 yang sekarang tutup sekitar 20 menit');
+    expect(check.session).toEqual({ name: 'Pembukaan New York', at: '2026-09-17T12:00:00.000Z' });
   });
 
   test('the wait is never reported as zero minutes', () => {
     const check = nextCheck('Scalping', new Date(Date.UTC(2026, 8, 17, 11, 14, 59)));
-    expect(check.reason).toContain('1 minute.');
+    expect(check.reason).toContain('1 menit lagi.');
   });
 
   test('every style names the timeframe it actually decides on', () => {
