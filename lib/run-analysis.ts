@@ -15,7 +15,7 @@ import { buildInstitutionalRead } from './analysis-pipeline';
 import { buildSignal, maxEntryDistance, resolveOrderType, STYLE_PROFILES } from './signal-engine';
 import { assessConviction, drawdownFromHistory, effectiveRiskPercentage } from './position-sizing';
 import { MIN_BUCKET_SAMPLES, conditionalPerformance } from './learning-engine';
-import { computeValidity, isDeadOnArrival } from './order-validity';
+import { computeValidity, isDeadOnArrival, missAtR } from './order-validity';
 import { nextCheck } from './next-check';
 import { publicErrorMessage, safeProviderNote } from './safe-error';
 import {
@@ -788,6 +788,7 @@ Reply with JSON only:
       actualRiskDollars: lotCalculation.actualRiskDollars,
       exceedsRiskBudget: lotCalculation.exceedsRiskBudget,
       balanceAtSetup: input.equity,
+      missAtR: missAtR(quick),
       riskPercentage: input.riskPercentage,
       effectiveRiskPercentage: riskPercentUsed,
       // A breakout is not scored by the structural engine, so it carries no

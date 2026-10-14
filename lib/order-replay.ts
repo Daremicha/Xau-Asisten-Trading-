@@ -59,6 +59,8 @@ type ReplaySetup = Pick<
 > & {
   validUntil?: string;
   filledAt?: string;
+  /** Multiples of risk past the entry at which an unfilled order is missed; see missAtR. */
+  missAtR?: number;
   /**
    * Multiple of risk at which the stop moves to the entry, the rule the user
    * follows in the terminal. Null or absent holds the stop where it was quoted.
@@ -229,14 +231,15 @@ export function replayOrder(
       }
 
       const ranPast = isLong ? c.high - setup.entryPrice : setup.entryPrice - c.low;
-      if (risk > 0 && ranPast >= risk) {
+      const multiple = setup.missAtR ?? 1;
+      if (risk > 0 && ranPast >= risk * multiple) {
         return {
           kind: 'missed',
           cause: 'ran-away',
           at: iso(c.time),
-          reason: `Price ran a full stop distance past the ${setup.entryPrice.toFixed(
-            2
-          )} entry without ever filling it. The move happened without the entry.`,
+          reason: `Price ran ${
+            multiple === 1 ? 'a full stop distance' : `${multiple} times the stop distance`
+          } past the ${setup.entryPrice.toFixed(2)} entry without ever filling it. The move happened without the entry.`,
         };
       }
 

@@ -37,7 +37,7 @@ import { BREAKOUT_ANCHOR, londonBreakoutPlan } from './london-breakout';
 import { quickTargets } from './quick-target';
 import { assessConviction, effectiveRiskPercentage } from './position-sizing';
 import { calculateXAUUSDLotSize, getICTKillZoneStatus } from './market-engine';
-import { computeValidity } from './order-validity';
+import { computeValidity, missAtR } from './order-validity';
 import { deriveAdaptiveWeights, type PriorWeights } from './learning-engine';
 import { alignedVotes } from './factor-learning';
 import { resultFromMove, roundMoney } from './trade-result';
@@ -369,6 +369,8 @@ export interface OrderPlan {
    * slippage like a market order, where a resting limit fills at its price.
    */
   stopEntry?: boolean;
+  /** Multiples of risk past the entry at which an unfilled order is missed. Defaults to one. */
+  missAtR?: number;
 }
 
 /**
@@ -430,7 +432,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
       // without a fill means the move happened without the trade.
       const risk = Math.abs(plan.entryPrice - plan.stopLoss);
       const ranPast = isLong ? c.high - plan.entryPrice : plan.entryPrice - c.low;
-      if (risk > 0 && ranPast >= risk) {
+      if (risk > 0 && ranPast >= risk * (plan.missAtR ?? 1)) {
         return {
           kind: 'missed',
           index: j,
@@ -807,6 +809,7 @@ export function createBacktest(config: BacktestConfig): Runner {
       breakEvenAtR: config.breakEvenAtR ?? null,
       slippageDollars: config.slippageDollars ?? DEFAULT_SLIPPAGE_DOLLARS,
       stopEntry: order.stopEntry,
+      missAtR: missAtR(order.contextAnchor !== BREAKOUT_ANCHOR && Boolean(config.quickTarget)),
     });
 
     if (outcome.kind === 'unresolved') {

@@ -1305,6 +1305,22 @@ Ready for direct execution in MetaTrader 5.`;
                   {lastOutcome.record.strategyEvolutionLesson}
                 </p>
 
+                {/* The app stops watching a missed order, but the broker does not:
+                    a pending order left in MT5 can still fill later. */}
+                {isMiss && (
+                  <div
+                    id="missed-delete-notice"
+                    className={`border rounded-xl p-3 text-xs leading-relaxed ${
+                      isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+                    }`}
+                  >
+                    <strong>Delete the {closed.orderType} at {closed.entryPrice.toFixed(2)} in MT5 now.</strong> The app
+                    has stopped tracking it, but MT5 keeps a pending order until you delete it, so it can still fill
+                    later. If it already filled, record the real result in Results, under &quot;Re-examine trades the
+                    engine closed&quot;, with &quot;Correct this row&quot; once the trade closes.
+                  </div>
+                )}
+
                 <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                   Balance and the learning engine are already updated. Run a new analysis for the next setup.
                 </p>

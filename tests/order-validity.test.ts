@@ -4,6 +4,7 @@ import {
   evaluatePendingOrder,
   formatTimeLeft,
   isDeadOnArrival,
+  missAtR,
   missCause,
 } from '../lib/order-validity';
 
@@ -161,5 +162,24 @@ describe('an order that would be dead the moment it is placed', () => {
 
   test('a market order has nothing to run away from', () => {
     expect(isDeadOnArrival({ ...stranded, orderType: 'BUY INSTANT' }, 4346.31)).toBe(false);
+  });
+});
+
+describe('the quick target waits longer before calling a miss', () => {
+  test('the miss distance is one stop for the engine targets and one and a half for the quick target', () => {
+    expect(missAtR(false)).toBe(1);
+    expect(missAtR(true)).toBe(1.5);
+  });
+
+  test('a run of one stop distance is still waiting under the quick target', () => {
+    // Entry 4190, stop 4182: risk 8. 4199 is 9 past the entry, under 12.
+    expect(evaluatePendingOrder(pending, 4199, NOW).state).toBe('ran-away');
+    expect(evaluatePendingOrder({ ...pending, missAtR: 1.5 }, 4199, NOW).state).toBe('waiting');
+  });
+
+  test('one and a half stop distances is a miss under the quick target', () => {
+    const v = evaluatePendingOrder({ ...pending, missAtR: 1.5 }, 4202, NOW);
+    expect(v.state).toBe('ran-away');
+    expect(v.reason).toContain('1.5 times the stop distance');
   });
 });
