@@ -47,10 +47,10 @@ export default function SMCMatrix({
           </div>
           <div>
             <h2 className={`text-base font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Institutional Structure & Technical Confluence
+              Struktur Institusional & Konfluensi Teknikal
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Smart Money Concepts &bull; ICT Liquidity &bull; Wyckoff VSA &bull; Dynamic Indicators
+              Smart Money Concepts &bull; Likuiditas ICT &bull; Wyckoff VSA &bull; Indikator Dinamis
             </p>
           </div>
         </div>
@@ -73,7 +73,7 @@ export default function SMCMatrix({
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
             }`}
           >
-            SMC & ICT Matrix
+            Matriks SMC & ICT
           </button>
           <button
             type="button"
@@ -131,18 +131,18 @@ export default function SMCMatrix({
                         isDark ? 'text-white bg-slate-900 border-slate-700' : 'text-slate-900 bg-white border-slate-300'
                       }`}
                     >
-                      {tf} Structure
+                      {tf} Struktur
                     </span>
                     {structure.derivedFrom && (
                       <span
-                        title={`No ${tf} series was available, so this read was built from ${structure.derivedFrom} candles.`}
+                        title={`Data ${tf} tidak tersedia, jadi bacaan ini dibuat dari candle ${structure.derivedFrom}.`}
                         className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
                           isDark
                             ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
                             : 'text-amber-700 bg-amber-50 border-amber-200'
                         }`}
                       >
-                        from {structure.derivedFrom}
+                        dari {structure.derivedFrom}
                       </span>
                     )}
                     <span
@@ -162,9 +162,9 @@ export default function SMCMatrix({
                         isDark ? 'text-slate-400' : 'text-slate-600'
                       }`}
                     >
-                      <span>BOS Level:</span>
+                      <span>Level BOS:</span>
                       <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>
-                        {structure.bosLevel ? `$${structure.bosLevel.toFixed(2)}` : 'Forming'}
+                        {structure.bosLevel ? `$${structure.bosLevel.toFixed(2)}` : 'Sedang terbentuk'}
                       </strong>
                     </div>
 
@@ -175,7 +175,7 @@ export default function SMCMatrix({
                     >
                       <span>CHoCH:</span>
                       <strong className={structure.chochDetected ? 'text-amber-500 font-bold' : isDark ? 'text-slate-500' : 'text-slate-400'}>
-                        {structure.chochDetected ? 'Confirmed' : 'None'}
+                        {structure.chochDetected ? 'Terkonfirmasi' : 'Tidak ada'}
                       </strong>
                     </div>
 
@@ -192,7 +192,7 @@ export default function SMCMatrix({
                         ${structure.orderBlock.low.toFixed(2)} - ${structure.orderBlock.high.toFixed(2)}
                       </div>
                       <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {structure.orderBlock.mitigated ? 'Mitigated' : 'Fresh / Unmitigated'}
+                        {structure.orderBlock.mitigated ? 'Sudah termitigasi' : 'Fresh / Belum termitigasi'}
                       </div>
                     </div>
 
@@ -221,7 +221,7 @@ export default function SMCMatrix({
                     isDark ? 'border-slate-800/80' : 'border-slate-200'
                   }`}
                 >
-                  <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Pricing Zone:</span>
+                  <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Zona Harga:</span>
                   <span
                     className={`font-bold px-2 py-0.5 rounded text-[11px] ${
                       structure.pricingZone === 'Discount'
@@ -254,7 +254,7 @@ export default function SMCMatrix({
             <div className={`text-xs font-medium mb-1 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Activity className="w-3.5 h-3.5 text-amber-500" />
               <span>
-                EMA {indicators.emaFastPeriod ?? 50} &amp; {indicators.emaSlowPeriod ?? 200} Macro Trend
+                EMA {indicators.emaFastPeriod ?? 50} &amp; {indicators.emaSlowPeriod ?? 200} Tren Makro
               </span>
             </div>
             <div className="mt-2 space-y-1.5 font-mono text-xs">
@@ -272,7 +272,7 @@ export default function SMCMatrix({
               </div>
             </div>
             <div className={`mt-2 pt-2 border-t flex justify-between ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Macro Filter:</span>
+              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Filter Makro:</span>
               <span className="text-emerald-500 font-bold">{indicators.trendFromEma}</span>
             </div>
           </div>
@@ -294,7 +294,7 @@ export default function SMCMatrix({
               {indicators.rsiCondition}
             </div>
             <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Momentum aligned with higher timeframe institutional order flow.
+              Momentum searah dengan order flow institusional di timeframe besar.
             </p>
           </div>
 
@@ -315,7 +315,7 @@ export default function SMCMatrix({
               {indicators.stochasticSignal}
             </div>
             <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Confirmation cross occurred in lower discount zone.
+              Persilangan konfirmasi terjadi di zona discount bawah.
             </p>
           </div>
 
@@ -333,10 +333,10 @@ export default function SMCMatrix({
               ${indicators.atr14.toFixed(2)}
             </div>
             <div className="text-xs text-amber-500 font-semibold mt-1">
-              Rational SL Volatility Shield
+              Pelindung SL dari Volatilitas
             </div>
             <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Buffers Stop Loss beyond standard broker spread and noise.
+              Memberi jarak Stop Loss di luar spread broker dan noise biasa.
             </p>
           </div>
         </div>
@@ -362,10 +362,10 @@ export default function SMCMatrix({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 text-amber-500" />
-                <span>Wyckoff Method & Volume Profile</span>
+                <span>Metode Wyckoff & Volume Profile</span>
               </div>
               <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30">
-                Phase: {wyckoff.phase}
+                Fase: {wyckoff.phase}
               </span>
             </div>
 
@@ -375,15 +375,15 @@ export default function SMCMatrix({
                 <strong className="text-amber-500">${wyckoff.pointOfControlPOC.toFixed(2)}</strong>
               </div>
               <div className="flex justify-between font-mono">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Volume Climax:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Volume Klimaks:</span>
                 <strong className={wyckoff.volumeClimaxDetected ? 'text-rose-500' : isDark ? 'text-slate-500' : 'text-slate-400'}>
-                  {wyckoff.volumeClimaxDetected ? 'Detected' : 'Negative'}
+                  {wyckoff.volumeClimaxDetected ? 'Terdeteksi' : 'Tidak ada'}
                 </strong>
               </div>
               <div className="flex justify-between font-mono">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Institutional Absorption:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Penyerapan Institusional:</span>
                 <strong className={wyckoff.absorptionPresent ? 'text-emerald-500' : isDark ? 'text-slate-500' : 'text-slate-400'}>
-                  {wyckoff.absorptionPresent ? 'Present at POC' : 'None'}
+                  {wyckoff.absorptionPresent ? 'Ada di POC' : 'Tidak ada'}
                 </strong>
               </div>
               <p
@@ -413,7 +413,7 @@ export default function SMCMatrix({
                 }`}
               >
                 <Compass className="w-3.5 h-3.5 text-sky-500" />
-                <span>Quasimodo (QM) / Over-Under Pattern</span>
+                <span>Pola Quasimodo (QM) / Over-Under</span>
               </div>
               <span className="text-xs font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/30">
                 {quasimodo.type}
@@ -422,15 +422,15 @@ export default function SMCMatrix({
 
             <div className="space-y-2 text-xs font-mono">
               <div className="flex justify-between">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Left Shoulder:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Bahu Kiri:</span>
                 <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>${quasimodo.leftShoulder.toFixed(2)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Head Liquidity Sweep:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Sweep Likuiditas di Kepala:</span>
                 <strong className="text-amber-500">${quasimodo.headLiquiditySweep.toFixed(2)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Breakout / Shift Level:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Level Breakout / Shift:</span>
                 <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>${quasimodo.breakLevel.toFixed(2)}</strong>
               </div>
               <div
@@ -438,11 +438,11 @@ export default function SMCMatrix({
                   isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                 }`}
               >
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Optimal Entry Zone:</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Zona Entry Optimal:</span>
                 <strong className="text-emerald-500">${quasimodo.optimalEntryZone.toFixed(2)}</strong>
               </div>
               <p className={`text-[11px] leading-relaxed mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Sweep of the left shoulder gathered stop-loss orders prior to the sharp reversal impulse.
+                Sweep bahu kiri mengumpulkan order stop-loss sebelum impuls pembalikan yang tajam.
               </p>
             </div>
           </div>

@@ -119,15 +119,15 @@ export default function SelfLearningDashboard({
                 isDark ? 'text-slate-100' : 'text-slate-900'
               }`}
             >
-              Adaptive Self-Learning Engine
+              Engine Self-Learning Adaptif
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
-                {selfLearning ? 'Learning from every trade' : 'Weights locked to the tested setup'}
+                {selfLearning ? 'Belajar dari setiap trade' : 'Bobot dikunci ke setup yang sudah diuji'}
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {selfLearning
-                ? 'Every TP, SL and missed order re-tunes the confluence weights, the stop buffer and the entry distance for the next setup, within limits that keep one or two trades from swinging it.'
-                : 'Records and reviews every TP, SL and missed order. The engine keeps the weights that held up in the 24 month replay, because re-tuning them after each live trade did worse there.'}
+                ? 'Setiap TP, SL, dan order MISSED menyetel ulang bobot konfluensi, jarak aman stop, dan jarak entry untuk setup berikutnya, dalam batas yang mencegah satu dua trade menggeser semuanya.'
+                : 'Mencatat dan meninjau setiap TP, SL, dan order MISSED. Engine memakai bobot yang bertahan di uji ulang 24 bulan, karena menyetel ulang setelah setiap trade live hasilnya lebih buruk di sana.'}
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function SelfLearningDashboard({
               isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}
           >
-            Evaluations Stored: <strong className="text-amber-400">{total}</strong>
+            Evaluasi Tersimpan: <strong className="text-amber-400">{total}</strong>
           </span>
           {summary && total > 0 && (
             <button
@@ -155,10 +155,10 @@ export default function SelfLearningDashboard({
             >
               <ClipboardCopy className="w-3.5 h-3.5" />
               {copyState === 'copied'
-                ? 'Copied, paste it in the chat'
+                ? 'Tersalin, tempel di chat'
                 : copyState === 'failed'
-                  ? 'Copy failed'
-                  : 'Copy trade summary'}
+                  ? 'Gagal menyalin'
+                  : 'Salin ringkasan trade'}
             </button>
           )}
         </div>
@@ -172,7 +172,7 @@ export default function SelfLearningDashboard({
         }`}
       >
         <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-          What the engine learned
+          Yang dipelajari engine
         </div>
         <ul className={`space-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
           {adjustments.map((line, i) => (
@@ -185,16 +185,16 @@ export default function SelfLearningDashboard({
         {conditionRows.length > 0 && (
           <div className={`mt-3 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
             <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              What each kind of setup has returned
+              Hasil setiap jenis setup
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className={isDark ? 'text-slate-500' : 'text-slate-400'}>
-                    <th className="text-left font-medium py-1">Condition</th>
-                    <th className="text-right font-medium py-1">Trades</th>
-                    <th className="text-right font-medium py-1">Won</th>
-                    <th className="text-right font-medium py-1">Per risk</th>
+                    <th className="text-left font-medium py-1">Kondisi</th>
+                    <th className="text-right font-medium py-1">Trade</th>
+                    <th className="text-right font-medium py-1">Menang</th>
+                    <th className="text-right font-medium py-1">Per risiko</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
@@ -231,8 +231,7 @@ export default function SelfLearningDashboard({
               </table>
             </div>
             <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Measured per unit of risk, so a wide stop and a tight one can be compared. A condition only
-              moves the engine once it carries eight closed trades.
+              Diukur per satuan risiko, jadi stop lebar dan stop sempit bisa dibandingkan. Satu kondisi baru menggeser engine setelah ada delapan trade tertutup.
             </p>
           </div>
         )}
@@ -243,16 +242,16 @@ export default function SelfLearningDashboard({
             className={`mt-3 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}
           >
             <div className={`text-[11px] font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              Which signals have earned their say
+              Sinyal mana yang layak didengar
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className={isDark ? 'text-slate-500' : 'text-slate-400'}>
-                    <th className="text-left font-medium py-1">Factor</th>
-                    <th className="text-right font-medium py-1">When it agreed</th>
-                    <th className="text-right font-medium py-1">When outvoted</th>
-                    <th className="text-right font-medium py-1">Counts</th>
+                    <th className="text-left font-medium py-1">Faktor</th>
+                    <th className="text-right font-medium py-1">Saat setuju</th>
+                    <th className="text-right font-medium py-1">Saat kalah suara</th>
+                    <th className="text-right font-medium py-1">Jumlah</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
@@ -291,17 +290,14 @@ export default function SelfLearningDashboard({
               </table>
             </div>
             <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              A factor whose outvoted trades keep doing better than the ones it backed is misleading the engine,
-              and its vote is turned down. Nothing moves until a factor has eight filled trades on each side and
-              the gap is twice its own noise, so a lucky streak changes nothing.
+              Faktor yang trade-trade-nya justru lebih bagus saat ia kalah suara berarti menyesatkan engine, dan bobotnya diturunkan. Tidak ada yang berubah sampai sebuah faktor punya delapan trade terisi di masing-masing sisi dan selisihnya dua kali lipat noise-nya, jadi kebetulan beruntun tidak mengubah apa pun.
             </p>
           </div>
         )}
 
         <div className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          Confidence {(evidence.confidence * 100).toFixed(0)}% from {evidence.sampleSize} record
-          {evidence.sampleSize === 1 ? '' : 's'}, weighted to {evidence.effectiveSampleSize} by recency. Newer
-          trades count for more.
+          Keyakinan {(evidence.confidence * 100).toFixed(0)}% dari {evidence.sampleSize} record
+          {evidence.sampleSize === 1 ? '' : 's'}, dibobot ke {evidence.effectiveSampleSize} menurut waktu. Trade yang lebih baru dihitung lebih berat.
         </div>
       </div>
 
@@ -312,7 +308,7 @@ export default function SelfLearningDashboard({
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Execution Accuracy</div>
+          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Akurasi Eksekusi</div>
           <div
             className={`text-2xl font-black font-mono mt-0.5 ${
               winRate === null ? (isDark ? 'text-slate-600' : 'text-slate-400') : 'text-emerald-400'
@@ -322,8 +318,8 @@ export default function SelfLearningDashboard({
           </div>
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {winRate === null
-              ? 'No order has filled and resolved yet'
-              : `${wins} of ${triggered} triggered (raw ${evidence.winRate?.toFixed(1)}%), adjusted for sample size`}
+              ? 'Belum ada order yang terisi dan selesai'
+              : `${wins} dari ${triggered} kena (mentah ${evidence.winRate?.toFixed(1)}%), disesuaikan dengan jumlah sampel`}
           </div>
         </div>
 
@@ -332,10 +328,10 @@ export default function SelfLearningDashboard({
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Take Profit Expansions</div>
+          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Take Profit Tercapai</div>
           <div className="text-2xl font-black font-mono text-emerald-400 mt-0.5">{wins}</div>
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            Full target liquidity delivered
+            Target penuh tercapai
           </div>
         </div>
 
@@ -344,10 +340,10 @@ export default function SelfLearningDashboard({
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Stop Loss Diagnostics</div>
+          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Diagnostik Stop Loss</div>
           <div className="text-2xl font-black font-mono text-rose-400 mt-0.5">{losses}</div>
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            Stop-hunt sweeps mapped
+            Sweep pemburu stop dipetakan
           </div>
         </div>
 
@@ -356,10 +352,10 @@ export default function SelfLearningDashboard({
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Missed / Front-Run Orders</div>
+          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Order Missed / Terdahului</div>
           <div className="text-2xl font-black font-mono text-amber-400 mt-0.5">{missed}</div>
           <div className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            Calibrates limit entry buffers
+            Menyetel jarak entry limit
           </div>
         </div>
       </div>
@@ -376,14 +372,14 @@ export default function SelfLearningDashboard({
           }`}
         >
           <Sliders className="w-3.5 h-3.5 text-amber-400" />
-          <span>Dynamic Confluence Factor Weights (Calibrated by Experience)</span>
+          <span>Bobot Faktor Konfluensi Dinamis (Disetel oleh Pengalaman)</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
           {/* Order Block Weight */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Order Block (OB) Priority</span>
+              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Prioritas Order Block (OB)</span>
               <strong className="text-amber-400">{(engineWeights.orderBlockWeight * 100).toFixed(0)}%</strong>
             </div>
             <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-200'}`}>
@@ -397,7 +393,7 @@ export default function SelfLearningDashboard({
           {/* Fair Value Gap Weight */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Fair Value Gap (FVG) Weight</span>
+              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Bobot Fair Value Gap (FVG)</span>
               <strong className="text-sky-400">{(engineWeights.fairValueGapWeight * 100).toFixed(0)}%</strong>
             </div>
             <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-200'}`}>
@@ -411,7 +407,7 @@ export default function SelfLearningDashboard({
           {/* Liquidity Sweep Priority */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Liquidity Sweep Confirmation</span>
+              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Konfirmasi Liquidity Sweep</span>
               <strong className="text-emerald-400">{(engineWeights.liquiditySweepWeight * 100).toFixed(0)}%</strong>
             </div>
             <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-200'}`}>
@@ -425,7 +421,7 @@ export default function SelfLearningDashboard({
           {/* News Volatility Filter */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Macro News Volatility Shield</span>
+              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Pelindung Volatilitas Berita Makro</span>
               <strong className="text-rose-400">{(engineWeights.newsImpactWeight * 100).toFixed(0)}%</strong>
             </div>
             <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-200'}`}>
@@ -446,7 +442,7 @@ export default function SelfLearningDashboard({
           }`}
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Autonomous Learning Log & Diagnostic Memory</span>
+          <span>Log Belajar Otomatis & Memori Diagnostik</span>
         </div>
 
         {learningRecords.length > 0 ? (
@@ -496,15 +492,15 @@ export default function SelfLearningDashboard({
                     <div className="flex items-center gap-2">
                       {isWin ? (
                         <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Take Profit Hit
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Kena Take Profit
                         </span>
                       ) : isMiss ? (
                         <span className="flex items-center gap-1 text-amber-400 font-bold">
-                          <AlertTriangle className="w-3.5 h-3.5" /> Pending Order Missed / Expired
+                          <AlertTriangle className="w-3.5 h-3.5" /> Order Pending Missed / Kedaluwarsa
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-rose-400 font-bold">
-                          <XCircle className="w-3.5 h-3.5" /> Stop Loss Hit
+                          <XCircle className="w-3.5 h-3.5" /> Kena Stop Loss
                         </span>
                       )}
                       <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>({rec.orderType})</span>
@@ -518,13 +514,13 @@ export default function SelfLearningDashboard({
 
                   <div className="space-y-1 text-xs">
                     <div>
-                      <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>Root Cause: </strong>
+                      <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>Penyebab Utama: </strong>
                       <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
                         {rec.rootCauseAnalysis.primaryFactor}
                       </span>
                     </div>
                     <div>
-                      <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>Order Flow Behavior: </strong>
+                      <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>Perilaku Order Flow: </strong>
                       <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
                         {rec.rootCauseAnalysis.institutionalFlowExplanation}
                       </span>
@@ -536,7 +532,7 @@ export default function SelfLearningDashboard({
                           : 'border-slate-200 bg-amber-50/60 text-amber-800'
                       }`}
                     >
-                      <strong>Engine Evolution Lesson: </strong>
+                      <strong>Pelajaran untuk Engine: </strong>
                       <span>{rec.strategyEvolutionLesson}</span>
                     </div>
                   </div>
@@ -550,7 +546,7 @@ export default function SelfLearningDashboard({
               isDark ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
             }`}
           >
-            No trade outcomes evaluated yet. Once price triggers a Stop Loss, Take Profit, or misses a pending limit order, the autonomous learning diagnostic will log root cause adaptations here.
+            Belum ada hasil trade yang dievaluasi. Setelah harga menyentuh Stop Loss, Take Profit, atau order limit MISSED, diagnosis belajar otomatis akan dicatat di sini.
           </div>
         )}
       </div>

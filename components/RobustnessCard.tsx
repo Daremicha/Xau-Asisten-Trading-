@@ -23,42 +23,42 @@ export default function RobustnessCard({ results, theme = 'dark' }: RobustnessCa
 
   const { Icon, tone, title } =
     report.verdict === 'holds'
-      ? { Icon: ShieldCheck, tone: 'border-emerald-500/40 bg-emerald-500/10', title: 'The edge holds up when pushed' }
+      ? { Icon: ShieldCheck, tone: 'border-emerald-500/40 bg-emerald-500/10', title: 'Keunggulan tetap bertahan saat diuji lebih keras' }
       : report.verdict === 'fragile'
-      ? { Icon: ShieldAlert, tone: 'border-amber-500/40 bg-amber-500/10', title: 'Profitable, but fragile' }
+      ? { Icon: ShieldAlert, tone: 'border-amber-500/40 bg-amber-500/10', title: 'Untung, tapi rapuh' }
       : report.verdict === 'fails'
-      ? { Icon: ShieldX, tone: 'border-rose-500/40 bg-rose-500/10', title: 'No edge over this period' }
+      ? { Icon: ShieldX, tone: 'border-rose-500/40 bg-rose-500/10', title: 'Tidak ada keunggulan di periode ini' }
       : {
           Icon: ShieldQuestion,
           tone: isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50',
-          title: 'Too few trades to judge',
+          title: 'Trade terlalu sedikit untuk dinilai',
         };
 
   return (
     <div id="robustness-card" className={`border rounded-xl p-3.5 space-y-3 ${tone}`}>
       <div className="flex items-center gap-2">
         <Icon className={`w-4 h-4 ${strong}`} />
-        <h3 className={`text-sm font-bold ${strong}`}>Robustness: {title}</h3>
+        <h3 className={`text-sm font-bold ${strong}`}>Ketahanan: {title}</h3>
       </div>
       <p className={`text-xs ${muted}`}>{report.explanation}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-white'}`}>
-          <div className={muted}>Average per trade, 95% range</div>
+          <div className={muted}>Rata-rata per trade, rentang 95%</div>
           <div className={`font-mono font-bold ${strong}`}>
             {report.expectancy
-              ? `${signed(report.expectancy.mean)} (${signed(report.expectancy.low)} to ${signed(report.expectancy.high)})`
+              ? `${signed(report.expectancy.mean)} (${signed(report.expectancy.low)} sampai ${signed(report.expectancy.high)})`
               : '—'}
           </div>
         </div>
         <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-white'}`}>
-          <div className={muted}>Quarters that paid</div>
+          <div className={muted}>Kuartal yang untung</div>
           <div className={`font-mono font-bold ${strong}`}>
-            {report.countedQuarters ? `${report.positiveQuarters} of ${report.countedQuarters}` : '—'}
+            {report.countedQuarters ? `${report.positiveQuarters} dari ${report.countedQuarters}` : '—'}
           </div>
         </div>
         <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-white'}`}>
-          <div className={muted}>Costs ${report.stress.extraDollars.toFixed(2)} a trade worse</div>
+          <div className={muted}>Biaya ${report.stress.extraDollars.toFixed(2)} lebih mahal per trade</div>
           <div className={`font-mono font-bold ${strong}`}>
             {signed(report.stress.averageR)} • PF {report.stress.profitFactor?.toFixed(2) ?? '—'}
           </div>
@@ -70,8 +70,8 @@ export default function RobustnessCard({ results, theme = 'dark' }: RobustnessCa
           <table className="w-full text-xs">
             <thead>
               <tr className={muted}>
-                <th className="text-left font-medium py-1">Quarter</th>
-                <th className="text-right font-medium py-1">Trades</th>
+                <th className="text-left font-medium py-1">Kuartal</th>
+                <th className="text-right font-medium py-1">Trade</th>
                 <th className="text-right font-medium py-1">Total</th>
                 <th className="text-right font-medium py-1">Per trade</th>
                 <th className="text-right font-medium py-1">PF</th>
@@ -100,10 +100,7 @@ export default function RobustnessCard({ results, theme = 'dark' }: RobustnessCa
       )}
 
       <p className={`text-[10px] ${muted}`}>
-        Judged on the fixed-parameter run. A quarter with fewer than {MIN_QUARTER_TRADES} filled trades is greyed and
-        not counted. The range comes from resampling these trades 2,000 times; it says how much of the result chance
-        alone could produce, not what the next period will do. Every setting chosen by looking at this same period makes
-        it look better than it will be on new data, so confirm a change on later months or on paper before trusting it.
+        Dinilai dari run parameter tetap. Kuartal dengan kurang dari {MIN_QUARTER_TRADES} trade terisi diberi warna pudar dan tidak dihitung. Rentang dihitung dengan mengacak ulang trade ini 2.000 kali; rentang ini menunjukkan seberapa besar hasil bisa muncul karena kebetulan saja, bukan apa yang akan terjadi di periode berikutnya. Setiap setelan yang dipilih dengan melihat periode yang sama ini akan tampak lebih bagus daripada hasilnya di data baru, jadi pastikan perubahan di bulan-bulan berikutnya atau di akun demo sebelum dipercaya.
       </p>
     </div>
   );

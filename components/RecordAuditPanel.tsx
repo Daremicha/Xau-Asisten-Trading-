@@ -189,7 +189,7 @@ export default function RecordAuditPanel({
     try {
       const result = await onAudit();
       if (!result) {
-        setFailure('The audit could not run. Nothing in your ledger was changed.');
+        setFailure('Pemeriksaan tidak bisa berjalan. Tidak ada yang diubah di catatanmu.');
         setSummary(null);
         return;
       }
@@ -254,17 +254,13 @@ export default function RecordAuditPanel({
             <History className="w-5 h-5" />
           </div>
           <div>
-            <h3 className={`font-bold ${heading}`}>Re-examine trades the engine closed</h3>
+            <h3 className={`font-bold ${heading}`}>Periksa ulang trade yang ditutup engine</h3>
             <p className={`text-xs mt-1 max-w-xl ${sub}`}>
-              Every trade the engine closed by itself is a claim about the market, made from whatever
-              single price the screen was showing at the time. A stop loss booked against a level the
-              market never touched is a loss in your ledger and a failure recorded against a setup
-              that never lost. This walks each row through the candles of its own lifetime.
+              Setiap trade yang ditutup engine sendiri adalah klaim tentang pasar, dibuat dari satu harga yang tampil di layar saat itu. Stop loss yang dicatat di level yang tidak pernah disentuh pasar adalah kerugian di catatanmu dan kegagalan yang dicatat untuk setup yang sebenarnya tidak rugi. Fitur ini menelusuri setiap baris lewat candle selama masa hidupnya.
             </p>
             <p className={`text-xs mt-1.5 ${sub}`}>
-              {auto.length} {auto.length === 1 ? 'row' : 'rows'} closed by the engine
-              {unchecked.length < auto.length && `, ${unchecked.length} not yet checked`}. Nothing is
-              deleted or changed without you.
+              {auto.length} baris ditutup oleh engine
+              {unchecked.length < auto.length && `, ${unchecked.length} belum dicek`}. Tidak ada yang dihapus atau diubah tanpa persetujuanmu.
             </p>
           </div>
         </div>
@@ -276,7 +272,7 @@ export default function RecordAuditPanel({
           className="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-500 text-slate-900 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 shrink-0"
         >
           {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
-          {running ? 'Checking…' : 'Check against price history'}
+          {running ? 'Checking…' : 'Cek dengan riwayat harga'}
         </button>
       </div>
 
@@ -293,10 +289,10 @@ export default function RecordAuditPanel({
         <div className="mt-5 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { label: 'Examined', value: summary.audited, tone: sub },
-              { label: 'Never happened', value: summary.contradicted, tone: 'text-rose-400' },
-              { label: 'Confirmed real', value: summary.genuine, tone: 'text-emerald-400' },
-              { label: 'Undetermined', value: summary.unknown, tone: 'text-slate-400' },
+              { label: 'Diperiksa', value: summary.audited, tone: sub },
+              { label: 'Tidak pernah terjadi', value: summary.contradicted, tone: 'text-rose-400' },
+              { label: 'Terbukti nyata', value: summary.genuine, tone: 'text-emerald-400' },
+              { label: 'Belum bisa ditentukan', value: summary.unknown, tone: 'text-slate-400' },
             ].map((s) => (
               <div
                 key={s.label}
@@ -316,8 +312,7 @@ export default function RecordAuditPanel({
             <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/40 text-emerald-300 text-xs flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
-                Nothing left to correct. Every row the engine closed is one the market really did,
-                and the engine should keep learning from all of them.
+                Tidak ada yang perlu dikoreksi. Setiap baris yang ditutup engine memang terjadi di pasar, dan engine sebaiknya terus belajar dari semuanya.
               </span>
             </div>
           )}
@@ -360,9 +355,7 @@ export default function RecordAuditPanel({
                       </div>
                       <p className={`text-xs mt-1 ${sub}`}>{row.verdict.reason}</p>
                       <p className={`text-xs mt-1 ${sub}`}>
-                        Your terminal holds where this really closed and for how much. This screen
-                        will not guess at either — any price it shows is the furthest the market
-                        went, not where you came out.
+                        Terminal MT5 kamu yang tahu di mana trade ini benar-benar ditutup dan berapa hasilnya. Layar ini tidak akan menebak keduanya — harga yang ditampilkan adalah titik terjauh pasar, bukan tempat kamu keluar.
                       </p>
                     </div>
                   </div>
@@ -370,7 +363,7 @@ export default function RecordAuditPanel({
                   <div className="mt-3 flex flex-wrap items-end gap-2">
                     <label className="flex flex-col gap-1">
                       <span className={`text-[11px] uppercase tracking-wide ${sub}`}>
-                        What it really was
+                        Sebenarnya apa
                       </span>
                       <select
                         value={draft.outcome}
@@ -399,13 +392,13 @@ export default function RecordAuditPanel({
                         <option value="">Choose…</option>
                         <option value="TP">Take profit</option>
                         <option value="SL">Stop loss</option>
-                        <option value="MISSED">Never placed it</option>
+                        <option value="MISSED">Tidak pernah saya pasang</option>
                       </select>
                     </label>
 
                     <label className="flex flex-col gap-1">
                       <span className={`text-[11px] uppercase tracking-wide ${sub}`}>
-                        Closed at (price)
+                        Ditutup di (harga)
                       </span>
                       <input
                         type="number"
@@ -430,7 +423,7 @@ export default function RecordAuditPanel({
 
                     <label className={`flex flex-col gap-1 ${draft.outcome === 'MISSED' ? 'opacity-50' : ''}`}>
                       <span className={`text-[11px] uppercase tracking-wide ${sub}`}>
-                        Result ({accountUnit})
+                        Hasil ({accountUnit})
                       </span>
                       <input
                         type="number"
@@ -438,7 +431,7 @@ export default function RecordAuditPanel({
                         inputMode="decimal"
                         value={draft.outcome === 'MISSED' ? '0' : draft.amount}
                         disabled={draft.outcome === 'MISSED'}
-                        placeholder="e.g. 12.50"
+                        placeholder="mis. 12.50"
                         onChange={(e) =>
                           setDrafts((p) => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))
                         }
@@ -464,7 +457,7 @@ export default function RecordAuditPanel({
                       }
                       className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-500 text-slate-900 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      {busyId === row.id ? 'Saving…' : 'Correct this row'}
+                      {busyId === row.id ? 'Saving…' : 'Koreksi baris ini'}
                     </button>
 
                     <button
@@ -477,7 +470,7 @@ export default function RecordAuditPanel({
                           : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      Leave as recorded
+                      Biarkan seperti tercatat
                     </button>
                   </div>
                 </div>
@@ -492,10 +485,8 @@ export default function RecordAuditPanel({
             >
               <ShieldQuestion className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
-                {summary.unknown} {summary.unknown === 1 ? 'row is' : 'rows are'} beyond the price
-                history the provider will serve, so {summary.unknown === 1 ? 'it was' : 'they were'}{' '}
-                left exactly as {summary.unknown === 1 ? 'it is' : 'they are'}. An unexamined row is
-                better than an invented verdict.
+                {summary.unknown} {summary.unknown === 1 ? 'baris' : 'baris'} berada di luar riwayat harga yang disediakan provider, jadi {summary.unknown === 1 ? 'dibiarkan' : 'dibiarkan'}{' '}
+                persis {summary.unknown === 1 ? 'seperti adanya' : 'seperti adanya'}. Baris yang tidak diperiksa lebih baik daripada vonis karangan.
               </span>
             </div>
           )}
@@ -504,10 +495,9 @@ export default function RecordAuditPanel({
 
       {recentMisses.length > 0 && (
         <div id="filled-after-miss" className={`mt-4 pt-4 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-          <h4 className={`text-sm font-bold ${heading}`}>A missed order filled in MT5 anyway?</h4>
+          <h4 className={`text-sm font-bold ${heading}`}>Order MISSED ternyata terisi di MT5?</h4>
           <p className={`text-xs mt-1 ${sub}`}>
-            The app stops tracking an order once it calls it missed, but MT5 keeps a pending order until you delete it.
-            If one of these filled later, record what MT5 actually paid once the trade has closed.
+            Aplikasi berhenti memantau order setelah menyebutnya MISSED, tapi MT5 tetap menyimpan order pending sampai kamu menghapusnya. Kalau salah satu order ini ternyata terisi, catat hasil yang dibayar MT5 setelah trade-nya tertutup.
           </p>
           <div className="mt-2 space-y-2">
             {recentMisses.map((r) => {
@@ -527,7 +517,7 @@ export default function RecordAuditPanel({
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className={`font-mono ${heading}`}>
                       {r.orderType} @ {r.entryPrice.toFixed(2)} •{' '}
-                      {new Date(r.timestamp).toLocaleString('en-GB', {
+                      {new Date(r.timestamp).toLocaleString('id-ID', {
                         timeZone: 'Asia/Jakarta',
                         day: '2-digit',
                         month: 'short',
@@ -543,13 +533,13 @@ export default function RecordAuditPanel({
                         isDark ? 'border-sky-500/40 text-sky-300 hover:bg-sky-500/10' : 'border-sky-300 text-sky-700 hover:bg-sky-50'
                       }`}
                     >
-                      {openMiss === r.id ? 'Cancel' : 'It filled in MT5'}
+                      {openMiss === r.id ? 'Batal' : 'Terisi di MT5'}
                     </button>
                   </div>
                   {openMiss === r.id && (
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className="flex flex-col gap-1">
-                        <span className={sub}>How it closed</span>
+                        <span className={sub}>Cara tertutupnya</span>
                         <select
                           value={draft.outcome}
                           onChange={(e) => setDraft({ outcome: e.target.value as Draft['outcome'] })}
@@ -561,22 +551,22 @@ export default function RecordAuditPanel({
                         </select>
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className={sub}>Close price</span>
+                        <span className={sub}>Harga penutupan</span>
                         <input
                           inputMode="decimal"
                           value={draft.exit}
                           onChange={(e) => setDraft({ exit: e.target.value })}
-                          placeholder="e.g. 4088.40"
+                          placeholder="mis. 4088.40"
                           className={`rounded-lg border px-2 py-1.5 font-mono ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300'}`}
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className={sub}>Result ({accountUnit})</span>
+                        <span className={sub}>Hasil ({accountUnit})</span>
                         <input
                           inputMode="decimal"
                           value={draft.amount}
                           onChange={(e) => setDraft({ amount: e.target.value })}
-                          placeholder="as shown in MT5"
+                          placeholder="sesuai MT5"
                           className={`rounded-lg border px-2 py-1.5 font-mono ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300'}`}
                         />
                       </label>
@@ -586,7 +576,7 @@ export default function RecordAuditPanel({
                         disabled={!ready || busyId === r.id}
                         className="sm:col-span-3 px-3 py-1.5 rounded-lg text-sm font-semibold bg-amber-500 text-slate-900 hover:bg-amber-400 disabled:opacity-50 cursor-pointer"
                       >
-                        {busyId === r.id ? 'Saving…' : 'Record the real result'}
+                        {busyId === r.id ? 'Saving…' : 'Catat hasil sebenarnya'}
                       </button>
                     </div>
                   )}

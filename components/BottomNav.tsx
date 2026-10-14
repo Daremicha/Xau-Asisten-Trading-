@@ -8,11 +8,11 @@ export type AppTab = 'trade' | 'market' | 'results' | 'lab' | 'account';
 export const APP_TABS: AppTab[] = ['trade', 'market', 'results', 'lab', 'account'];
 
 const TABS: Array<{ id: AppTab; label: string; hint: string; Icon: typeof CandlestickChart }> = [
-  { id: 'trade', label: 'Trade', hint: 'Chart, live position and the setup', Icon: CandlestickChart },
-  { id: 'market', label: 'Market', hint: 'Sessions, structure, pivots and news', Icon: Globe2 },
-  { id: 'results', label: 'Results', hint: 'Balance, recorded trades and summary', Icon: LineChart },
-  { id: 'lab', label: 'Backtest', hint: 'Replay the strategy on real history', Icon: FlaskConical },
-  { id: 'account', label: 'Account', hint: 'Balance, risk, settings and alerts', Icon: UserCog },
+  { id: 'trade', label: 'Trade', hint: 'Grafik, posisi berjalan, dan setup', Icon: CandlestickChart },
+  { id: 'market', label: 'Pasar', hint: 'Sesi, struktur, pivot, dan berita', Icon: Globe2 },
+  { id: 'results', label: 'Hasil', hint: 'Saldo, trade tercatat, dan ringkasan', Icon: LineChart },
+  { id: 'lab', label: 'Backtest', hint: 'Uji ulang strategi di data historis asli', Icon: FlaskConical },
+  { id: 'account', label: 'Akun', hint: 'Saldo, risiko, pengaturan, dan notifikasi', Icon: UserCog },
 ];
 
 interface BottomNavProps {
@@ -33,7 +33,7 @@ export default function BottomNav({ active, onChange, badges = {}, theme = 'dark
   return (
     <nav
       id="bottom-nav"
-      aria-label="Sections"
+      aria-label="Bagian"
       className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-md ${
         isDark ? 'bg-slate-950/90 border-slate-800' : 'bg-white/90 border-slate-200 shadow-[0_-4px_16px_rgba(15,23,42,0.06)]'
       }`}

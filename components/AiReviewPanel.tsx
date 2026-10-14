@@ -36,7 +36,7 @@ export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiRev
         }`}
       >
         <Bot className="w-3.5 h-3.5 text-sky-400" />
-        <span>AI second opinion</span>
+        <span>Pendapat kedua dari AI</span>
         {label && (
           <span
             className={`ml-auto normal-case tracking-normal font-bold ${
@@ -49,7 +49,7 @@ export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiRev
       </div>
 
       {review === undefined ? (
-        <p className={`text-xs ${muted}`}>Asking Gemini, ChatGPT and Claude…</p>
+        <p className={`text-xs ${muted}`}>Menanyakan Gemini, ChatGPT, dan Claude…</p>
       ) : (
         <ul className="space-y-1.5">
           {review.reviews.map((r) => (
@@ -70,7 +70,7 @@ export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiRev
                 {r.verdict ? (
                   r.reason && <>: {r.reason}</>
                 ) : (
-                  <span className="text-[11px]"> · no answer{r.error ? `: ${r.error}` : ''}</span>
+                  <span className="text-[11px]"> · tidak menjawab{r.error ? `: ${r.error}` : ''}</span>
                 )}
               </span>
             </li>
@@ -85,14 +85,12 @@ export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiRev
           onClick={onRetry}
           className="px-2.5 py-1 rounded-lg bg-sky-500 text-slate-950 text-xs font-bold cursor-pointer"
         >
-          Ask again
+          Tanya lagi
         </button>
       )}
 
       <p className={`text-[10px] leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        An opinion only. Entry, stop and targets are the tested engine&apos;s; the AI never changes them. Each
-        verdict is recorded with the trade, so after 30–50 trades the summary shows whether their agreement meant
-        anything.
+        Hanya pendapat. Entry, stop, dan target tetap dari engine yang sudah diuji; AI tidak pernah mengubahnya. Setiap pendapat dicatat bersama trade-nya, jadi setelah 30–50 trade ringkasan akan menunjukkan apakah persetujuan AI ada artinya.
       </p>
     </div>
   );

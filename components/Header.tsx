@@ -56,7 +56,7 @@ export default function Header({
     const tick = () => {
       const d = new Date();
       setLocalDate(
-        d.toLocaleDateString('en-US', {
+        d.toLocaleDateString('id-ID', {
           timeZone: 'Asia/Jakarta',
           weekday: 'short',
           month: 'short',
@@ -101,15 +101,15 @@ export default function Header({
   const isPositive = (change24h ?? 0) >= 0;
 
   const feedLabel: Record<string, { text: string; dot: string; tone: string }> = {
-    loading: { text: 'Connecting to feed', dot: 'bg-slate-400', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
-    live: { text: 'XAUUSD Live Spot', dot: 'bg-emerald-400 animate-ping', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
-    stale: { text: 'Stale quote, not live', dot: 'bg-amber-400', tone: 'text-amber-500' },
-    unavailable: { text: 'Feed unavailable', dot: 'bg-rose-500', tone: 'text-rose-500' },
+    loading: { text: 'Menghubungkan ke feed', dot: 'bg-slate-400', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    live: { text: 'XAUUSD Spot Live', dot: 'bg-emerald-400 animate-ping', tone: isDark ? 'text-slate-400' : 'text-slate-500' },
+    stale: { text: 'Harga tertunda, bukan live', dot: 'bg-amber-400', tone: 'text-amber-500' },
+    unavailable: { text: 'Feed tidak tersedia', dot: 'bg-rose-500', tone: 'text-rose-500' },
   };
   const feed =
     !quoteIsSpot && feedStatus !== 'unavailable'
       ? {
-          text: 'COMEX futures, not spot',
+          text: 'Futures COMEX, bukan spot',
           dot: 'bg-amber-400',
           tone: 'text-amber-500',
         }
@@ -139,7 +139,7 @@ export default function Header({
               >
                 {/* A phone gets the short name; the full one only truncated to nothing. */}
                 <span className="sm:hidden">XAUUSD</span>
-                <span className="hidden sm:inline">XAUUSD Institutional Assistant</span>
+                <span className="hidden sm:inline">Asisten Institusional XAUUSD</span>
               </h1>
               <span className="hidden sm:inline-flex shrink-0 px-2 py-0.5 text-xs font-semibold rounded-md bg-amber-500/15 text-amber-500 border border-amber-500/30">
                 SMC &bull; ICT
@@ -148,7 +148,7 @@ export default function Header({
             {/* One line or none: wrapped, it ran out of the fixed-height header
                 and over the page below it. */}
             <p className={`hidden sm:block truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Institutional Order Flow &bull; Multi-Timeframe Strategy Engine
+              Order Flow Institusional &bull; Engine Strategi Multi-Timeframe
             </p>
           </div>
         </div>
@@ -235,10 +235,10 @@ export default function Header({
               onClick={onRequestNotification}
               title={
                 notificationPermission === 'granted'
-                  ? 'Browser & Audio Alerts Active for TP/SL Proximity (Click to test)'
+                  ? 'Notifikasi browser & suara aktif untuk TP/SL (klik untuk tes)'
                   : notificationPermission === 'denied'
-                  ? 'Browser Notifications Blocked (Audio chime will play on TP/SL)'
-                  : 'Click to Enable Instant Browser & Sound Alerts for TP/SL'
+                  ? 'Notifikasi browser diblokir (bunyi tetap terdengar saat TP/SL)'
+                  : 'Klik untuk mengaktifkan notifikasi browser & suara untuk TP/SL'
               }
               className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
                 notificationPermission === 'granted'
@@ -258,7 +258,7 @@ export default function Header({
                 <Bell className="w-4 h-4 text-amber-400" />
               )}
               <span className="hidden sm:inline font-semibold">
-                {notificationPermission === 'granted' ? 'Alerts ON' : 'Enable Alerts'}
+                {notificationPermission === 'granted' ? 'Notifikasi AKTIF' : 'Aktifkan Notifikasi'}
               </span>
             </button>
           )}
@@ -269,7 +269,7 @@ export default function Header({
               id="theme-toggle-btn"
               type="button"
               onClick={onToggleTheme}
-              title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
+              title={`Ganti ke Mode ${isDark ? 'Terang' : 'Gelap'}`}
               className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 isDark
                   ? 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-amber-400'
@@ -304,12 +304,12 @@ export default function Header({
                 <div className={`font-semibold truncate max-w-[120px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                   {user.displayName || 'Trader'}
                 </div>
-                <div className="text-[10px] text-emerald-500 font-mono">Cloud Synced</div>
+                <div className="text-[10px] text-emerald-500 font-mono">Tersinkron ke Cloud</div>
               </div>
               <button
                 id="header-logout-btn"
                 onClick={handleLogout}
-                title="Sign out"
+                title="Keluar"
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                   isDark
                     ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/60'
@@ -326,8 +326,8 @@ export default function Header({
               className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-3 sm:px-3.5 py-2 rounded-xl whitespace-nowrap text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
-              <span className="sm:hidden">Login</span>
-              <span className="hidden sm:inline">Login with Google</span>
+              <span className="sm:hidden">Masuk</span>
+              <span className="hidden sm:inline">Masuk dengan Google</span>
             </button>
           )}
         </div>
@@ -351,7 +351,7 @@ export default function Header({
               onClick={() => setAuthError(null)}
               className="text-xs px-2 py-1 rounded-lg border border-current hover:bg-white/10 cursor-pointer shrink-0"
             >
-              Dismiss
+              Tutup
             </button>
           </div>
         </div>

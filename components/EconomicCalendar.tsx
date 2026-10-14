@@ -37,14 +37,14 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
         return (
           <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
-            High Impact
+            Dampak Tinggi
           </span>
         );
       case 'Medium':
         return (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Medium Impact
+            Dampak Sedang
           </span>
         );
       default:
@@ -54,17 +54,17 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
               isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
             }`}
           >
-            Low Impact
+            Dampak Rendah
           </span>
         );
     }
   };
 
   const formatLocalTime = (scheduledIso?: string) => {
-    if (!scheduledIso) return 'Upcoming';
+    if (!scheduledIso) return 'Akan datang';
     try {
       const date = new Date(scheduledIso);
-      const dayStr = date.toLocaleDateString('en-US', {
+      const dayStr = date.toLocaleDateString('id-ID', {
         timeZone: 'Asia/Jakarta',
         weekday: 'short',
         month: 'short',
@@ -78,25 +78,25 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
       }) + ' WIB';
       return `${dayStr}, ${timeStr}`;
     } catch {
-      return 'Upcoming';
+      return 'Akan datang';
     }
   };
 
   const getCountdownString = (scheduledIso?: string) => {
-    if (!scheduledIso) return 'Scheduled';
+    if (!scheduledIso) return 'Terjadwal';
     const diffMs = new Date(scheduledIso).getTime() - currentTimeMs;
-    if (diffMs <= 0) return 'Released';
+    if (diffMs <= 0) return 'Sudah rilis';
     const totalMinutes = Math.floor(diffMs / (60 * 1000));
     const hours = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
     if (hours > 24) {
       const days = Math.floor(hours / 24);
-      return `In ${days}d ${hours % 24}h`;
+      return `Dalam ${days}d ${hours % 24}h`;
     }
     if (hours > 0) {
-      return `In ${hours}h ${mins}m`;
+      return `Dalam ${hours}h ${mins}m`;
     }
-    return `In ${mins}m`;
+    return `Dalam ${mins}m`;
   };
 
   return (
@@ -121,13 +121,13 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                 isDark ? 'text-slate-100' : 'text-slate-900'
               }`}
             >
-              Upcoming USD Calendar
+              Kalender USD Mendatang
               <span className="text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-semibold border border-rose-500/20">
-                Live Filtered
+                Tersaring
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Gold is priced in dollars, so only USD releases are listed. Times in WIB (UTC+7 Jakarta).
+              Emas dihargai dalam dolar, jadi hanya rilis USD yang ditampilkan. Waktu dalam WIB (UTC+7 Jakarta).
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
           }`}
         >
           <Clock className="w-3.5 h-3.5 text-amber-400" />
-          <span>All Times in WIB (UTC+7)</span>
+          <span>Semua Waktu dalam WIB (UTC+7)</span>
         </div>
       </div>
 
@@ -155,15 +155,15 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
           {notice ? (
             <>
               <AlertTriangle className="w-8 h-8 mx-auto text-amber-400 mb-2 opacity-80" />
-              <p className="text-sm font-semibold">No economic calendar connected</p>
+              <p className="text-sm font-semibold">Kalender ekonomi belum tersambung</p>
               <p className="text-xs mt-1 opacity-70">{notice}</p>
             </>
           ) : (
             <>
               <ShieldCheck className="w-8 h-8 mx-auto text-emerald-400 mb-2 opacity-80" />
-              <p className="text-sm font-semibold">No high-impact release scheduled ahead</p>
+              <p className="text-sm font-semibold">Tidak ada rilis berdampak tinggi yang dijadwalkan</p>
               <p className="text-xs mt-1 opacity-70">
-                Order flow is currently driven by technical liquidity rather than a pending catalyst.
+                Pergerakan harga saat ini lebih digerakkan likuiditas teknikal daripada berita.
               </p>
             </>
           )}
@@ -216,7 +216,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                     }`}
                   >
                     <Clock className="w-3 h-3 text-amber-400" />
-                    <span className="font-bold">{formatLocalTime(evt.scheduledTimestamp)} Local</span>
+                    <span className="font-bold">{formatLocalTime(evt.scheduledTimestamp)} Lokal</span>
                   </div>
 
                   <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/25 flex items-center gap-1">
@@ -234,7 +234,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                   }`}
                 >
                   <div className={`text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Forecast
+                    Perkiraan
                   </div>
                   <div className={`font-bold mt-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                     {evt.forecast}
@@ -246,7 +246,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                   }`}
                 >
                   <div className={`text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Previous
+                    Sebelumnya
                   </div>
                   <div className={`font-bold mt-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                     {evt.previous}
@@ -260,7 +260,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
                   <div className={`text-[10px] uppercase font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Status
                   </div>
-                  <div className="text-amber-400 font-bold mt-0.5">Upcoming</div>
+                  <div className="text-amber-400 font-bold mt-0.5">Akan datang</div>
                 </div>
               </div>
 
@@ -272,7 +272,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
               >
                 <TrendingUp className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <strong className={isDark ? 'text-amber-300' : 'text-amber-600'}>Gold Impact Rationale: </strong>
+                  <strong className={isDark ? 'text-amber-300' : 'text-amber-600'}>Alasan Dampak ke Emas: </strong>
                   <span>{evt.marketImplication}</span>
                 </div>
               </div>
@@ -288,7 +288,7 @@ export default function EconomicCalendar({ events, notice = null, theme = 'dark'
           id="economic-calendar-count"
           className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}
         >
-          {upcomingEvents.length} releases scheduled. Scroll the list to read the rest.
+          {upcomingEvents.length} rilis terjadwal. Geser daftarnya untuk membaca sisanya.
         </p>
       )}
     </div>

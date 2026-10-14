@@ -35,17 +35,17 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
                 computed here from the previous session, so the title now says
                 what it actually is. */}
             <h2 className={`text-base font-bold flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Pivot &amp; Directional Bias
+              Pivot &amp; Arah Bias
               <span
                 className={`text-xs px-2 py-0.5 rounded font-normal ${
                   isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
                 }`}
               >
-                Computed from the previous session
+                Dihitung dari sesi sebelumnya
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Directional bias, key inflection levels, and scenario forecasts for XAUUSD.
+              Arah bias, level penting, dan skenario untuk XAUUSD.
             </p>
           </div>
         </div>
@@ -57,7 +57,7 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span>Real-Time Synced</span>
+            <span>Sinkron real-time</span>
           </div>
           <span
             className={`text-xs font-black px-3 py-1 rounded-xl border font-mono flex items-center gap-1 ${
@@ -85,13 +85,13 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
             }`}
           >
             <div className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Critical Institutional Pivot
+              Pivot Institusional Utama
             </div>
             <div className="text-2xl font-black font-mono text-amber-500 mt-1">
               ${bias.pivotPoint.toFixed(2)}
             </div>
             <div className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Directional bias flips if price crosses this boundary.
+              Arah bias berbalik kalau harga melewati batas ini.
             </div>
           </div>
 
@@ -101,14 +101,14 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
             }`}
           >
             <div className={`text-xs font-medium flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              <span>Model Confidence</span>
+              <span>Keyakinan Model</span>
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             </div>
             <div className="text-2xl font-black font-mono text-emerald-500 mt-1">
               {bias.confidenceScore}%
             </div>
             <div className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Multi-factor technical &amp; order flow alignment.
+              Keselarasan teknikal &amp; order flow dari banyak faktor.
             </div>
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
           }`}
         >
           <div className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-            <Target className="w-3.5 h-3.5" /> Preferred Scenario
+            <Target className="w-3.5 h-3.5" /> Skenario Utama
           </div>
           <p className={`text-xs leading-relaxed font-mono ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
             {bias.preferredScenario}
@@ -134,7 +134,7 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
           }`}
         >
           <div className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            Alternative Scenario
+            Skenario Alternatif
           </div>
           <p className={`text-xs leading-relaxed font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             {bias.alternativeScenario}
@@ -148,7 +148,7 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}
           >
-            <div className="text-[10px] text-rose-500 font-bold uppercase mb-1">Key Resistances</div>
+            <div className="text-[10px] text-rose-500 font-bold uppercase mb-1">Resistance Utama</div>
             <div className="space-y-0.5">
               {bias.keyResistanceLevels.map((lvl, idx) => (
                 <div key={idx} className="flex justify-between">
@@ -164,7 +164,7 @@ export default function TradingCentralCard({ bias, theme = 'dark' }: TradingCent
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}
           >
-            <div className="text-[10px] text-emerald-500 font-bold uppercase mb-1">Key Supports</div>
+            <div className="text-[10px] text-emerald-500 font-bold uppercase mb-1">Support Utama</div>
             <div className="space-y-0.5">
               {bias.keySupportLevels.map((lvl, idx) => (
                 <div key={idx} className="flex justify-between">

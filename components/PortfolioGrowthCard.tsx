@@ -110,7 +110,7 @@ function CustomTooltip({ active, payload, isDark = true, accountType = 'Standard
 
       <div className="space-y-1">
         <div className="flex justify-between items-center">
-          <span className="opacity-70">Balance / Equity:</span>
+          <span className="opacity-70">Saldo / Equity:</span>
           <span className="font-bold text-sm text-amber-400">
             {formatAccountMoney(data.equity, accountType)}
           </span>
@@ -119,17 +119,17 @@ function CustomTooltip({ active, payload, isDark = true, accountType = 'Standard
         {!isBase && (
           <>
             <div className="flex justify-between items-center">
-              <span className="opacity-70">Realized P&L:</span>
+              <span className="opacity-70">Laba/Rugi Terealisasi:</span>
               <span className={`font-bold ${data.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {data.pnlFormatted} ({data.pnlPercent >= 0 ? '+' : ''}{data.pnlPercent}%)
               </span>
             </div>
             <div className="flex justify-between items-center text-[11px] opacity-75">
-              <span>Setup Spec:</span>
+              <span>Detail Setup:</span>
               <span>{data.symbol} &bull; {data.orderType}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] opacity-75">
-              <span>Distance:</span>
+              <span>Jarak:</span>
               <span>{data.pips >= 0 ? `+${data.pips}` : data.pips} pips</span>
             </div>
           </>
@@ -154,7 +154,7 @@ export default function PortfolioGrowthCard({
 
   // Format helper in WIB (UTC+7 Asia/Jakarta)
   const formatTimeWib = (isoString?: string) => {
-    if (!isoString) return 'Current';
+    if (!isoString) return 'Sekarang';
     try {
       return (
         new Date(isoString).toLocaleTimeString('en-US', {
@@ -210,9 +210,9 @@ export default function PortfolioGrowthCard({
       }> = [
         {
           index: 0,
-          label: 'Start',
-          time: 'Baseline',
-          fullTime: 'Initial Capital',
+          label: 'Awal',
+          time: 'Modal awal',
+          fullTime: 'Modal Awal',
           equity: roundMoney(base),
           pnl: 0,
           pnlFormatted: formatAccountMoney(0, accountType),
@@ -397,15 +397,15 @@ export default function PortfolioGrowthCard({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold tracking-tight">
-                Portfolio & Equity Growth
+                Pertumbuhan Portofolio & Equity
               </h2>
               <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                TP/SL Synced
+                Sinkron TP/SL
               </span>
             </div>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Account balance growth curve updating dynamically with every Take Profit and Stop Loss outcome.
+              Kurva pertumbuhan saldo yang diperbarui setiap kali Take Profit atau Stop Loss tercatat.
             </p>
           </div>
         </div>
@@ -429,7 +429,7 @@ export default function PortfolioGrowthCard({
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-              <span>Equity Curve</span>
+              <span>Kurva Equity</span>
             </button>
 
             <button
@@ -444,7 +444,7 @@ export default function PortfolioGrowthCard({
               }`}
             >
               <History className="w-3.5 h-3.5 text-sky-400" />
-              <span>Outcome Ledger ({learningRecords.length})</span>
+              <span>Catatan Hasil ({learningRecords.length})</span>
             </button>
           </div>
 
@@ -452,7 +452,7 @@ export default function PortfolioGrowthCard({
             <button
               type="button"
               onClick={onResetBaseline}
-              title="Reset Baseline Capital"
+              title="Atur Ulang Modal Awal"
               className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
                 isDark
                   ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-white'
@@ -474,7 +474,7 @@ export default function PortfolioGrowthCard({
           }`}
         >
           <div className="flex items-center justify-between text-[11px] mb-1 opacity-70">
-            <span>Current Balance</span>
+            <span>Saldo Sekarang</span>
             <DollarSign className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="text-lg font-mono font-bold tracking-tight text-amber-400">
@@ -496,7 +496,7 @@ export default function PortfolioGrowthCard({
               )}
               {balanceChangePercent >= 0 ? `+${balanceChangePercent}%` : `${balanceChangePercent}%`}
             </span>
-            <span className="opacity-50" suppressHydrationWarning>from {formatUnitsSimple(initialEquity)}</span>
+            <span className="opacity-50" suppressHydrationWarning>dari {formatUnitsSimple(initialEquity)}</span>
           </div>
         </div>
 
@@ -507,7 +507,7 @@ export default function PortfolioGrowthCard({
           }`}
         >
           <div className="flex items-center justify-between text-[11px] mb-1 opacity-70">
-            <span>Net Realized P&L</span>
+            <span>Laba/Rugi Bersih</span>
             <Layers className="w-3.5 h-3.5 text-sky-400" />
           </div>
           <div
@@ -519,7 +519,7 @@ export default function PortfolioGrowthCard({
             {formatAccountMoney(totalPnLDollars, accountType, { signed: true })}
           </div>
           <div className="text-[10px] opacity-60 mt-1">
-            {learningRecords.length} resolved trade{learningRecords.length === 1 ? '' : 's'}
+            {learningRecords.length} trade selesai{learningRecords.length === 1 ? '' : 's'}
           </div>
           {/* The balance and the ledger are kept by different paths: one is the
               number the account carries, the other is what the recorded trades
@@ -527,8 +527,8 @@ export default function PortfolioGrowthCard({
               two figures that cannot both be right. */}
           {ledgerGap !== null && (
             <div id="ledger-balance-gap" className="text-[10px] mt-1 text-amber-500 leading-snug">
-              Ledger and balance differ by {formatAccountMoney(Math.abs(ledgerGap), accountType)}: these
-              trades put the balance at {formatUnitsSimple(ledgerBalance)}.
+              Catatan dan saldo berbeda {formatAccountMoney(Math.abs(ledgerGap), accountType)}: menurut
+              catatan trade, saldo seharusnya {formatUnitsSimple(ledgerBalance)}.
               {onReconcileToLedger && (
                 <button
                   id="reconcile-to-ledger-btn"
@@ -536,7 +536,7 @@ export default function PortfolioGrowthCard({
                   onClick={() => onReconcileToLedger(ledgerBalance)}
                   className="ml-1 underline underline-offset-2 hover:no-underline cursor-pointer font-semibold"
                 >
-                  Use the ledger figure
+                  Pakai angka dari catatan
                 </button>
               )}
             </div>
@@ -557,7 +557,7 @@ export default function PortfolioGrowthCard({
             {winRate}%
           </div>
           <div className="text-[10px] opacity-60 mt-1">
-            {totalWins} TP hit &bull; {totalLosses} SL hit
+            {totalWins} kena TP &bull; {totalLosses} kena SL
           </div>
         </div>
 
@@ -575,7 +575,7 @@ export default function PortfolioGrowthCard({
             {profitFactor > 0 ? profitFactor.toFixed(2) : '--'}
           </div>
           <div className="text-[10px] opacity-60 mt-1" suppressHydrationWarning>
-            Max DD: {maxDrawdownPercent}% &bull; Peak: {formatUnitsSimple(peakEquity)}
+            DD Maks: {maxDrawdownPercent}% &bull; Puncak: {formatUnitsSimple(peakEquity)}
           </div>
         </div>
       </div>
@@ -590,21 +590,21 @@ export default function PortfolioGrowthCard({
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono">
-                Equity Curve Trajectory
+                Lintasan Kurva Equity
               </span>
               <span className="text-[10px] font-mono opacity-60">
-                {accountType === 'Cent' ? 'Cent' : 'USD'} &bull; WIB Timezone Synchronized
+                {accountType === 'Cent' ? 'Cent' : 'USD'} &bull; Waktu WIB
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono">
               <span className="flex items-center gap-1 text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                TP Hit (+Gain)
+                Kena TP (+Untung)
               </span>
               <span className="flex items-center gap-1 text-rose-400">
                 <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
-                SL Hit (-Loss)
+                Kena SL (-Rugi)
               </span>
               <span className="flex items-center gap-1 text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-slate-500 inline-block" />
@@ -706,7 +706,7 @@ export default function PortfolioGrowthCard({
                   stroke={isDark ? '#64748b' : '#94a3b8'}
                   strokeDasharray="3 3"
                   label={{
-                    value: `Baseline: ${formatUnitsSimple(initialEquity)}`,
+                    value: `Modal awal: ${formatUnitsSimple(initialEquity)}`,
                     position: 'insideBottomRight',
                     fill: isDark ? '#94a3b8' : '#64748b',
                     fontSize: 10,
@@ -770,26 +770,26 @@ export default function PortfolioGrowthCard({
                 type="button"
                 onClick={() => scrollCurve(-1)}
                 disabled={!canScrollBack}
-                aria-label="Earlier trades"
+                aria-label="Trade sebelumnya"
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-mono disabled:opacity-30 ${
                   isDark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-600'
                 }`}
               >
-                <ChevronLeft className="w-4 h-4" /> Earlier
+                <ChevronLeft className="w-4 h-4" /> Sebelumnya
               </button>
               <span className="text-[11px] text-center text-slate-500">
-                {chartData.length - 1} trades. Swipe the curve or use the buttons; tap a point for its details.
+                {chartData.length - 1} trade. Geser kurvanya atau pakai tombol; ketuk satu titik untuk melihat detailnya.
               </span>
               <button
                 type="button"
                 onClick={() => scrollCurve(1)}
                 disabled={!canScrollForward}
-                aria-label="Later trades"
+                aria-label="Trade berikutnya"
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-mono disabled:opacity-30 ${
                   isDark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-600'
                 }`}
               >
-                Later <ChevronRight className="w-4 h-4" />
+                Berikutnya <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -798,7 +798,7 @@ export default function PortfolioGrowthCard({
             <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
               <Info className="w-4 h-4 shrink-0 text-amber-400" />
               <span>
-                Baseline balance initialized at <strong suppressHydrationWarning>{formatUnitsSimple(initialEquity)}</strong>. Execute signals or click &quot;Price Hit TP&quot; / &quot;Price Hit SL&quot; on the Institutional Signal card to record live equity growth.
+                Saldo awal dimulai dari <strong suppressHydrationWarning>{formatUnitsSimple(initialEquity)}</strong>. Jalankan sinyal atau tekan &quot;Price Hit TP&quot; / &quot;Price Hit SL&quot; di kartu sinyal untuk mencatat pertumbuhan equity.
               </span>
             </div>
           )}
@@ -814,18 +814,18 @@ export default function PortfolioGrowthCard({
         >
           <div className="flex items-center justify-between mb-3 px-1">
             <span className="text-xs font-bold uppercase tracking-wider font-mono text-amber-400">
-              Resolved Trades Impact Log
+              Catatan Dampak Trade Selesai
             </span>
             <span className="text-[11px] opacity-60">
-              {learningRecords.length} Records Recorded
+              {learningRecords.length} Catatan Tersimpan
             </span>
           </div>
 
           {learningRecords.length === 0 ? (
             <div className="py-8 text-center text-xs opacity-60 space-y-1">
-              <p>No completed trade outcomes logged yet.</p>
+              <p>Belum ada hasil trade yang tercatat.</p>
               <p className="text-[11px] opacity-40">
-                Trigger TP or SL on active signals to build your ledger.
+                Catat TP atau SL dari sinyal aktif untuk mengisi catatanmu.
               </p>
             </div>
           ) : (
@@ -901,7 +901,7 @@ export default function PortfolioGrowthCard({
         >
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="opacity-80">Active Setup Outcome Projection:</span>
+            <span className="opacity-80">Proyeksi Hasil Setup Aktif:</span>
             <span className="font-bold font-mono text-amber-400">
               {activeSetup.orderType} @ ${activeSetup.entryPrice.toFixed(2)}
             </span>

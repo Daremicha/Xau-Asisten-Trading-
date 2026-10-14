@@ -16,10 +16,10 @@ interface AlertsStatusProps {
 
 function ago(iso: string, now: number): string {
   const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return 'baru saja';
+  if (minutes < 60) return `${minutes} menit lalu`;
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+  return hours < 48 ? `${hours} jam lalu` : `${Math.round(hours / 24)} hari lalu`;
 }
 
 function wibTime(iso: string): string {
@@ -35,32 +35,32 @@ function describeScan(
   phone: ClosedAppAlertStatus['phone'],
   now: number
 ): { ok: boolean; warn?: boolean; text: string } {
-  if (!phone) return { ok: false, warn: true, text: 'could not ask the server about this phone.' };
+  if (!phone) return { ok: false, warn: true, text: 'tidak bisa menghubungi server untuk HP ini.' };
   if (!phone.registered) {
     return {
       ok: false,
-      text: 'the server does not know this phone. Close the app completely and open it again; it signs up on start.',
+      text: 'server belum mengenal HP ini. Tutup aplikasi sepenuhnya lalu buka lagi; HP akan terdaftar saat aplikasi dibuka.',
     };
   }
   if (!phone.scanning) {
     return {
       ok: false,
-      text: 'not switched on for this phone yet. Open the app once more so it sends your settings to the server.',
+      text: 'belum aktif untuk HP ini. Buka aplikasi sekali lagi supaya pengaturanmu terkirim ke server.',
     };
   }
   const last = phone.lastScan;
   if (!last) {
     return {
       ok: true,
-      text: 'on. It runs every 15 minutes while the market is open; the first result appears here after it runs.',
+      text: 'aktif. Berjalan setiap 15 menit selama pasar buka; hasil pertama muncul di sini setelah berjalan.',
     };
   }
   const when = `${wibTime(last.at)} WIB (${ago(last.at, now)})`;
-  if (last.outcome === 'error') return { ok: false, text: `last run ${when}: ${last.note}.` };
+  if (last.outcome === 'error') return { ok: false, text: `terakhir berjalan ${when}: ${last.note}.` };
   return {
     ok: true,
-    text: `on, every 15 minutes. Last run ${when}: ${last.note}.${
-      last.outcome === 'no-setup' ? ' A 📊 NEW SETUP alert is sent when one passes.' : ''
+    text: `aktif, setiap 15 menit. Terakhir berjalan ${when}: ${last.note}.${
+      last.outcome === 'no-setup' ? ' Notifikasi 📊 NEW SETUP dikirim kalau ada setup yang lolos.' : ''
     }`,
   };
 }
@@ -96,7 +96,7 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
     setTesting(false);
     setTestNote(
       error ??
-        'Test on its way in 10 seconds. Close the app now: if the notification appears with the app closed, alerts work on this phone.'
+        'Notifikasi tes akan datang dalam 10 detik. Tutup aplikasinya sekarang: kalau notifikasi muncul saat aplikasi tertutup, notifikasi berfungsi di HP ini.'
     );
   };
 
@@ -121,27 +121,27 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
       <div className="flex items-center gap-2">
         <BellRing className={`w-4 h-4 ${allGood ? good : 'text-amber-500'}`} />
         <span className={`font-bold text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-          Alerts with the app closed
+          Notifikasi saat aplikasi tertutup
         </span>
-        <span className={`ml-auto font-bold ${allGood ? good : bad}`}>{allGood ? 'Working' : 'Not working'}</span>
+        <span className={`ml-auto font-bold ${allGood ? good : bad}`}>{allGood ? 'Berfungsi' : 'Tidak berfungsi'}</span>
       </div>
 
       <div className="flex items-start gap-1.5">
         {phoneReady ? <CheckCircle2 className={`w-3.5 h-3.5 mt-0.5 ${good}`} /> : <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 ${bad}`} />}
         <span className={muted}>
-          <strong>This phone:</strong>{' '}
+          <strong>HP ini:</strong>{' '}
           {phoneReady
-            ? 'signed up for alerts.'
+            ? 'sudah terdaftar untuk notifikasi.'
             : status.permission === 'denied'
-              ? 'notifications are blocked. Allow them in the phone settings for this app.'
-              : 'not signed up yet.'}
+              ? 'notifikasi diblokir. Izinkan di pengaturan HP untuk aplikasi ini.'
+              : 'belum terdaftar.'}
           {!phoneReady && status.permission !== 'denied' && (
             <button
               type="button"
               onClick={onRequestNotification}
               className="ml-2 px-2 py-0.5 rounded-md bg-sky-500 text-slate-950 font-bold cursor-pointer"
             >
-              Allow alerts
+              Izinkan notifikasi
             </button>
           )}
         </span>
@@ -154,12 +154,12 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
           <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 ${bad}`} />
         )}
         <span className={muted}>
-          <strong>Server watch:</strong>{' '}
+          <strong>Pemantauan server:</strong>{' '}
           {!status.serverEnabled
-            ? 'not configured on the server.'
+            ? 'belum diatur di server.'
             : watcherAlive
-              ? `running, last check ${ago(status.lastCheckAt!, status.readAt)}.`
-              : `stopped${status.lastCheckAt ? `, last check ${ago(status.lastCheckAt, status.readAt)}` : ', it has never run'}. The scheduler (cron-job.org) must call /api/push/check every minute; until it does, alerts only appear once the app is opened.`}
+              ? `berjalan, terakhir dicek ${ago(status.lastCheckAt!, status.readAt)}.`
+              : `stopped${status.lastCheckAt ? `, terakhir dicek ${ago(status.lastCheckAt, status.readAt)}` : ', belum pernah berjalan'}. Penjadwal (cron-job.org) harus memanggil /api/push/check setiap menit; sebelum itu, notifikasi baru muncul saat aplikasi dibuka.`}
         </span>
       </div>
 
@@ -171,7 +171,7 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
             <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 ${scanLine.warn ? 'text-amber-500' : bad}`} />
           )}
           <span className={muted}>
-            <strong>New-setup scan:</strong> {scanLine.text}
+            <strong>Pemindaian setup baru:</strong> {scanLine.text}
           </span>
         </div>
       )}
@@ -185,15 +185,14 @@ export default function AlertsStatus({ permission, onRequestNotification, theme 
             onClick={handleTest}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold cursor-pointer disabled:opacity-50"
           >
-            <Send className="w-3 h-3" /> {testing ? 'Sending…' : 'Send a test notification'}
+            <Send className="w-3 h-3" /> {testing ? 'Sending…' : 'Kirim notifikasi tes'}
           </button>
           {testNote && <span className={muted}>{testNote}</span>}
         </div>
       )}
 
       <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        If the test only shows after you open the app, the phone is holding Chrome back. On Xiaomi, Oppo, Vivo and
-        Samsung: Settings → Apps → Chrome → Battery → No restrictions, turn Autostart on, and allow notifications.
+        Kalau notifikasi tes baru muncul setelah aplikasi dibuka, HP sedang membatasi Chrome. Di Xiaomi, Oppo, Vivo, dan Samsung: Pengaturan → Aplikasi → Chrome → Baterai → Tanpa batasan, nyalakan Mulai otomatis, dan izinkan notifikasi.
       </p>
     </div>
   );

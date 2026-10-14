@@ -57,9 +57,9 @@ export default function LessonsPanel({
           <GraduationCap className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h2 className={`text-base font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Lessons from your trades</h2>
+          <h2 className={`text-base font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Pelajaran dari trade kamu</h2>
           <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            What your recorded TP, SL and missed orders say, and what the engine changed because of them.
+            Apa kata TP, SL, dan order MISSED yang tercatat, dan apa yang diubah engine karenanya.
           </p>
         </div>
         <span
@@ -92,12 +92,11 @@ export default function LessonsPanel({
 
       <div className={`rounded-xl border p-3 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
         <div className={`flex items-center gap-1.5 text-xs font-bold mb-1.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-          <Brain className="w-3.5 h-3.5 text-amber-500" /> What the engine changed for the next setup
+          <Brain className="w-3.5 h-3.5 text-amber-500" /> Yang diubah engine untuk setup berikutnya
         </div>
         {!selfLearning ? (
           <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            Nothing: self-learning is off, so the engine keeps its tested rules. Turn it on in Account to let these
-            trades re-tune it.
+            Tidak ada: self-learning mati, jadi engine memakai aturan yang sudah diuji. Nyalakan di Akun supaya trade ini ikut menyetel ulang engine.
           </p>
         ) : (
           <ul className={`space-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -110,8 +109,7 @@ export default function LessonsPanel({
           </ul>
         )}
         <p className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          The engine moves only on patterns that outgrow chance: a condition needs eight closed trades, and a
-          signal&apos;s vote changes only when the gap is twice its own noise, so one or two trades cannot swing it.
+          Engine hanya berubah karena pola yang melebihi kebetulan: satu kondisi butuh delapan trade tertutup, dan bobot sinyal baru berubah kalau selisihnya dua kali lipat dari noise-nya, jadi satu dua trade tidak bisa menggesernya.
         </p>
       </div>
     </div>
