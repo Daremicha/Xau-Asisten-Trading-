@@ -142,6 +142,47 @@ export default function RecordAuditPanel({
   const auto = learningRecords.filter((r) => r.autoResolved);
   const unchecked = auditableRecords(learningRecords);
 
+  // Misses from the last week. The candles can confirm the app's rule was
+  // met, but not what a pending order left in MT5 did afterwards, so the user
+  // is the only witness to a miss that filled anyway.
+  // Measured from the newest record rather than the clock, so rendering
+  // stays a pure function of the records.
+  const newest = learningRecords.reduce((m, r) => Math.max(m, Date.parse(r.timestamp) || 0), 0);
+  const recentMisses = learningRecords
+    .filter(
+      (r) =>
+        r.outcome === 'MISSED' &&
+        !r.id.startsWith('bt_') &&
+        r.audit?.verdict !== 'corrected' &&
+        newest - Date.parse(r.timestamp) <= 7 * 86_400_000
+    )
+    .slice(-5)
+    .reverse();
+  const [openMiss, setOpenMiss] = useState<string | null>(null);
+
+  const applyMiss = async (id: string) => {
+    const draft = drafts[id];
+    if (!draft || (draft.outcome !== 'TP' && draft.outcome !== 'SL')) return;
+    const amount = Number(draft.amount);
+    const exit = Number(draft.exit);
+    if (!Number.isFinite(amount) || draft.amount.trim() === '' || !Number.isFinite(exit) || exit <= 0) return;
+    setBusyId(id);
+    try {
+      await onCorrect({
+        id,
+        outcome: draft.outcome,
+        exitPrice: exit,
+        profitOrLossDollars: fromAccountUnits(
+          draft.outcome === 'SL' ? -Math.abs(amount) : Math.abs(amount),
+          accountType
+        ),
+      });
+      setOpenMiss(null);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const run = async () => {
     setRunning(true);
     setFailure(null);
@@ -203,7 +244,7 @@ export default function RecordAuditPanel({
   const sub = isDark ? 'text-slate-400' : 'text-slate-500';
   const heading = isDark ? 'text-slate-100' : 'text-slate-900';
 
-  if (auto.length === 0) return null;
+  if (auto.length === 0 && recentMisses.length === 0) return null;
 
   return (
     <div id="record-audit-panel" className={`rounded-2xl border p-5 ${card}`}>
@@ -458,6 +499,101 @@ export default function RecordAuditPanel({
               </span>
             </div>
           )}
+        </div>
+      )}
+
+      {recentMisses.length > 0 && (
+        <div id="filled-after-miss" className={`mt-4 pt-4 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h4 className={`text-sm font-bold ${heading}`}>A missed order filled in MT5 anyway?</h4>
+          <p className={`text-xs mt-1 ${sub}`}>
+            The app stops tracking an order once it calls it missed, but MT5 keeps a pending order until you delete it.
+            If one of these filled later, record what MT5 actually paid once the trade has closed.
+          </p>
+          <div className="mt-2 space-y-2">
+            {recentMisses.map((r) => {
+              const draft = drafts[r.id] ?? { outcome: '', exit: '', amount: '' };
+              const setDraft = (patch: Partial<Draft>) =>
+                setDrafts((prev) => ({ ...prev, [r.id]: { ...draft, ...patch } }));
+              const ready =
+                (draft.outcome === 'TP' || draft.outcome === 'SL') &&
+                Number(draft.exit) > 0 &&
+                draft.amount.trim() !== '' &&
+                Number.isFinite(Number(draft.amount));
+              return (
+                <div
+                  key={r.id}
+                  className={`rounded-xl border p-3 text-xs ${isDark ? 'border-slate-700 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className={`font-mono ${heading}`}>
+                      {r.orderType} @ {r.entryPrice.toFixed(2)} •{' '}
+                      {new Date(r.timestamp).toLocaleString('en-GB', {
+                        timeZone: 'Asia/Jakarta',
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      WIB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenMiss(openMiss === r.id ? null : r.id)}
+                      className={`px-3 py-1.5 rounded-lg border font-semibold cursor-pointer ${
+                        isDark ? 'border-sky-500/40 text-sky-300 hover:bg-sky-500/10' : 'border-sky-300 text-sky-700 hover:bg-sky-50'
+                      }`}
+                    >
+                      {openMiss === r.id ? 'Cancel' : 'It filled in MT5'}
+                    </button>
+                  </div>
+                  {openMiss === r.id && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="flex flex-col gap-1">
+                        <span className={sub}>How it closed</span>
+                        <select
+                          value={draft.outcome}
+                          onChange={(e) => setDraft({ outcome: e.target.value as Draft['outcome'] })}
+                          className={`rounded-lg border px-2 py-1.5 ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300'}`}
+                        >
+                          <option value="">Choose…</option>
+                          <option value="TP">Take profit</option>
+                          <option value="SL">Stop loss</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={sub}>Close price</span>
+                        <input
+                          inputMode="decimal"
+                          value={draft.exit}
+                          onChange={(e) => setDraft({ exit: e.target.value })}
+                          placeholder="e.g. 4088.40"
+                          className={`rounded-lg border px-2 py-1.5 font-mono ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300'}`}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={sub}>Result ({accountUnit})</span>
+                        <input
+                          inputMode="decimal"
+                          value={draft.amount}
+                          onChange={(e) => setDraft({ amount: e.target.value })}
+                          placeholder="as shown in MT5"
+                          className={`rounded-lg border px-2 py-1.5 font-mono ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300'}`}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => applyMiss(r.id)}
+                        disabled={!ready || busyId === r.id}
+                        className="sm:col-span-3 px-3 py-1.5 rounded-lg text-sm font-semibold bg-amber-500 text-slate-900 hover:bg-amber-400 disabled:opacity-50 cursor-pointer"
+                      >
+                        {busyId === r.id ? 'Saving…' : 'Record the real result'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

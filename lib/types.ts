@@ -533,6 +533,11 @@ export interface InstitutionalTradingSetup {
   exceedsRiskBudget?: boolean;
   /** The balance the lot was sized from, so the loss can be shown as a share of it. */
   balanceAtSetup?: number;
+  /**
+   * Multiples of risk price may run past the entry before an unfilled order is
+   * called missed: 1.5 with the quick target, one otherwise. See missAtR.
+   */
+  missAtR?: number;
   riskPercentage: number;
   multiTimeframeAlignment: {
     d1: SmcStructure;

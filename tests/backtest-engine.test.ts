@@ -32,6 +32,24 @@ function plan(overrides: Partial<OrderPlan> = {}): OrderPlan {
   };
 }
 
+describe('how far a resting order may run away before it is missed', () => {
+  // Buy 2000, stop 1990: risk 10. Price rises 12 without filling, then dips into the entry.
+  const candles = [
+    bar(0, 2003, 2004, 2002, 2003),
+    bar(1, 2003, 2012, 2002, 2011),
+    bar(2, 2011, 2011, 1999, 2001),
+    bar(3, 2001, 2016, 2000, 2016),
+  ];
+
+  test('one stop distance by default', () => {
+    expect(simulateOrder(candles, plan()).kind).toBe('missed');
+  });
+
+  test('one and a half with the quick target, so the later fill is traded', () => {
+    expect(simulateOrder(candles, plan({ missAtR: 1.5 })).kind).toBe('filled');
+  });
+});
+
 describe('slippage and gaps', () => {
   const filled = (o: ReturnType<typeof simulateOrder>) => {
     if (o.kind !== 'filled') throw new Error(`expected a fill, got ${o.kind}`);

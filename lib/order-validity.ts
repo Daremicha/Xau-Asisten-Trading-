@@ -35,6 +35,26 @@ const WINDOW_MINUTES: Record<TradingStyle, number> = {
   Swing: 3 * 24 * 60,
 };
 
+/**
+ * How far past its entry, in multiples of its own risk, price may run before an
+ * unfilled order is called missed.
+ *
+ * One stop distance for the engine's own targets. With the quick target on it
+ * is one and a half: a 0.5R target needs only a small pullback to pay, and
+ * cancelling at one stop distance threw away orders that filled later and won.
+ * Replayed over 24 months of M15 with quick TP, 1.5 beat 1 in both halves at
+ * floors 40 (64 to 71R), 55 (36 to 62R) and 70 (23 to 32R); at take-all it
+ * made 82R against 74R. With the engine's own targets the wider rule did worse,
+ * so it applies only to the quick target.
+ */
+export const MISS_AT_R = 1;
+export const QUICK_TARGET_MISS_AT_R = 1.5;
+
+/** The miss distance for an order, by whether it carries the quick target. */
+export function missAtR(quickTarget: boolean): number {
+  return quickTarget ? QUICK_TARGET_MISS_AT_R : MISS_AT_R;
+}
+
 /** A kill zone shortens a scalp's window: the burst of liquidity is the setup. */
 const KILL_ZONE_SCALP_MINUTES = 60;
 
@@ -98,7 +118,7 @@ export function evaluatePendingOrder(
   setup: Pick<
     InstitutionalTradingSetup,
     'orderType' | 'entryPrice' | 'stopLoss' | 'takeProfit1' | 'timestamp'
-  > & { validUntil?: string },
+  > & { validUntil?: string; missAtR?: number },
   currentPrice: number,
   now: Date = new Date()
 ): PendingVerdict {
@@ -126,12 +146,13 @@ export function evaluatePendingOrder(
   // never in the trade.
   const risk = Math.abs(setup.entryPrice - setup.stopLoss);
   const runFromEntry = isBuy ? currentPrice - setup.entryPrice : setup.entryPrice - currentPrice;
-  if (risk > 0 && runFromEntry >= risk) {
+  const multiple = setup.missAtR ?? MISS_AT_R;
+  if (risk > 0 && runFromEntry >= risk * multiple) {
     return {
       state: 'ran-away',
-      reason: `Price ran ${runFromEntry.toFixed(2)} past the ${setup.entryPrice.toFixed(
-        2
-      )} entry, a full stop distance, without ever filling it. The move happened without the entry.`,
+      reason: `Price ran ${runFromEntry.toFixed(2)} past the ${setup.entryPrice.toFixed(2)} entry, ${
+        multiple === 1 ? 'a full stop distance' : `${multiple} times the stop distance`
+      }, without ever filling it. The move happened without the entry.`,
     };
   }
 

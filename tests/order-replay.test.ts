@@ -350,3 +350,13 @@ describe('the stop moved to entry at 1R', () => {
     expect(resolveClose(null, 'SL', true)).toEqual({ trigger: 'SL', level: 1, at: null, breakEven: true });
   });
 });
+
+describe('a quick target order keeps waiting past one stop distance', () => {
+  test('the candles call it missed at one stop distance by default, and not with the quick target', () => {
+    // Sell 4300, stop 4310: risk 10. Price falls 12 without filling, then rallies into the entry.
+    const candles = [bar(0, 4298, 4295), bar(1, 4296, 4288), bar(2, 4301, 4290)];
+    expect(replayOrder(sellLimit(), candles, START + 3 * M15).kind).toBe('missed');
+    const quick = replayOrder(sellLimit({ missAtR: 1.5 }), candles, START + 3 * M15);
+    expect(quick.kind).toBe('running');
+  });
+});
