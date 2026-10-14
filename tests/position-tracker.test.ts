@@ -124,7 +124,7 @@ describe('the full live state', () => {
     expect(p.state).toBe('pending');
     expect(p.distanceToEntryPips).toBe(60);
     expect(p.floatingDollars).toBeNull();
-    expect(p.summary).toContain('Waiting for price');
+    expect(p.summary).toContain('Menunggu harga');
   });
 
   test('a filled order reports its floating result', () => {
@@ -133,7 +133,7 @@ describe('the full live state', () => {
     const p = trackPosition(setup(), 4208, true);
     expect(p.state).toBe('filled');
     expect(p.floatingPips).toBe(80);
-    expect(p.summary).toContain('profit');
+    expect(p.summary).toContain('untung');
   });
 
   test('price above a buy limit it never reached is still pending', () => {
@@ -145,7 +145,7 @@ describe('the full live state', () => {
   test('a filled order in drawdown says so', () => {
     const p = trackPosition(setup(), 4196, true);
     expect(p.floatingDollars).toBeLessThan(0);
-    expect(p.summary).toContain('drawdown');
+    expect(p.summary).toContain('minus');
   });
 
   test('a fill latches: drifting back past the entry does not un-fill it', () => {

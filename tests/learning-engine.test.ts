@@ -206,7 +206,7 @@ describe('learning the actual distance orders miss by', () => {
     // no longer treats one as a problem to fix.
     const d = deriveAdaptiveWeights(Array.from({ length: 20 }, () => record('MISSED', { missPips: 200 })));
     expect(d.entryBufferPips).toBe(0);
-    expect(d.adjustments.join(' ')).toContain('costs nothing');
+    expect(d.adjustments.join(' ')).toContain('tidak ada ruginya');
   });
 
   test('a bigger miss still teaches nothing about where to put the entry', () => {
@@ -238,7 +238,7 @@ describe('news attribution', () => {
       Array.from({ length: 20 }, () => record('SL', { factor: 'FOMC release volatility' }))
     );
     expect(newsy.newsImpactWeight).toBeGreaterThan(base.newsImpactWeight);
-    expect(newsy.adjustments.join(' ')).toContain('news');
+    expect(newsy.adjustments.join(' ')).toContain('berita');
   });
 });
 
@@ -263,7 +263,7 @@ describe('learning per trading style', () => {
 
 describe('the engine explains itself', () => {
   test('an untested engine says so rather than implying it has learned', () => {
-    expect(deriveAdaptiveWeights([]).adjustments.join(' ')).toContain('No closed trades yet');
+    expect(deriveAdaptiveWeights([]).adjustments.join(' ')).toContain('Belum ada trade tertutup');
   });
 
   test('every adjustment is accompanied by a reason', () => {
@@ -444,7 +444,7 @@ describe('a strike rate is judged against what the target needs', () => {
     const history = Array.from({ length: 30 }, () => record('SL', { style: 'Intraday' }));
     const weights = deriveAdaptiveWeights(history, 'Intraday');
     expect(weights.atrBufferFactor).toBeGreaterThan(PRIOR_WEIGHTS.atrBufferFactor);
-    expect(weights.adjustments.join(' ')).toContain('below the 40% this target needs');
+    expect(weights.adjustments.join(' ')).toContain('di bawah 40% yang dibutuhkan target ini');
   });
 
   test('a strike rate below break even but still making money changes nothing', () => {
@@ -480,7 +480,7 @@ describe('a strike rate is judged against what the target needs', () => {
     const history = Array.from({ length: 30 }, () => record('TP', { style: 'Intraday' }));
     const weights = deriveAdaptiveWeights(history, 'Intraday');
     expect(weights.atrBufferFactor).toBeLessThan(PRIOR_WEIGHTS.atrBufferFactor);
-    expect(weights.adjustments.join(' ')).toContain('comfortably above');
+    expect(weights.adjustments.join(' ')).toContain('cukup jauh di atas');
   });
 });
 
@@ -623,7 +623,7 @@ describe('learning which kinds of setup actually pay', () => {
     const weights = deriveAdaptiveWeights(history, 'Intraday');
     expect(weights.orderBlockWeight).toBeGreaterThan(PRIOR_WEIGHTS.orderBlockWeight);
     expect(weights.fairValueGapWeight).toBeLessThan(PRIOR_WEIGHTS.fairValueGapWeight);
-    expect(weights.adjustments.join(' ')).toContain('Order Block entries returned');
+    expect(weights.adjustments.join(' ')).toContain('Entry Order Block menghasilkan');
   });
 
   test('it moves the other way just as readily', () => {
@@ -661,7 +661,7 @@ describe('learning which kinds of setup actually pay', () => {
     ];
     const weights = deriveAdaptiveWeights(history, 'Intraday');
     expect(weights.newsImpactWeight).toBeGreaterThan(PRIOR_WEIGHTS.newsImpactWeight);
-    expect(weights.adjustments.join(' ')).toContain('inside an hour of a release');
+    expect(weights.adjustments.join(' ')).toContain('dalam satu jam dari rilis berita');
   });
 
   test('a bucket with too few trades on one side names no winner', () => {

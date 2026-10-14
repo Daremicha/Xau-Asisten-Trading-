@@ -26,10 +26,10 @@ const DAY_MS = 24 * HOUR_MS;
 
 /** Session openings, in UTC hours, with the name the rest of the app uses. */
 const SESSION_OPENINGS: Array<{ hour: number; name: string }> = [
-  { hour: 0, name: 'Asian session' },
-  { hour: 7, name: 'London open' },
-  { hour: 12, name: 'New York open' },
-  { hour: 15, name: 'London close' },
+  { hour: 0, name: 'Sesi Asia' },
+  { hour: 7, name: 'Pembukaan London' },
+  { hour: 12, name: 'Pembukaan New York' },
+  { hour: 15, name: 'Penutupan London' },
 ];
 
 export interface NextCheck {
@@ -102,9 +102,9 @@ export function nextCheck(style: TradingStyle, now: Date = new Date()): NextChec
     const open = nextMarketOpen(now);
     return {
       at: open.toISOString(),
-      reason: 'The market is closed for the weekend. Nothing on the chart changes until it reopens.',
+      reason: 'Pasar tutup di akhir pekan. Tidak ada yang berubah di grafik sampai pasar buka lagi.',
       marketClosed: true,
-      session: { name: 'Asian session', at: open.toISOString() },
+      session: { name: 'Sesi Asia', at: open.toISOString() },
     };
   }
 
@@ -115,9 +115,9 @@ export function nextCheck(style: TradingStyle, now: Date = new Date()): NextChec
 
   return {
     at: candle.toISOString(),
-    reason: `The current ${timeframe} candle closes in about ${minutes} ${
-      minutes === 1 ? 'minute' : 'minutes'
-    }. Until it does, the structure this read is built on has not changed.`,
+    reason: `Candle ${timeframe} yang sekarang tutup sekitar ${minutes} ${
+      minutes === 1 ? 'menit' : 'menit'
+    } lagi. Sampai saat itu, struktur yang dipakai bacaan ini belum berubah.`,
     marketClosed: false,
     session: { name: session.name, at: session.at.toISOString() },
   };

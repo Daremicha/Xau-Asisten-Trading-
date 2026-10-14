@@ -62,7 +62,7 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     // +108 to +117 Cent. A small gain, and it catches the round-number near
     // misses that are most frustrating to watch.
     roundLevelFrontRun: { stepDollars: 10, zoneDollars: 1, offsetDollars: 0.5 },
-    label: 'M15 / M5 precision scalp',
+    label: 'scalp presisi M15 / M5',
   },
   Intraday: {
     minStopDollars: 4.5,
@@ -85,7 +85,7 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     // around a baseline of 1.38 depending on the setting: noise, not an edge,
     // so its entries stay on structure.
     roundLevelFrontRun: null,
-    label: 'H1 / M15 session play',
+    label: 'trading sesi H1 / M15',
   },
   Swing: {
     minStopDollars: 12.0,
@@ -96,7 +96,7 @@ export const STYLE_PROFILES: Record<TradingStyle, StyleProfile> = {
     maxEntryAtrMultiple: 3.0,
     minEntryReachDollars: 20.0,
     roundLevelFrontRun: null,
-    label: 'D1 / H4 macro swing',
+    label: 'swing makro D1 / H4',
   },
 };
 

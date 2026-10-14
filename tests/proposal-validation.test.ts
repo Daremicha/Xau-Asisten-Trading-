@@ -64,7 +64,7 @@ describe('geometry that would be rejected by a broker', () => {
   test('a long stop above the entry is caught', () => {
     const v = validateProposal({ ...GOOD, stopLoss: PRICE - 5 }, CTX);
     expect(v.accepted).toBe(false);
-    expect(v.reasons.join(' ')).toContain('stop loss must sit below');
+    expect(v.reasons.join(' ')).toContain('harus di bawah entry');
   });
 
   test('a long target below the entry is caught', () => {
@@ -73,7 +73,7 @@ describe('geometry that would be rejected by a broker', () => {
 
   test('targets out of order are caught', () => {
     const v = validateProposal({ ...GOOD, takeProfit3: PRICE + 2 }, CTX);
-    expect(v.reasons.join(' ')).toContain('ascend');
+    expect(v.reasons.join(' ')).toContain('harus naik');
   });
 
   test('the mirror rules apply to a short', () => {
@@ -82,19 +82,19 @@ describe('geometry that would be rejected by a broker', () => {
       takeProfit1: PRICE - 2, takeProfit2: PRICE - 10, takeProfit3: PRICE - 18,
       rationale: 'Short from the Asian high after a failed reclaim of the level.',
     };
-    expect(validateProposal(short, CTX).reasons.join(' ')).toContain('stop loss must sit above');
+    expect(validateProposal(short, CTX).reasons.join(' ')).toContain('harus di atas entry');
   });
 });
 
 describe('risk that does not fit the chosen style', () => {
   test('a stop tighter than the style minimum is rejected', () => {
     const v = validateProposal({ ...GOOD, stopLoss: PRICE - 12 }, CTX);
-    expect(v.reasons.join(' ')).toContain('tighter than');
+    expect(v.reasons.join(' ')).toContain('lebih sempit dari');
   });
 
   test('a stop wider than the style ceiling is rejected', () => {
     const v = validateProposal({ ...GOOD, stopLoss: PRICE - 60, takeProfit1: PRICE + 60 }, CTX);
-    expect(v.reasons.join(' ')).toContain('wider than');
+    expect(v.reasons.join(' ')).toContain('lebih lebar dari');
   });
 
   test('a first target that does not pay for the risk is rejected', () => {
@@ -106,7 +106,7 @@ describe('risk that does not fit the chosen style', () => {
 describe('an entry the market will never reach', () => {
   test('a level beyond the style reach is rejected', () => {
     const v = validateProposal({ ...GOOD, entryPrice: PRICE - 60, stopLoss: PRICE - 70, takeProfit1: PRICE - 40 }, CTX);
-    expect(v.reasons.join(' ')).toContain('beyond the');
+    expect(v.reasons.join(' ')).toContain('di luar jangkauan');
   });
 });
 
@@ -123,18 +123,18 @@ describe('levels the model invented', () => {
       }, indicators: { ...INDICATORS, ema50: PRICE - 40, ema200: PRICE - 45 } }
     );
     expect(v.accepted).toBe(false);
-    expect(v.reasons.join(' ')).toContain('matches no measured level');
+    expect(v.reasons.join(' ')).toContain('tidak cocok dengan level terukur');
   });
 
   test('a price far outside the sanity band is rejected', () => {
     const v = validateProposal({ ...GOOD, takeProfit3: 42000 }, CTX);
-    expect(v.reasons.join(' ')).toContain('sanity band');
+    expect(v.reasons.join(' ')).toContain('batas wajar');
   });
 
   test('the level list covers every timeframe the engine measured', () => {
     const names = structuralLevels(CTX).map((l) => l.name);
     for (const tf of ['D1', 'H4', 'H1', 'M15']) {
-      expect(names.some((n) => n.startsWith(tf))).toBe(true);
+      expect(names.some((n) => n.endsWith(tf))).toBe(true);
     }
     expect(names).toContain('EMA 200');
   });

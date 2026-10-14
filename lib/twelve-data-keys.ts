@@ -121,5 +121,5 @@ export async function requestTwelveData(
   // limit when no key could even be tried, so the caller backs off.
   return last
     ? { ...last, ok: false, allKeysSpent: true }
-    : { ok: false, status: 429, payload: { code: 429, message: 'All Twelve Data keys are out of credits.' }, allKeysSpent: true };
+    : { ok: false, status: 429, payload: { code: 429, message: 'Semua key Twelve Data sudah kehabisan kredit.' }, allKeysSpent: true };
 }

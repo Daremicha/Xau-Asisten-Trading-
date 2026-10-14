@@ -31,7 +31,7 @@ export function effectiveConvictionFloor(userFloor: number, zone: Zone): number 
 export function sessionDeclineNote(userFloor: number, zone: Zone, score: number): string | null {
   const floor = sessionConvictionFloor(zone);
   if (score >= floor || userFloor >= floor) return null;
-  return `The Asian session asks for a conviction of ${floor}: weaker setups in this quiet range lost money in both halves of a 24 month replay. London opens at 07:00 UTC (14:00 WIB).`;
+  return `Sesi Asia meminta conviction minimal ${floor}: setup yang lebih lemah di range sepi ini rugi di kedua paruh backtest 24 bulan. London buka jam 07:00 UTC (14:00 WIB).`;
 }
 
 /**
@@ -56,5 +56,5 @@ const AGREES = 0.15;
 export function weakSetupDecline(score: number, alignedFactorVotes: Record<string, number>): string | null {
   if (score >= WEAK_SETUP_BELOW) return null;
   if ((alignedFactorVotes[PIVOT_FACTOR] ?? 0) > AGREES) return null;
-  return `A setup under a conviction of ${WEAK_SETUP_BELOW} is only offered when the pivot and directional bias agrees with it. Weak setups without it lost money in both halves of a 24 month replay.`;
+  return `Setup dengan conviction di bawah ${WEAK_SETUP_BELOW} hanya ditawarkan kalau pivot dan arah bias mendukungnya. Setup lemah tanpa dukungan itu rugi di kedua paruh backtest 24 bulan.`;
 }

@@ -124,7 +124,7 @@ export function trackPosition(
       floatingPips: null,
       progressToTarget: null,
       closedBy: null,
-      summary: `Waiting for price to reach ${setup.entryPrice.toFixed(2)}, ${distance.toFixed(0)} pips away.`,
+      summary: `Menunggu harga mencapai ${setup.entryPrice.toFixed(2)}, ${distance.toFixed(0)} pips lagi.`,
     };
   }
 
@@ -146,10 +146,10 @@ export function trackPosition(
     closedBy,
     summary: closedBy
       ? stopAtEntry && closedBy === 'SL'
-        ? 'Position closed at break-even.'
-        : `Position closed at ${closedBy}.`
+        ? 'Posisi tertutup impas.'
+        : `Posisi tertutup di ${closedBy}.`
       : floating.dollars >= 0
-      ? `Filled and floating ${floating.pips} pips in profit.`
-      : `Filled and floating ${Math.abs(floating.pips)} pips in drawdown.`,
+      ? `Terisi dan sedang untung ${floating.pips} pips.`
+      : `Terisi dan sedang minus ${Math.abs(floating.pips)} pips.`,
   };
 }

@@ -158,13 +158,13 @@ export function londonBreakoutPlan(candles: Candle[], price: number, now: number
     trendAverage: round2(average),
     expiresAt,
     rationale:
-      `London breakout of the Asian range, with the trend. Asian session range ${low.toFixed(2)} to ${high.toFixed(
+      `London breakout dari range Asia, searah tren. Range sesi Asia ${low.toFixed(2)} sampai ${high.toFixed(
         2
-      )} (${Math.round(width * 10)} pips). Price ${price.toFixed(2)} is ${long ? 'above' : 'below'} its 200 period M15 average ` +
-      `(${average.toFixed(2)}), so only the ${long ? 'upside' : 'downside'} break is traded: a ${
+      )} (${Math.round(width * 10)} pips). Harga ${price.toFixed(2)} ${long ? 'di atas' : 'di bawah'} rata-rata 200 periode M15 ` +
+      `(${average.toFixed(2)}), jadi hanya breakout ke ${long ? 'atas' : 'bawah'} yang diambil: ${
         long ? 'buy' : 'sell'
-      } stop at ${entry.toFixed(2)}, stop loss at the far side of the range ${stop.toFixed(2)}, first target at ${cfg.targetR}R. ` +
-      `The order is only valid until 10:00 London; delete it if it has not filled by then. ` +
-      `Replayed over 24 months of M15 gold with costs, this setup paid in both halves (profit factor about 1.5).`,
+      } stop di ${entry.toFixed(2)}, stop loss di sisi seberang range ${stop.toFixed(2)}, target pertama di ${cfg.targetR}R. ` +
+      `Order hanya berlaku sampai jam 10:00 London; hapus kalau belum terisi sampai saat itu. ` +
+      `Diuji ulang selama 24 bulan emas M15 dengan biaya, setup ini untung di kedua paruh (profit factor sekitar 1,5).`,
   };
 }

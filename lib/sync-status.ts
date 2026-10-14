@@ -22,7 +22,7 @@ export interface SyncStatus {
 export const GUEST_STATUS: SyncStatus = {
   state: 'guest',
   lastSavedAt: null,
-  label: 'Saved in this browser',
+  label: 'Tersimpan di browser ini',
   detail: undefined,
 };
 
@@ -35,30 +35,30 @@ export function describeSyncError(error: unknown): string {
 
   switch (code) {
     case 'permission-denied':
-      return 'The database rejected the write. In the Firebase Console, open Firestore Database, then Rules, and confirm the rules from firestore.rules are published.';
+      return 'Database menolak penyimpanan. Di Firebase Console, buka Firestore Database, lalu Rules, dan pastikan rules dari firestore.rules sudah dipublikasikan.';
     case 'unauthenticated':
-      return 'Your sign-in expired. Sign out and back in to keep saving to the cloud.';
+      return 'Login kamu kedaluwarsa. Keluar lalu masuk lagi supaya tetap tersimpan ke cloud.';
     case 'unavailable':
-      return 'The database could not be reached. This is usually a network problem, and the app will retry on your next change.';
+      return 'Database tidak bisa dihubungi. Biasanya ini masalah jaringan, dan aplikasi akan mencoba lagi saat ada perubahan berikutnya.';
     case 'resource-exhausted':
-      return 'The project has hit its Firestore quota for now. On the free Spark plan this resets daily.';
+      return 'Proyek sudah mencapai kuota Firestore untuk saat ini. Di paket gratis Spark, kuota di-reset setiap hari.';
     case 'failed-precondition':
-      return 'Firestore is not ready for this write. Confirm the database has been created in the Firebase Console.';
+      return 'Firestore belum siap untuk penyimpanan ini. Pastikan database sudah dibuat di Firebase Console.';
     case 'not-found':
-      return 'The database was not found. Check that the project has a Firestore database and that no stale database id is configured.';
+      return 'Database tidak ditemukan. Pastikan proyek punya database Firestore dan tidak ada id database lama yang terpasang.';
     default:
-      return `The write failed${code ? ` (${code})` : ''}. Your data is still in this browser, and the app will retry on your next change.`;
+      return `Penyimpanan gagal${code ? ` (${code})` : ''}. Datamu masih ada di browser ini, dan aplikasi akan mencoba lagi saat ada perubahan berikutnya.`;
   }
 }
 
 /** Status while a write is in flight. Keeps the previous success time. */
 export function savingStatus(previous: SyncStatus): SyncStatus {
-  return { state: 'saving', lastSavedAt: previous.lastSavedAt, label: 'Saving to cloud' };
+  return { state: 'saving', lastSavedAt: previous.lastSavedAt, label: 'Menyimpan ke cloud' };
 }
 
 /** Status after a confirmed write. */
 export function savedStatus(at: Date = new Date()): SyncStatus {
-  return { state: 'saved', lastSavedAt: at.toISOString(), label: 'Saved to cloud' };
+  return { state: 'saved', lastSavedAt: at.toISOString(), label: 'Tersimpan ke cloud' };
 }
 
 /** Status after a rejected write, carrying the reason. */
@@ -66,7 +66,7 @@ export function failedStatus(previous: SyncStatus, error: unknown): SyncStatus {
   return {
     state: 'failed',
     lastSavedAt: previous.lastSavedAt,
-    label: 'Not saved to cloud',
+    label: 'Belum tersimpan ke cloud',
     detail: describeSyncError(error),
   };
 }
@@ -78,8 +78,8 @@ export function formatLastSaved(status: SyncStatus, now: Date = new Date()): str
   if (Number.isNaN(then)) return null;
 
   const seconds = Math.max(0, Math.round((now.getTime() - then) / 1000));
-  if (seconds < 10) return 'just now';
-  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 10) return 'baru saja';
+  if (seconds < 60) return `${seconds} detik lalu`;
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   const hours = Math.round(minutes / 60);

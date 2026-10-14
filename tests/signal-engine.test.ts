@@ -275,7 +275,7 @@ describe('the learned buffer cannot escape the style', () => {
       STYLE_PROFILES.Intraday.maxStopDollars + 0.01
     );
     expect(runaway.stopWasCapped).toBe(true);
-    expect(runaway.rationale).toContain('capped');
+    expect(runaway.rationale).toContain('jadi dibatasi');
   });
 
   test('an intraday stop never reaches swing proportions', () => {
@@ -371,7 +371,7 @@ describe('the entry must be reachable, not merely correct', () => {
     // order 315 pips away that would not fill inside the session.
     const d = buildSignal(withFvgAt(31.5, 'Intraday', 11.5));
     expect(d.entryOutOfReach).toBe(true);
-    expect(d.rationale).toContain('may not fill');
+    expect(d.rationale).toContain('mungkin tidak terisi');
   });
 
   test('when nothing is in reach it still picks the closest level available', () => {
@@ -400,7 +400,7 @@ describe('the entry must be reachable, not merely correct', () => {
     );
     expect(d.entryOutOfReach).toBe(false);
     expect(d.entryPrice).toBeCloseTo(PRICE - 2, 2);
-    expect(d.rationale).toContain('near edge');
+    expect(d.rationale).toContain('tepi dekat');
   });
 
   test('a swing trade tolerates a distance an intraday trade rejects', () => {
@@ -437,7 +437,7 @@ describe('the entry must be reachable, not merely correct', () => {
   test('a normal setup is not flagged', () => {
     const d = buildSignal(inputs());
     expect(d.entryOutOfReach).toBe(false);
-    expect(d.rationale).not.toContain('may not fill');
+    expect(d.rationale).not.toContain('mungkin tidak terisi');
   });
 
   test('order geometry survives an out of reach entry', () => {
@@ -535,7 +535,7 @@ describe('EMA structure and RSI genuinely steer the signal', () => {
   test('a fully stacked uptrend votes strongly long', () => {
     const d = buildSignal(inputs({ indicators: { ...INDICATORS, ema50: PRICE - 4, ema200: PRICE - 14 } }));
     expect(factor(d, 'EMA structure').direction).toBe(1);
-    expect(factor(d, 'EMA structure').detail).toContain('stacked uptrend');
+    expect(factor(d, 'EMA structure').detail).toContain('uptrend tersusun penuh');
   });
 
   test('a fully stacked downtrend votes strongly short', () => {
@@ -548,7 +548,7 @@ describe('EMA structure and RSI genuinely steer the signal', () => {
     const v = factor(d, 'EMA structure');
     expect(v.direction).toBeGreaterThan(0);
     expect(v.direction).toBeLessThan(1);
-    expect(v.detail).toContain('retracement inside an uptrend');
+    expect(v.detail).toContain('koreksi di dalam uptrend');
   });
 
   test('an overbought RSI argues against buying, not for it', () => {
@@ -611,7 +611,7 @@ describe('an entry price has already left behind', () => {
   test('the engine refuses it rather than issuing an order that dies at once', () => {
     const decision = buildSignal(stranded());
     expect(decision.entryUnfillable).toBe(true);
-    expect(decision.unfillableReason).toContain('missed entry the moment it was placed');
+    expect(decision.unfillableReason).toContain('langsung terhitung missed begitu dipasang');
   });
 
   test('a reachable level is still offered normally', () => {
@@ -680,7 +680,7 @@ describe('the main trend, and how honestly it is counted', () => {
     )!;
     // Same direction, and no larger than the genuine two-timeframe agreement.
     expect(htf.direction).toBeLessThanOrEqual(honest.direction);
-    expect(htf.detail).toContain('not counted twice');
+    expect(htf.detail).toContain('tidak dihitung dua kali');
   });
 
   test('the averages are named by the period they were actually computed over', () => {
@@ -700,7 +700,7 @@ describe('a factor the record has learned to distrust speaks more quietly', () =
       inputs({ weights: { ...BASE_WEIGHTS, factorMultipliers: { RSI: 0.6 } } })
     ).factors.find((f) => f.name === 'RSI')!;
     expect(learned.weight).toBeCloseTo(plain.weight * 0.6, 6);
-    expect(learned.detail).toContain('Counted at 0.6x on its own track record.');
+    expect(learned.detail).toContain('Dihitung 0.6x berdasarkan rekam jejaknya.');
   });
 
   test('the factors it has no verdict on are untouched', () => {
@@ -759,7 +759,7 @@ describe('the refusal for an order price has left behind names the right side', 
     });
     expect(decision.direction).toBe('short');
     expect(decision.entryUnfillable).toBe(true);
-    expect(decision.unfillableReason).toContain('pips below the');
+    expect(decision.unfillableReason).toContain('pips di bawah');
     expect(decision.unfillableReason).not.toContain('pips above the');
   });
 });

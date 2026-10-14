@@ -22,8 +22,8 @@ describe('the setting that held up on real history', () => {
   });
 
   test('another style says what the replay found', () => {
-    expect(untestedSettingNote('Scalping', 70)).toContain('less than a tenth');
-    expect(untestedSettingNote('Scalping', 40)).toContain('more than 30%');
-    expect(untestedSettingNote('Swing', 55)).toContain('not part of that test');
+    expect(untestedSettingNote('Scalping', 70)).toContain('kurang dari sepersepuluh');
+    expect(untestedSettingNote('Scalping', 40)).toContain('lebih dari 30%');
+    expect(untestedSettingNote('Swing', 55)).toContain('tidak termasuk dalam uji itu');
   });
 });

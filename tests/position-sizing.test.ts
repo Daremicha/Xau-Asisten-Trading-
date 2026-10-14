@@ -84,7 +84,7 @@ describe('conditions that should shrink the lot', () => {
     const stale = assessConviction({ ...NEUTRAL, confidenceScore: 80, dataStale: true });
     const live = assessConviction({ ...NEUTRAL, confidenceScore: 80 });
     expect(stale.multiplier).toBeLessThan(live.multiplier);
-    expect(stale.notes.join(' ')).toContain('stale');
+    expect(stale.notes.join(' ')).toContain('Harga tertunda');
   });
 
   test('an entry that may never fill cuts size', () => {
@@ -102,13 +102,13 @@ describe('a small lot is never a mystery', () => {
   test('every deduction is named', () => {
     const r = assessConviction({ ...NEUTRAL, dataStale: true, entryOutOfReach: true, proposalRejected: true });
     const text = r.notes.join(' ');
-    expect(text).toContain('stale');
-    expect(text).toContain('may never fill');
-    expect(text).toContain('rejected');
+    expect(text).toContain('Harga tertunda');
+    expect(text).toContain('mungkin tidak pernah terisi');
+    expect(text).toContain('ditolak');
   });
 
   test('the first note states the outcome in plain terms', () => {
-    expect(assessConviction(NEUTRAL).notes[0]).toContain('of the risk budget is committed');
+    expect(assessConviction(NEUTRAL).notes[0]).toContain('dari batas risiko yang dipakai');
   });
 });
 
@@ -142,7 +142,7 @@ describe('the account state sizes the trade too', () => {
     const healthy = assessConviction(base);
     const hurting = assessConviction({ ...base, drawdownPercent: 25 });
     expect(hurting.multiplier).toBeLessThan(healthy.multiplier);
-    expect(hurting.notes.join(' ')).toContain('high water mark');
+    expect(hurting.notes.join(' ')).toContain('puncak saldonya');
   });
 
   test('a shallow drawdown trims rather than cuts', () => {
@@ -161,7 +161,7 @@ describe('the account state sizes the trade too', () => {
   test('a kind of setup that has been losing commits less', () => {
     const losing = assessConviction({ ...base, measuredEdgeR: -0.5 });
     expect(losing.multiplier).toBeLessThan(assessConviction(base).multiplier);
-    expect(losing.notes.join(' ')).toContain('in your own history');
+    expect(losing.notes.join(' ')).toContain('di riwayatmu sendiri');
   });
 
   test('a kind of setup that has been paying commits more', () => {

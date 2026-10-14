@@ -95,26 +95,26 @@ export function tickMayResolve(inputs: TickTrustInputs): TickTrust {
   if (inputs.feedStatus !== 'live') {
     return {
       ok: false,
-      reason: 'The quote is not live, and a price too old to trade on is too old to close a trade.',
+      reason: 'Harga tidak live, dan harga yang terlalu lama untuk trading juga terlalu lama untuk menutup trade.',
     };
   }
 
   if (inputs.quoteAgeSeconds !== null && inputs.quoteAgeSeconds > MAX_QUOTE_AGE_SECONDS) {
     return {
       ok: false,
-      reason: `The quote is ${Math.round(inputs.quoteAgeSeconds)} seconds old, past the ${MAX_QUOTE_AGE_SECONDS} second limit for ending a trade.`,
+      reason: `Harga ini berumur ${Math.round(inputs.quoteAgeSeconds)} detik, melewati batas ${MAX_QUOTE_AGE_SECONDS} detik untuk menutup trade.`,
     };
   }
 
   const issued = Date.parse(inputs.issuedAt ?? '');
   if (!Number.isFinite(issued)) {
-    return { ok: false, reason: 'The order carries no readable time, so nothing can be timed against it.' };
+    return { ok: false, reason: 'Order tidak punya waktu yang terbaca, jadi tidak ada yang bisa dicocokkan waktunya.' };
   }
   const ageSeconds = (now - issued) / 1000;
   if (ageSeconds < MIN_ORDER_AGE_SECONDS) {
     return {
       ok: false,
-      reason: `The order is ${Math.max(0, Math.round(ageSeconds))} seconds old. Price does not reach a stop that fast, so this is a quote from another moment rather than a close.`,
+      reason: `Order ini baru berumur ${Math.max(0, Math.round(ageSeconds))} detik. Harga tidak mencapai stop secepat itu, jadi ini harga dari waktu lain, bukan penutupan.`,
     };
   }
 
@@ -128,9 +128,9 @@ export function tickMayResolve(inputs: TickTrustInputs): TickTrust {
       if (inputs.price > high + allowance || inputs.price < low - allowance) {
         return {
           ok: false,
-          reason: `A quote of ${inputs.price.toFixed(2)} sits outside the ${low.toFixed(2)}–${high.toFixed(
+          reason: `Harga ${inputs.price.toFixed(2)} berada di luar ${low.toFixed(2)}–${high.toFixed(
             2
-          )} the last two hours actually traded, by more than twice that range. It describes a different moment, not this one.`,
+          )} yang benar-benar terjadi dalam dua jam terakhir, lebih dari dua kali range itu. Ini menggambarkan waktu lain, bukan sekarang.`,
         };
       }
     }

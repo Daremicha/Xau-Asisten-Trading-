@@ -10,6 +10,7 @@
 import { Candle, priceToPips, round2 } from './candles';
 import { selectTargets } from './target-engine';
 import { isDeadOnArrival } from './order-validity';
+import { factorLabel } from './factor-labels';
 import { FACTOR_MULTIPLIER_MAX, FACTOR_MULTIPLIER_MIN } from './factor-learning';
 import {
   AdaptiveStrategyEngineWeights,
@@ -136,7 +137,7 @@ export function scoreConfluence(inputs: SignalInputs): {
     direction: htfVote,
     weight: 1,
     detail: dailyIsBorrowed
-      ? `H4 ${structures.h4.trend}. No daily series was available, so the daily read is the same ${structures.d1.derivedFrom} candles and is not counted twice.`
+      ? `H4 ${structures.h4.trend}. Data harian tidak tersedia, jadi bacaan harian memakai candle ${structures.d1.derivedFrom} yang sama dan tidak dihitung dua kali.`
       : `D1 ${structures.d1.trend}, H4 ${structures.h4.trend}.`,
   });
 
@@ -146,9 +147,9 @@ export function scoreConfluence(inputs: SignalInputs): {
     name: 'Order block',
     direction: obVote,
     weight: weights.orderBlockWeight,
-    detail: `${exec.orderBlock.type} at ${exec.orderBlock.low.toFixed(2)} to ${exec.orderBlock.high.toFixed(
+    detail: `${exec.orderBlock.type} di ${exec.orderBlock.low.toFixed(2)} sampai ${exec.orderBlock.high.toFixed(
       2
-    )}, ${exec.orderBlock.mitigated ? 'already mitigated' : 'unmitigated'}.`,
+    )}, ${exec.orderBlock.mitigated ? 'sudah termitigasi' : 'belum termitigasi'}.`,
   });
 
   const fvgBullish = exec.fairValueGap.type === 'Bullish FVG';
@@ -160,10 +161,10 @@ export function scoreConfluence(inputs: SignalInputs): {
     direction: fvgVote,
     weight: weights.fairValueGapWeight,
     detail: exec.fairValueGap.detected
-      ? `${exec.fairValueGap.type} ${exec.fairValueGap.bottom.toFixed(2)} to ${exec.fairValueGap.top.toFixed(
+      ? `${exec.fairValueGap.type} ${exec.fairValueGap.bottom.toFixed(2)} sampai ${exec.fairValueGap.top.toFixed(
           2
         )}, status ${exec.fairValueGap.status}.`
-      : 'No unmitigated imbalance on the execution timeframe.',
+      : 'Tidak ada imbalance yang belum termitigasi di timeframe eksekusi.',
   });
 
   // A swept low is a bullish signal: sell side liquidity has been taken.
@@ -175,7 +176,7 @@ export function scoreConfluence(inputs: SignalInputs): {
     name: 'Liquidity sweep',
     direction: sweepVote,
     weight: weights.liquiditySweepWeight,
-    detail: pools.sweepDetail ?? 'No pool taken.',
+    detail: pools.sweepDetail ?? 'Belum ada likuiditas yang diambil.',
   });
 
   // Moving average structure, read as a stack rather than a single line. EMA 50
@@ -189,20 +190,20 @@ export function scoreConfluence(inputs: SignalInputs): {
   let emaDescription: string;
   if (aboveFast && aboveSlow && fastAboveSlow) {
     emaVote = 1;
-    emaDescription = `Price above both averages with EMA ${indicators.emaFastPeriod} over EMA ${indicators.emaSlowPeriod}, a fully stacked uptrend.`;
+    emaDescription = `Harga di atas kedua rata-rata dengan EMA ${indicators.emaFastPeriod} di atas EMA ${indicators.emaSlowPeriod}, uptrend tersusun penuh.`;
   } else if (!aboveFast && !aboveSlow && !fastAboveSlow) {
     emaVote = -1;
-    emaDescription = `Price below both averages with EMA ${indicators.emaFastPeriod} under EMA ${indicators.emaSlowPeriod}, a fully stacked downtrend.`;
+    emaDescription = `Harga di bawah kedua rata-rata dengan EMA ${indicators.emaFastPeriod} di bawah EMA ${indicators.emaSlowPeriod}, downtrend tersusun penuh.`;
   } else if (aboveSlow && !aboveFast) {
     // Pulling back inside the stack: the trend holds but momentum has paused.
     emaVote = 0.4;
-    emaDescription = `Price has pulled back below EMA ${indicators.emaFastPeriod} while holding above EMA ${indicators.emaSlowPeriod}, a retracement inside an uptrend.`;
+    emaDescription = `Harga turun ke bawah EMA ${indicators.emaFastPeriod} tapi masih bertahan di atas EMA ${indicators.emaSlowPeriod}, koreksi di dalam uptrend.`;
   } else if (!aboveSlow && aboveFast) {
     emaVote = -0.4;
-    emaDescription = `Price has bounced above EMA ${indicators.emaFastPeriod} while capped below EMA ${indicators.emaSlowPeriod}, a retracement inside a downtrend.`;
+    emaDescription = `Harga memantul ke atas EMA ${indicators.emaFastPeriod} tapi masih tertahan di bawah EMA ${indicators.emaSlowPeriod}, koreksi di dalam downtrend.`;
   } else {
     emaVote = fastAboveSlow ? 0.2 : -0.2;
-    emaDescription = 'The moving averages disagree with price, so trend structure is unresolved.';
+    emaDescription = 'Moving average tidak searah dengan harga, jadi struktur tren belum jelas.';
   }
   factors.push({
     name: 'EMA structure',
@@ -226,21 +227,21 @@ export function scoreConfluence(inputs: SignalInputs): {
   let rsiDescription: string;
   if (rsi >= 70) {
     rsiVote = -0.6;
-    rsiDescription = `RSI ${rsi.toFixed(1)} is overbought, which argues against buying an extended move.`;
+    rsiDescription = `RSI ${rsi.toFixed(1)} overbought, ini melawan pembelian di pergerakan yang sudah jauh.`;
   } else if (rsi <= 30) {
     rsiVote = 0.6;
-    rsiDescription = `RSI ${rsi.toFixed(1)} is oversold, which argues against selling an extended move.`;
+    rsiDescription = `RSI ${rsi.toFixed(1)} oversold, ini melawan penjualan di pergerakan yang sudah jauh.`;
   } else {
     // Between the extremes it is a momentum reading, scaled by distance from 50.
     rsiVote = ((rsi - 50) / 20) * 0.6;
-    rsiDescription = `RSI ${rsi.toFixed(1)} leans ${rsi > 50 ? 'bullish' : rsi < 50 ? 'bearish' : 'neutral'}.`;
+    rsiDescription = `RSI ${rsi.toFixed(1)} condong ${rsi > 50 ? 'bullish' : rsi < 50 ? 'bearish' : 'netral'}.`;
   }
   if (indicators.rsiCondition === 'Bullish Divergence') {
     rsiVote += 0.5;
-    rsiDescription += ' A bullish divergence is present.';
+    rsiDescription += ' Ada divergence bullish.';
   } else if (indicators.rsiCondition === 'Bearish Divergence') {
     rsiVote -= 0.5;
-    rsiDescription += ' A bearish divergence is present.';
+    rsiDescription += ' Ada divergence bearish.';
   }
   factors.push({
     name: 'RSI',
@@ -255,9 +256,9 @@ export function scoreConfluence(inputs: SignalInputs): {
     name: 'Stochastic',
     direction: stochVote,
     weight: weights.indicatorConfluenceWeight * 0.6,
-    detail: `Stochastic ${indicators.stochasticK.toFixed(1)} over ${indicators.stochasticD.toFixed(
+    detail: `Stochastic ${indicators.stochasticK.toFixed(1)} di atas ${indicators.stochasticD.toFixed(
       1
-    )}, reading ${indicators.stochasticSignal}.`,
+    )}, sinyal ${indicators.stochasticSignal}.`,
   });
 
   // Discount favours longs, premium favours shorts. On its own this vote looks
@@ -270,7 +271,7 @@ export function scoreConfluence(inputs: SignalInputs): {
     name: 'Premium and discount',
     direction: zoneVote,
     weight: weights.liquiditySweepWeight,
-    detail: `Price sits in the ${exec.pricingZone} half of its dealing range.`,
+    detail: `Harga ada di bagian ${exec.pricingZone} dari range-nya.`,
   });
 
   // Pivot and directional bias. The daily pivot is where the previous session
@@ -290,9 +291,9 @@ export function scoreConfluence(inputs: SignalInputs): {
       // Read as structure rather than as an indicator: it is a level, not an
       // oscillator, so it shares the weight the engine gives to levels.
       weight: weights.liquiditySweepWeight * 0.8,
-      detail: `Price ${abovePivot ? 'above' : 'below'} the ${bias.pivotPoint.toFixed(2)} pivot with a ${
+      detail: `Harga ${abovePivot ? 'di atas' : 'di bawah'} pivot ${bias.pivotPoint.toFixed(2)} dengan bacaan ${
         bias.directionalBias
-      } read at ${bias.confidenceScore}% confidence.`,
+      } dan keyakinan ${bias.confidenceScore}%.`,
     });
   }
 
@@ -307,8 +308,8 @@ export function scoreConfluence(inputs: SignalInputs): {
       name: 'Wyckoff phase',
       direction: base * conviction,
       weight: weights.orderBlockWeight * 0.5,
-      detail: `${phase} phase with the point of control at ${inputs.wyckoff.pointOfControlPOC.toFixed(2)}${
-        inputs.wyckoff.absorptionPresent ? ', absorption present' : ''
+      detail: `Fase ${phase} dengan point of control di ${inputs.wyckoff.pointOfControlPOC.toFixed(2)}${
+        inputs.wyckoff.absorptionPresent ? ', ada penyerapan' : ''
       }.`,
     });
   }
@@ -320,9 +321,9 @@ export function scoreConfluence(inputs: SignalInputs): {
       name: 'Quasimodo',
       direction: inputs.quasimodo.type === 'Bullish QM' ? 0.9 : -0.9,
       weight: weights.liquiditySweepWeight * 0.6,
-      detail: `${inputs.quasimodo.type} after the sweep at ${inputs.quasimodo.headLiquiditySweep.toFixed(
+      detail: `${inputs.quasimodo.type} setelah sweep di ${inputs.quasimodo.headLiquiditySweep.toFixed(
         2
-      )}, optimal entry near ${inputs.quasimodo.optimalEntryZone.toFixed(2)}.`,
+      )}, entry optimal dekat ${inputs.quasimodo.optimalEntryZone.toFixed(2)}.`,
     });
   }
 
@@ -336,7 +337,7 @@ export function scoreConfluence(inputs: SignalInputs): {
     if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier === 1) continue;
     const bounded = Math.max(FACTOR_MULTIPLIER_MIN, Math.min(FACTOR_MULTIPLIER_MAX, multiplier));
     factor.weight *= bounded;
-    factor.detail += ` Counted at ${bounded}x on its own track record.`;
+    factor.detail += ` Dihitung ${bounded}x berdasarkan rekam jejaknya.`;
   }
 
   const score = factors.reduce((acc, f) => acc + f.direction * f.weight, 0);
@@ -430,9 +431,9 @@ export function selectEntry(
       price: round2(pullTowardPrice(obMid)),
       anchor: 'Order Block',
       weight: weights.orderBlockWeight,
-      detail: `Entry at the mean threshold of the ${exec.orderBlock.type}.${
+      detail: `Entry di tengah (mean threshold) ${exec.orderBlock.type}.${
         learnedBuffer > 0
-          ? ` Pulled ${priceToPips(learnedBuffer)} pips toward price, learned from orders that did not fill.`
+          ? ` Digeser ${priceToPips(learnedBuffer)} pips ke arah harga, dipelajari dari order yang tidak terisi.`
           : ''
       }`,
     });
@@ -441,7 +442,7 @@ export function selectEntry(
       anchor: 'Order Block',
       // The edge is a shallower fill, so it carries slightly less conviction.
       weight: weights.orderBlockWeight * 0.9,
-      detail: `Entry at the near edge of the ${exec.orderBlock.type}, which fills earlier than its mean threshold.`,
+      detail: `Entry di tepi dekat ${exec.orderBlock.type}, yang terisi lebih awal daripada bagian tengahnya.`,
     });
   }
 
@@ -453,13 +454,13 @@ export function selectEntry(
         price: round2(pullTowardPrice(fvgMid)),
         anchor: 'Fair Value Gap',
         weight: weights.fairValueGapWeight,
-        detail: `Entry at the 50 percent consequent encroachment of the ${exec.fairValueGap.type}.`,
+        detail: `Entry di 50% (consequent encroachment) ${exec.fairValueGap.type}.`,
       });
       candidates.push({
         price: round2(pullTowardPrice(fvgNear)),
         anchor: 'Fair Value Gap',
         weight: weights.fairValueGapWeight * 0.9,
-        detail: `Entry at the near edge of the ${exec.fairValueGap.type}, which fills earlier than its 50 percent level.`,
+        detail: `Entry di tepi dekat ${exec.fairValueGap.type}, yang terisi lebih awal daripada level 50%-nya.`,
       });
     }
   }
@@ -468,7 +469,7 @@ export function selectEntry(
     return {
       price: round2(price),
       anchor: 'Market',
-      detail: 'No unmitigated point of interest on the retracement side of price, so execution is at market.',
+      detail: 'Tidak ada area menarik yang belum termitigasi di sisi koreksi harga, jadi eksekusi di harga market.',
       outOfReach: false,
     };
   }
@@ -488,9 +489,9 @@ export function selectEntry(
       return {
         price: shifted.price,
         anchor: best.anchor,
-        detail: `${best.detail} Moved from ${best.price.toFixed(2)} to ${shifted.price.toFixed(2)}, in front of the round ${shifted.level.toFixed(
+        detail: `${best.detail} Digeser dari ${best.price.toFixed(2)} to ${shifted.price.toFixed(2)}, di depan level bulat ${shifted.level.toFixed(
           0
-        )} level, because price often turns a few pips short of one.`,
+        )}, karena harga sering berbalik beberapa pip sebelum level bulat.`,
         outOfReach: false,
       };
     }
@@ -501,9 +502,9 @@ export function selectEntry(
   return {
     price: nearest.price,
     anchor: nearest.anchor,
-    detail: `${nearest.detail} Price is currently ${priceToPips(
+    detail: `${nearest.detail} Harga sekarang ${priceToPips(
       distanceOf(nearest)
-    )} pips away, beyond the ${inputs.tradingStyle} reach of ${priceToPips(reach)} pips, so this order may not fill within the intended holding period.`,
+    )} pips jauhnya, di luar jangkauan ${inputs.tradingStyle} sejauh ${priceToPips(reach)} pips, jadi order ini mungkin tidak terisi dalam waktu yang direncanakan.`,
     outOfReach: true,
   };
 }
@@ -597,11 +598,11 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
   const entryDistance = Math.abs(price - entryPrice);
   const entryUnfillable = isDeadOnArrival({ orderType, entryPrice, stopLoss }, price);
   const unfillableReason = entryUnfillable
-    ? `Price is ${priceToPips(entryDistance)} pips ${direction === 'long' ? 'above' : 'below'} the ${entry.anchor.toLowerCase()} this read is built on at ${entryPrice.toFixed(
+    ? `Harga berjarak ${priceToPips(entryDistance)} pips ${direction === 'long' ? 'di atas' : 'di bawah'} ${entry.anchor} yang dipakai bacaan ini di ${entryPrice.toFixed(
         2
-      )}, which is further than the ${priceToPips(
+      )}, lebih jauh dari stop ${priceToPips(
         riskDistance
-      )} pip stop the trade would carry. An order left there would count as a missed entry the moment it was placed, so none is offered.`
+      )} pip yang dipakai trade ini. Order di sana akan langsung terhitung missed begitu dipasang, jadi tidak ditawarkan.`
     : '';
 
   // Confidence: weighted agreement normalised against the total weight on the table.
@@ -617,24 +618,24 @@ export function buildSignal(inputs: SignalInputs): SignalDecision {
   const opposing = factors.filter((f) => (direction === 'long' ? f.direction < 0 : f.direction > 0));
 
   const rationale = [
-    `${direction === 'long' ? 'Long' : 'Short'} bias on the ${profile.label}.`,
+    `Bias ${direction === 'long' ? 'Long (Buy)' : 'Short (Sell)'} di ${profile.label}.`,
     entry.detail,
-    `Supporting confluence: ${agreeing.map((f) => f.name).join(', ') || 'none'}.`,
-    opposing.length ? `Conflicting signals: ${opposing.map((f) => f.name).join(', ')}.` : 'No conflicting signal.',
-    `Stop sits beyond structural invalidation with a ${weights.atrBufferFactor.toFixed(
+    `Konfluensi pendukung: ${agreeing.map((f) => factorLabel(f.name)).join(', ') || 'tidak ada'}.`,
+    opposing.length ? `Sinyal yang bertentangan: ${opposing.map((f) => factorLabel(f.name)).join(', ')}.` : 'Tidak ada sinyal yang bertentangan.',
+    `Stop ada di luar titik invalidasi struktur, dengan jarak aman ATR ${weights.atrBufferFactor.toFixed(
       2
-    )}x learned ATR buffer of ${round2(atrBuffer).toFixed(2)} dollars.`,
-    inputs.killZoneActive ? 'Execution falls inside an institutional kill zone.' : 'Execution is outside the primary kill zones.',
+    )}x hasil belajar sebesar ${round2(atrBuffer).toFixed(2)} dollars.`,
+    inputs.killZoneActive ? 'Eksekusi ada di dalam kill zone institusional.' : 'Eksekusi ada di luar kill zone utama.',
     inputs.minutesToNextEvent !== null && inputs.minutesToNextEvent <= 60
-      ? `A high impact release lands in about ${Math.round(inputs.minutesToNextEvent)} minutes, so risk parameters are widened.`
-      : 'No high impact release inside the next hour.',
+      ? `Rilis berdampak tinggi akan keluar sekitar ${Math.round(inputs.minutesToNextEvent)} menit lagi, jadi parameter risiko diperlebar.`
+      : 'Tidak ada rilis berdampak tinggi dalam satu jam ke depan.',
     stopWasCapped
-      ? `The learned buffer asked for a wider stop than the ${tradingStyle} ceiling of ${profile.maxStopDollars.toFixed(
+      ? `Jarak aman hasil belajar meminta stop lebih lebar dari batas ${tradingStyle} sebesar ${profile.maxStopDollars.toFixed(
           2
-        )} dollars, so it was capped. Consider a longer timeframe style if stop outs keep recurring.`
+        )} dolar, jadi dibatasi. Pertimbangkan gaya trading dengan timeframe lebih besar kalau stop terus tersentuh.`
       : '',
     entry.outOfReach
-      ? 'Price has extended beyond every point of interest this style can reach, so treat this as a level to watch rather than an order to leave working.'
+      ? 'Harga sudah melewati semua area menarik yang bisa dijangkau gaya ini, jadi anggap ini level untuk dipantau, bukan order untuk dipasang.'
       : '',
     entryUnfillable ? unfillableReason : '',
   ]

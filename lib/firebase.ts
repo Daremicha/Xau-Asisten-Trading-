@@ -62,14 +62,14 @@ export function describeAuthError(error: unknown): string | null {
     case 'auth/cancelled-popup-request':
       return null;
     case 'auth/unauthorized-domain':
-      return `This site's address is not on the authorised list of Firebase project "${firebaseProjectId}". If you own that project, add this domain under Authentication, Settings, Authorized domains. If you do not own it, point the app at your own project with the NEXT_PUBLIC_FIREBASE_* variables. You can keep using the app without signing in; your data is saved in this browser.`;
+      return `Alamat situs ini tidak ada di daftar yang diizinkan proyek Firebase "${firebaseProjectId}". Kalau kamu pemilik proyek itu, tambahkan domain ini di Authentication, Settings, Authorized domains. Kalau bukan, arahkan aplikasi ke proyekmu sendiri lewat variabel NEXT_PUBLIC_FIREBASE_*. Kamu tetap bisa memakai aplikasi tanpa login; datamu tersimpan di browser ini.`;
     case 'auth/popup-blocked':
-      return 'Your browser blocked the sign-in popup. Allow popups for this site and try again.';
+      return 'Browser memblokir popup login. Izinkan popup untuk situs ini lalu coba lagi.';
     case 'auth/operation-not-allowed':
-      return `Google sign-in is switched off for Firebase project "${firebaseProjectId}". Enable the Google provider under Authentication, Sign-in method.`;
+      return `Login Google dimatikan untuk proyek Firebase "${firebaseProjectId}". Aktifkan provider Google di Authentication, Sign-in method.`;
     case 'auth/network-request-failed':
-      return 'The network request failed. Check your connection and try again.';
+      return 'Permintaan jaringan gagal. Cek koneksimu lalu coba lagi.';
     default:
-      return `Sign-in failed${code ? ` (${code})` : ''}. You can keep using the app without signing in; your data is saved in this browser.`;
+      return `Login gagal${code ? ` (${code})` : ''}. Kamu tetap bisa memakai aplikasi tanpa login; datamu tersimpan di browser ini.`;
   }
 }

@@ -122,15 +122,15 @@ export function auditRecord(
   const closed = Date.parse(record.timestamp ?? '');
 
   if (placed === null || !Number.isFinite(closed)) {
-    return { kind: 'unknown', actual: null, reason: 'This row does not record when its order was placed, so it cannot be replayed.' };
+    return { kind: 'unknown', actual: null, reason: 'Baris ini tidak mencatat kapan ordernya dipasang, jadi tidak bisa diuji ulang.' };
   }
   if (candles.length === 0) {
-    return { kind: 'unknown', actual: null, reason: 'No price history was returned for this period.' };
+    return { kind: 'unknown', actual: null, reason: 'Tidak ada riwayat harga untuk periode ini.' };
   }
 
   const stop = reconstructStop(record);
   if (stop === null) {
-    return { kind: 'unknown', actual: null, reason: 'The row kept no stop distance, so it cannot be replayed.' };
+    return { kind: 'unknown', actual: null, reason: 'Baris ini tidak menyimpan jarak stop, jadi tidak bisa diuji ulang.' };
   }
 
   // Candles overlapping the trade's lifetime. A trade that opened and closed
@@ -141,7 +141,7 @@ export function auditRecord(
     return {
       kind: 'unknown',
       actual: null,
-      reason: 'The price history does not cover the minutes this trade was open.',
+      reason: 'Riwayat harga tidak mencakup menit-menit saat trade ini terbuka.',
     };
   }
 
@@ -166,20 +166,20 @@ export function auditRecord(
 
   if (fillIndex === -1) {
     const pips = Number.isFinite(closest) ? Math.max(0, closest) * 10 : 0;
-    const never = `Price never reached ${entry.toFixed(2)} while this order was live; it came within ${pips.toFixed(
+    const never = `Harga tidak pernah mencapai ${entry.toFixed(2)} selama order ini aktif; paling dekat ${pips.toFixed(
       1
     )} pips.`;
     if (record.outcome === 'MISSED') {
       return {
         kind: 'confirmed',
         actual: 'never-filled',
-        reason: `${never} The miss was real, and its lesson stands.`,
+        reason: `${never} Missed-nya nyata, dan pelajarannya tetap berlaku.`,
       };
     }
     return {
       kind: 'contradicted',
       actual: 'never-filled',
-      reason: `${never} It is recorded as ${record.outcome === 'TP' ? 'a take profit' : 'a stop loss'}, but the order never opened.`,
+      reason: `${never} Tercatat sebagai ${record.outcome === 'TP' ? 'take profit' : 'stop loss'}, tapi order tidak pernah terbuka.`,
     };
   }
 
@@ -248,12 +248,12 @@ export function auditRecord(
       filledAt,
       bestPrice,
       reason: stoppedAt
-        ? `The order filled at ${entry.toFixed(2)} and price then traded through the stop at ${stop.toFixed(
+        ? `Order terisi di ${entry.toFixed(2)} lalu harga menembus stop di ${stop.toFixed(
             2
-          )}. This was a stop loss, not a missed entry.`
-        : `The order filled at ${entry.toFixed(2)} and ran to ${bestPrice.toFixed(
+          )}. Ini stop loss, bukan entry missed.`
+        : `Order terisi di ${entry.toFixed(2)} dan bergerak sampai ${bestPrice.toFixed(
             2
-          )} without touching the stop. It was not a missed entry.`,
+          )} tanpa menyentuh stop. Ini bukan entry missed.`,
     };
   }
 
@@ -264,7 +264,7 @@ export function auditRecord(
         actual: 'stopped',
         filledAt,
         bestPrice,
-        reason: `Price did trade through the stop at ${stop.toFixed(2)}. The loss is real.`,
+        reason: `Harga memang menembus stop di ${stop.toFixed(2)}. Kerugiannya nyata.`,
       };
     }
     if (stoppedAt) {
@@ -275,9 +275,9 @@ export function auditRecord(
         actual: null,
         filledAt,
         bestPrice,
-        reason: `The stop at ${stop.toFixed(
+        reason: `Stop di ${stop.toFixed(
           2
-        )} was only reached inside the candle this order was placed in, most of which is from before it existed. The chart cannot settle this one.`,
+        )} hanya tersentuh di dalam candle saat order dipasang, yang sebagian besar terjadi sebelum order itu ada. Grafik tidak bisa memastikan yang ini.`,
       };
     }
     return {
@@ -285,11 +285,11 @@ export function auditRecord(
       actual: 'open',
       filledAt,
       bestPrice,
-      reason: `Price never reached the stop at ${stop.toFixed(
+      reason: `Harga tidak pernah mencapai stop di ${stop.toFixed(
         2
-      )} while this trade was open — the furthest it went was ${bestPrice.toFixed(
+      )} selama trade ini terbuka — paling jauh sampai ${bestPrice.toFixed(
         2
-      )}. This loss was recorded against a level the market never touched.`,
+      )}. Kerugian ini dicatat di level yang tidak pernah disentuh pasar.`,
     };
   }
 
@@ -301,9 +301,9 @@ export function auditRecord(
       actual: 'stopped',
       filledAt,
       bestPrice,
-      reason: `Price traded through the stop at ${stop.toFixed(2)} before reaching ${claimed.toFixed(
+      reason: `Harga menembus stop di ${stop.toFixed(2)} sebelum mencapai ${claimed.toFixed(
         2
-      )}. This was a loss, not a take profit.`,
+      )}. Ini rugi, bukan take profit.`,
     };
   }
   // Confirmed only from bars that are wholly this trade's. A high set before
@@ -314,7 +314,7 @@ export function auditRecord(
       actual: 'reached-level',
       filledAt,
       bestPrice,
-      reason: `Price did reach ${claimed.toFixed(2)}. The win is real.`,
+      reason: `Harga memang mencapai ${claimed.toFixed(2)}. Kemenangannya nyata.`,
     };
   }
   // The whole window did reach it, but only inside the candle the order was
@@ -327,7 +327,7 @@ export function auditRecord(
       bestPrice,
       reason: `${claimed.toFixed(
         2
-      )} was only reached inside the candle this order was placed in, most of which is from before it existed. The chart cannot settle this one.`,
+      )} hanya tersentuh di dalam candle saat order dipasang, yang sebagian besar terjadi sebelum order itu ada. Grafik tidak bisa memastikan yang ini.`,
     };
   }
   return {
@@ -335,11 +335,11 @@ export function auditRecord(
     actual: 'open',
     filledAt,
     bestPrice,
-    reason: `Price never reached ${claimed.toFixed(
+    reason: `Harga tidak pernah mencapai ${claimed.toFixed(
       2
-    )} while this trade was open — the furthest it went was ${bestPrice.toFixed(
+    )} selama trade ini terbuka — paling jauh sampai ${bestPrice.toFixed(
       2
-    )}. This win was recorded against a level the market never touched.`,
+    )}. Kemenangan ini dicatat di level yang tidak pernah disentuh pasar.`,
   };
 }
 

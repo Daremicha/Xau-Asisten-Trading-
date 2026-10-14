@@ -75,17 +75,17 @@ function isFiniteNumber(v: unknown): v is number {
 /** Validates an analysis request, filling sane defaults for optional fields. */
 export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAnalyzeRequest> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { value: null, errors: ['Request body must be a JSON object.'] };
+    return { value: null, errors: ['Isi permintaan harus objek JSON.'] };
   }
   const b = body as Record<string, unknown>;
   const errors: string[] = [];
 
   const equity = isFiniteNumber(b.equity) ? b.equity : 1000;
-  if (equity <= 0) errors.push('equity must be greater than zero.');
+  if (equity <= 0) errors.push('equity harus lebih dari nol.');
 
   const minConviction = isFiniteNumber(b.minConviction) ? b.minConviction : 0;
   if (minConviction < 0 || minConviction > 100) {
-    errors.push('minConviction must be between 0 and 100.');
+    errors.push('minConviction harus antara 0 dan 100.');
   }
 
   // A band is taken only when both ends are sane and it is a band rather than
@@ -100,23 +100,23 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
 
   const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 1.0;
   if (riskPercentage <= 0 || riskPercentage > 100) {
-    errors.push('riskPercentage must be greater than 0 and at most 100.');
+    errors.push('riskPercentage harus lebih dari 0 dan maksimal 100.');
   }
 
   if (b.tradingStyle !== undefined && !TRADING_STYLES.includes(b.tradingStyle as TradingStyle)) {
-    errors.push(`tradingStyle must be one of ${TRADING_STYLES.join(', ')}.`);
+    errors.push(`tradingStyle harus salah satu dari ${TRADING_STYLES.join(', ')}.`);
   }
   if (b.accountType !== undefined && !ACCOUNT_TYPES.includes(b.accountType as AccountType)) {
-    errors.push(`accountType must be one of ${ACCOUNT_TYPES.join(', ')}.`);
+    errors.push(`accountType harus salah satu dari ${ACCOUNT_TYPES.join(', ')}.`);
   }
   if (b.brokerId !== undefined && !(typeof b.brokerId === 'string' && b.brokerId in BROKER_PROFILES)) {
-    errors.push(`brokerId must be one of ${Object.keys(BROKER_PROFILES).join(', ')}.`);
+    errors.push(`brokerId harus salah satu dari ${Object.keys(BROKER_PROFILES).join(', ')}.`);
   }
   if (b.pastLearningRecords !== undefined && !Array.isArray(b.pastLearningRecords)) {
-    errors.push('pastLearningRecords must be an array when provided.');
+    errors.push('pastLearningRecords harus berupa array kalau dikirim.');
   } else if (Array.isArray(b.pastLearningRecords) && b.pastLearningRecords.length > MAX_LEARNING_RECORDS) {
     errors.push(
-      `pastLearningRecords may contain at most ${MAX_LEARNING_RECORDS} entries; send only the most recent.`
+      `pastLearningRecords maksimal berisi ${MAX_LEARNING_RECORDS} data; kirim yang terbaru saja.`
     );
   }
 
@@ -132,7 +132,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
   let dailyLossLimitPercent: number | null = null;
   if (b.dailyLossLimitPercent !== undefined && b.dailyLossLimitPercent !== null) {
     if (!isFiniteNumber(b.dailyLossLimitPercent) || b.dailyLossLimitPercent < 0 || b.dailyLossLimitPercent > 50) {
-      errors.push('dailyLossLimitPercent must be between 0 and 50.');
+      errors.push('dailyLossLimitPercent harus antara 0 dan 50.');
     } else if (b.dailyLossLimitPercent > 0) {
       dailyLossLimitPercent = b.dailyLossLimitPercent;
     }
@@ -174,32 +174,32 @@ export interface ValidatedLearnRequest {
 /** Validates a post trade evaluation request, including the fields it reads. */
 export function validateLearnBody(body: unknown): ValidationResult<ValidatedLearnRequest> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return { value: null, errors: ['Request body must be a JSON object.'] };
+    return { value: null, errors: ['Isi permintaan harus objek JSON.'] };
   }
   const b = body as Record<string, unknown>;
   const errors: string[] = [];
 
   if (!OUTCOMES.includes(b.outcome as TradeOutcome)) {
-    errors.push(`outcome must be one of ${OUTCOMES.join(', ')}.`);
+    errors.push(`outcome harus salah satu dari ${OUTCOMES.join(', ')}.`);
   }
   if (!isFiniteNumber(b.closedPrice) || (b.closedPrice as number) <= 0) {
-    errors.push('closedPrice must be a positive number.');
+    errors.push('closedPrice harus angka positif.');
   }
 
   const setup = b.setup;
   if (typeof setup !== 'object' || setup === null || Array.isArray(setup)) {
-    errors.push('setup must be the trading setup object returned by the analysis endpoint.');
+    errors.push('setup harus objek setup trading dari endpoint analisis.');
     return { value: null, errors };
   }
 
   // Only the fields the evaluation actually reads are required.
   const s = setup as Record<string, unknown>;
   for (const field of ['id', 'entryPrice', 'stopLoss', 'orderType', 'recommendedLotSize']) {
-    if (s[field] === undefined) errors.push(`setup.${field} is required.`);
+    if (s[field] === undefined) errors.push(`setup.${field} wajib diisi.`);
   }
   for (const field of ['entryPrice', 'stopLoss', 'recommendedLotSize']) {
     if (s[field] !== undefined && !isFiniteNumber(s[field])) {
-      errors.push(`setup.${field} must be a number.`);
+      errors.push(`setup.${field} harus berupa angka.`);
     }
   }
 

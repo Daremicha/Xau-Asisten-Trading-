@@ -25,6 +25,7 @@
 
 import type { SelfLearningMemoryRecord } from './types';
 import { verificationWeight } from './evidence-weight';
+import { factorLabel } from './factor-labels';
 
 /** A factor may lose at most half its say, or gain at most half again. */
 export const FACTOR_MULTIPLIER_MIN = 0.5;
@@ -306,7 +307,7 @@ export function factorMultipliers(reliability: FactorReliability[]): Record<stri
 export function describeFactorChange(factor: FactorReliability): string {
   const trades = factor.agreedSamples + factor.opposedSamples;
   if (factor.multiplier < 1) {
-    return `${factor.name} kept pointing the wrong way: trades it argued for returned ${factor.agreedR}R, trades it argued against returned ${factor.opposedR}R, over ${trades} trades. Its vote now counts ${factor.multiplier}x.`;
+    return `${factorLabel(factor.name)} terus salah arah: trade yang didukungnya menghasilkan ${factor.agreedR}R, trade yang ditentangnya menghasilkan ${factor.opposedR}R, dari ${trades} trade. Bobotnya sekarang ${factor.multiplier}x.`;
   }
-  return `${factor.name} has been reliable: trades it argued for returned ${factor.agreedR}R against ${factor.opposedR}R when it was outvoted, over ${trades} trades. Its vote now counts ${factor.multiplier}x.`;
+  return `${factorLabel(factor.name)} terbukti andal: trade yang didukungnya menghasilkan ${factor.agreedR}R dibanding ${factor.opposedR}R saat ia kalah suara, dari ${trades} trade. Bobotnya sekarang ${factor.multiplier}x.`;
 }

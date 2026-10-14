@@ -1,5 +1,6 @@
 'use client';
 
+import { factorLabel } from '@/lib/factor-labels';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Area,
@@ -944,7 +945,7 @@ export default function BacktestLab({
                       {moved.map(([name, value], i) => (
                         <span key={name}>
                           {i > 0 ? ', ' : ''}
-                          {name}{' '}
+                          {factorLabel(name)}{' '}
                           <span className={`font-mono font-bold ${value < 1 ? 'text-rose-400' : 'text-emerald-400'}`}>
                             {value}x
                           </span>
@@ -976,7 +977,7 @@ export default function BacktestLab({
                       const real = factor.strength !== null && Math.abs(factor.strength) >= NOISE_BAR_STANDARD_ERRORS;
                       return (
                         <tr key={factor.name} className={isDark ? 'border-t border-slate-800' : 'border-t border-slate-100'}>
-                          <td className={`py-1 font-sans ${muted}`}>{factor.name}</td>
+                          <td className={`py-1 font-sans ${muted}`}>{factorLabel(factor.name)}</td>
                           <td className={`py-1 text-right ${muted}`}>
                             {factor.agreedR === null ? '—' : `${factor.agreedR > 0 ? '+' : ''}${factor.agreedR}R`} ({factor.agreedSamples})
                           </td>

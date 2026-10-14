@@ -145,7 +145,7 @@ export function robustnessReport(results: RResult[], extraDollars = STRESS_EXTRA
       expectancy,
       stress,
       verdict: 'insufficient',
-      explanation: `${rs.length} filled trades. A range around the average needs at least ${MIN_INTERVAL_TRADES}.`,
+      explanation: `${rs.length} trade terisi. Rentang di sekitar rata-rata butuh minimal ${MIN_INTERVAL_TRADES}.`,
     };
   }
 
@@ -155,20 +155,20 @@ export function robustnessReport(results: RResult[], extraDollars = STRESS_EXTRA
   let explanation: string;
   if (expectancy.mean <= 0) {
     verdict = 'fails';
-    explanation = `The average trade lost ${expectancy.mean.toFixed(3)}R. There is no edge here to protect.`;
+    explanation = `Rata-rata trade rugi ${expectancy.mean.toFixed(3)}R. Tidak ada keunggulan di sini.`;
   } else if (expectancy.low > 0 && stressHolds && share >= 0.6) {
     verdict = 'holds';
-    explanation = `Even the low end of the range is above zero, ${positiveQuarters} of ${counted.length} quarters paid, and it still pays with costs $${extraDollars.toFixed(
+    explanation = `Bahkan batas bawah rentangnya di atas nol, ${positiveQuarters} dari ${counted.length} kuartal untung, dan tetap untung walaupun biaya $${extraDollars.toFixed(
       2
-    )} a trade worse than assumed.`;
+    )} per trade lebih mahal dari perkiraan.`;
   } else {
     verdict = 'fragile';
     const reasons = [
-      expectancy.low <= 0 ? 'the low end of the range is at or below zero, so chance alone could explain the profit' : null,
-      !stressHolds ? `it stops paying with costs $${extraDollars.toFixed(2)} a trade worse than assumed` : null,
-      share < 0.6 ? `only ${positiveQuarters} of ${counted.length} quarters paid` : null,
+      expectancy.low <= 0 ? 'batas bawah rentangnya nol atau di bawah nol, jadi untungnya bisa saja hanya kebetulan' : null,
+      !stressHolds ? `tidak lagi untung kalau biaya $${extraDollars.toFixed(2)} per trade lebih mahal dari perkiraan` : null,
+      share < 0.6 ? `hanya ${positiveQuarters} dari ${counted.length} kuartal yang untung` : null,
     ].filter(Boolean);
-    explanation = `Profitable on average, but ${reasons.join(', and ')}.`;
+    explanation = `Rata-rata untung, tapi ${reasons.join(', dan ')}.`;
   }
 
   return { quarters, positiveQuarters, countedQuarters: counted.length, expectancy, stress, verdict, explanation };

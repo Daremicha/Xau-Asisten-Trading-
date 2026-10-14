@@ -96,19 +96,19 @@ export function buildTradingCentralInsight(
     directionalBias,
     pivotPoint: levels.pivot,
     preferredScenario: above
-      ? `Preferred scenario: long while price holds above the pivot at ${levels.pivot.toFixed(
+      ? `Skenario utama: long selama harga bertahan di atas pivot ${levels.pivot.toFixed(
           2
-        )}, targeting ${levels.r1.toFixed(2)} then ${levels.r2.toFixed(2)}.`
-      : `Preferred scenario: short while price caps below the pivot at ${levels.pivot.toFixed(
+        )}, target ${levels.r1.toFixed(2)} lalu ${levels.r2.toFixed(2)}.`
+      : `Skenario utama: short selama harga tertahan di bawah pivot ${levels.pivot.toFixed(
           2
-        )}, targeting ${levels.s1.toFixed(2)} then ${levels.s2.toFixed(2)}.`,
+        )}, target ${levels.s1.toFixed(2)} lalu ${levels.s2.toFixed(2)}.`,
     alternativeScenario: above
-      ? `Alternative scenario: a reclaim below ${levels.pivot.toFixed(
+      ? `Skenario alternatif: kalau harga kembali ke bawah ${levels.pivot.toFixed(
           2
-        )} opens ${levels.s1.toFixed(2)} and ${levels.s2.toFixed(2)}.`
-      : `Alternative scenario: a reclaim above ${levels.pivot.toFixed(
+        )} membuka ${levels.s1.toFixed(2)} dan ${levels.s2.toFixed(2)}.`
+      : `Skenario alternatif: kalau harga kembali ke atas ${levels.pivot.toFixed(
           2
-        )} opens ${levels.r1.toFixed(2)} and ${levels.r2.toFixed(2)}.`,
+        )} membuka ${levels.r1.toFixed(2)} dan ${levels.r2.toFixed(2)}.`,
     keySupportLevels: [levels.s1, levels.s2, levels.s3],
     keyResistanceLevels: [levels.r1, levels.r2, levels.r3],
     confidenceScore,

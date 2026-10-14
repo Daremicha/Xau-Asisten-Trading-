@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json(
-      { success: false, error: 'Request body is not valid JSON.' },
+      { success: false, error: 'Isi permintaan bukan JSON yang valid.' },
       { status: 400 }
     );
   }

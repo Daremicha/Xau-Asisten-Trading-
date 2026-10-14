@@ -15,6 +15,7 @@
  */
 
 import { AdaptiveStrategyEngineWeights, SelfLearningMemoryRecord, TradingStyle } from './types';
+import { factorLabel } from './factor-labels';
 import { STYLE_PROFILES } from './signal-engine';
 import { evidenceWeight } from './evidence-weight';
 import {
@@ -277,16 +278,16 @@ export function conditionalPerformance(records: SelfLearningMemoryRecord[]): {
   return {
     byAnchor: group((r) => r.context?.anchor ?? 'Market', ['Order Block', 'Fair Value Gap', 'Market']),
     bySession: group(
-      (r) => (r.context?.killZoneActive ? 'Kill zone' : 'Outside kill zone'),
-      ['Kill zone', 'Outside kill zone']
+      (r) => (r.context?.killZoneActive ? 'Di kill zone' : 'Di luar kill zone'),
+      ['Di kill zone', 'Di luar kill zone']
     ),
     byNews: group(
-      (r) => (r.context?.newsNearby ? 'Near a release' : 'Clear of releases'),
-      ['Near a release', 'Clear of releases']
+      (r) => (r.context?.newsNearby ? 'Dekat rilis berita' : 'Jauh dari rilis berita'),
+      ['Dekat rilis berita', 'Jauh dari rilis berita']
     ),
     byAlignment: group(
-      (r) => (r.context?.timeframesAligned ? 'Timeframes agreed' : 'Timeframes split'),
-      ['Timeframes agreed', 'Timeframes split']
+      (r) => (r.context?.timeframesAligned ? 'Timeframe searah' : 'Timeframe tidak searah'),
+      ['Timeframe searah', 'Timeframe tidak searah']
     ),
   };
 }
@@ -517,7 +518,7 @@ export function deriveAdaptiveWeights(
       adjustments.push(
         `${evidence.missRate.toFixed(
           0
-        )}% of orders never filled. A missed order costs nothing, so entries stay on their levels; if you want more fills, change the style or the timeframe rather than the entry.`
+        )}% order tidak pernah terisi. Order missed tidak ada ruginya, jadi entry tetap di levelnya; kalau ingin lebih banyak yang terisi, ganti gaya atau timeframe, bukan entry-nya.`
       );
     }
 
@@ -549,11 +550,11 @@ export function deriveAdaptiveWeights(
       );
 
       adjustments.push(
-        `${anchorVerdict.winner.label} entries returned ${anchorVerdict.winner.averageR}R against ${
+        `Entry ${anchorVerdict.winner.label} menghasilkan ${anchorVerdict.winner.averageR}R dibanding ${
           anchorVerdict.loser.averageR
-        }R for ${anchorVerdict.loser.label.toLowerCase()} entries over ${
+        }R untuk entry ${anchorVerdict.loser.label} dari ${
           anchorVerdict.winner.samples + anchorVerdict.loser.samples
-        } trades, so the weighting moved toward them.`
+        } trade, jadi bobotnya digeser ke arah entry ${anchorVerdict.winner.label}.`
       );
     }
 
@@ -561,7 +562,7 @@ export function deriveAdaptiveWeights(
     // strengthens on evidence rather than on the word "news" in a post mortem.
     const [nearNews, clearOfNews] = conditions.byNews;
     const newsVerdict = preferredBucket(nearNews, clearOfNews);
-    if (newsVerdict && newsVerdict.loser.label === 'Near a release') {
+    if (newsVerdict && newsVerdict.loser.label === 'Dekat rilis berita') {
       confluence.newsImpactWeight = shrinkToward(
         confluence.newsImpactWeight,
         confluence.newsImpactWeight + Math.min(0.2, newsVerdict.gap * 0.25),
@@ -569,7 +570,7 @@ export function deriveAdaptiveWeights(
         MAX_WEIGHT_DRIFT
       );
       adjustments.push(
-        `Trades taken inside an hour of a release returned ${nearNews.averageR}R against ${clearOfNews.averageR}R clear of one, so the news shield strengthened.`
+        `Trade yang diambil dalam satu jam dari rilis berita menghasilkan ${nearNews.averageR}R dibanding ${clearOfNews.averageR}R yang jauh dari rilis, jadi pelindung berita diperkuat.`
       );
     }
 
@@ -599,25 +600,25 @@ export function deriveAdaptiveWeights(
       if (Math.abs(atrBufferFactor - prior.atrBufferFactor) >= 0.02) {
         adjustments.push(
           atrBufferFactor > prior.atrBufferFactor
-            ? `A ${evidence.smoothedWinRate}% strike rate is below the ${breakEven}% this target needs and the account is losing, so stops widened to ${atrBufferFactor.toFixed(
+            ? `Tingkat menang ${evidence.smoothedWinRate}% di bawah ${breakEven}% yang dibutuhkan target ini dan akun sedang rugi, jadi stop diperlebar ke ${atrBufferFactor.toFixed(
                 2
-              )}x ATR to clear the noise.`
-            : `A ${evidence.smoothedWinRate}% strike rate is comfortably above the ${breakEven}% this target needs, so stops tightened to ${atrBufferFactor.toFixed(
+              )}x ATR supaya lolos dari noise.`
+            : `Tingkat menang ${evidence.smoothedWinRate}% cukup jauh di atas ${breakEven}% yang dibutuhkan target ini, jadi stop dipersempit ke ${atrBufferFactor.toFixed(
                 2
               )}x ATR.`
         );
       } else if (evidence.smoothedWinRate < 50 && evidence.triggeredCount >= 10) {
         adjustments.push(
-          `A ${evidence.smoothedWinRate}% strike rate is normal for a ${
+          `Tingkat menang ${evidence.smoothedWinRate}% normal untuk target ${
             style ?? 'Intraday'
-          } target that pays ${(100 / breakEven - 1).toFixed(1)} to 1, which breaks even at ${breakEven}%. Nothing is changed for it.`
+          } yang membayar ${(100 / breakEven - 1).toFixed(1)} banding 1, yang impas di ${breakEven}%. Tidak ada yang diubah.`
         );
       }
     }
 
     // News weighting rises when losses cluster around scheduled releases.
     const newsLosses = segment.filter(
-      (r) => r.outcome === 'SL' && /news|cpi|fomc|nfp|release/i.test(r.rootCauseAnalysis?.primaryFactor ?? '')
+      (r) => r.outcome === 'SL' && /news|cpi|fomc|nfp|release|berita|rilis/i.test(r.rootCauseAnalysis?.primaryFactor ?? '')
     ).length;
     if (newsLosses > 0) {
       const share = newsLosses / Math.max(1, evidence.triggeredCount);
@@ -627,7 +628,7 @@ export function deriveAdaptiveWeights(
         c,
         MAX_WEIGHT_DRIFT
       );
-      adjustments.push(`${newsLosses} stop-out(s) traced to scheduled news, so the news shield strengthened.`);
+      adjustments.push(`${newsLosses} stop tersentuh karena berita terjadwal, jadi pelindung berita diperkuat.`);
     }
 
     // Which individual factors have earned their say. A factor that keeps
@@ -642,9 +643,9 @@ export function deriveAdaptiveWeights(
   const carried = Object.entries(prior.factorMultipliers ?? {}).filter(([name]) => !(name in liveMultipliers));
   if (carried.length > 0) {
     adjustments.push(
-      `Carried from the adopted backtest: ${carried
-        .map(([name, value]) => `${name} ${value}x`)
-        .join(', ')}. Your own trades replace any of these once they reach a verdict.`
+      `Dibawa dari backtest yang dipakai: ${carried
+        .map(([name, value]) => `${factorLabel(name)} ${value}x`)
+        .join(', ')}. Trade kamu sendiri akan menggantikannya begitu sudah cukup bukti.`
     );
   }
 
@@ -665,8 +666,8 @@ export function deriveAdaptiveWeights(
       adjustments.length > 0
         ? adjustments
         : evidence.sampleSize === 0
-        ? ['No closed trades yet, so the engine is running on its starting parameters.']
-        : ['Results so far match expectations, so parameters are unchanged.'],
+        ? ['Belum ada trade tertutup, jadi engine memakai parameter awalnya.']
+        : ['Hasil sejauh ini sesuai harapan, jadi parameter tidak diubah.'],
   };
 }
 

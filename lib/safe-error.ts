@@ -63,16 +63,16 @@ export function publicErrorMessage(err: unknown, fallback: string): string {
   const text = raw.toLowerCase();
 
   if (text.includes('abort') || text.includes('timeout') || text.includes('etimedout')) {
-    return 'The upstream data provider did not answer in time. Try again in a moment.';
+    return 'Provider data tidak menjawab tepat waktu. Coba lagi sebentar lagi.';
   }
   if (text.includes('429') || text.includes('rate limit') || text.includes('quota')) {
-    return 'The data provider is rate limiting this account right now. Try again in a minute.';
+    return 'Provider data sedang membatasi akun ini. Coba lagi semenit lagi.';
   }
   if (text.includes('401') || text.includes('403') || text.includes('unauthor') || text.includes('invalid api')) {
-    return 'The data provider rejected the server credentials. Check the provider key in the deployment environment.';
+    return 'Provider data menolak kredensial server. Cek key provider di environment deployment.';
   }
   if (text.includes('fetch failed') || text.includes('enotfound') || text.includes('econnrefused')) {
-    return 'The server could not reach the data provider. Check outbound network access and try again.';
+    return 'Server tidak bisa menghubungi provider data. Cek akses jaringan keluar lalu coba lagi.';
   }
 
   return fallback;
@@ -80,6 +80,6 @@ export function publicErrorMessage(err: unknown, fallback: string): string {
 
 /** A provider failure, said safely, for a field the browser will read. */
 export function safeProviderNote(err: unknown, prefix: string): string {
-  const message = publicErrorMessage(err, 'The provider returned an error.');
+  const message = publicErrorMessage(err, 'Provider mengembalikan error.');
   return redactSecrets(`${prefix}: ${message}`);
 }

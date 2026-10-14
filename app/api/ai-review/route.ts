@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   } | null;
   const setup = sanitiseReviewSetup(body?.setup);
   if (!setup) {
-    return NextResponse.json({ success: false, error: 'setup must be a setup produced by the analysis.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'setup harus berupa setup dari analisis.' }, { status: 400 });
   }
   const marketPrice =
     typeof body?.marketPrice === 'number' && Number.isFinite(body.marketPrice) && body.marketPrice > 0
@@ -29,6 +29,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, review: null, status: result.status });
   } catch (err) {
     console.warn('AI review failed:', err);
-    return NextResponse.json({ success: false, error: 'Could not get the AI review.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Pendapat AI tidak bisa diambil.' }, { status: 502 });
   }
 }

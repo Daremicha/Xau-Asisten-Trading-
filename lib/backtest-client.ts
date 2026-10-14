@@ -145,7 +145,7 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
       'abort',
       () => {
         clearTimeout(timer);
-        reject(new Error('Backtest cancelled.'));
+        reject(new Error('Backtest dibatalkan.'));
       },
       { once: true }
     );
@@ -158,7 +158,7 @@ function yieldToBrowser(): Promise<void> {
 }
 
 function assertLive(signal?: AbortSignal) {
-  if (signal?.aborted) throw new Error('Backtest cancelled.');
+  if (signal?.aborted) throw new Error('Backtest dibatalkan.');
 }
 
 export interface DownloadResult {
@@ -218,21 +218,21 @@ export async function downloadHistory(
     const data = await res.json().catch(() => null);
 
     if (!res.ok || !data) {
-      message = data?.error ?? `History download failed with HTTP ${res.status}.`;
+      message = data?.error ?? `Unduhan riwayat gagal dengan HTTP ${res.status}.`;
       break;
     }
 
     if (data.retryAfterMs) {
       if (retries >= MAX_RATE_LIMIT_RETRIES) {
-        message = 'The data provider kept rate limiting the download, so the run uses what arrived.';
+        message = 'Provider data terus membatasi unduhan, jadi uji ini memakai data yang sudah masuk.';
         break;
       }
       retries += 1;
       onProgress?.({
         phase: 'download',
-        label: `Provider rate limit reached. Waiting ${Math.round(
+        label: `Batas permintaan provider tercapai. Menunggu ${Math.round(
           data.retryAfterMs / 1000
-        )}s for the next page (attempt ${retries} of ${MAX_RATE_LIMIT_RETRIES}).`,
+        )} detik untuk halaman berikutnya (percobaan ${retries} dari ${MAX_RATE_LIMIT_RETRIES}).`,
         percent: Math.min(45, (candles.length / Math.max(1, months * 2000)) * 45),
       });
       await wait(data.retryAfterMs, signal);
@@ -252,7 +252,7 @@ export async function downloadHistory(
 
     onProgress?.({
       phase: 'download',
-      label: `Downloaded ${candles.length.toLocaleString('en-US')} candles back to ${new Date(
+      label: `Terunduh ${candles.length.toLocaleString('en-US')} candle sampai ${new Date(
         oldest
       ).toISOString().slice(0, 10)}.`,
       percent: Math.min(
@@ -333,17 +333,17 @@ async function replay(
     const share = progress.totalBars > 0 ? progress.barsProcessed / progress.totalBars : 1;
     const name =
       phase === 'frozen'
-        ? 'Testing the learned parameters'
+        ? 'Menguji parameter hasil belajar'
         : phase === 'protected'
-          ? 'Testing the break-even stop'
+          ? 'Menguji stop impas (break-even)'
           : phase === 'floor'
-            ? 'Testing the recommended floor'
+            ? 'Menguji batas yang disarankan'
           : adaptive
-            ? 'Learning run'
-            : 'Control run';
+            ? 'Run belajar'
+            : 'Run kontrol';
     options.onProgress?.({
       phase,
-      label: `${name}: ${progress.trades} trades from ${progress.decisions} analyses.`,
+      label: `${name}: ${progress.trades} trade dari ${progress.decisions} analisis.`,
       percent: baseline + share * span,
     });
     await yieldToBrowser();
@@ -366,7 +366,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
   if (candles.length < 500) {
     throw new Error(
       coverage.message ||
-        'The provider returned too little history to replay. Check the market data key and try again.'
+        'Provider mengirim riwayat terlalu sedikit untuk diuji. Cek key data pasar lalu coba lagi.'
     );
   }
 
@@ -411,7 +411,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     floorCheck = confirmFloor(estimate, floorRun);
   }
 
-  options.onProgress?.({ phase: 'done', label: 'Backtest complete.', percent: 100 });
+  options.onProgress?.({ phase: 'done', label: 'Backtest selesai.', percent: 100 });
 
   return {
     coverage,

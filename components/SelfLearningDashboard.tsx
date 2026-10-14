@@ -1,5 +1,6 @@
 'use client';
 
+import { factorLabel } from '@/lib/factor-labels';
 import React, { useState } from 'react';
 import { tradeSummaryText, type SummarySettings } from '@/lib/trade-summary';
 import { SelfLearningMemoryRecord, AdaptiveStrategyEngineWeights, TradingStyle, AccountType } from '@/lib/types';
@@ -261,7 +262,7 @@ export default function SelfLearningDashboard({
                       className={isDark ? 'border-t border-slate-800/70' : 'border-t border-slate-100'}
                     >
                       <td className={`py-1 font-sans ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        {factor.name}
+                        {factorLabel(factor.name)}
                       </td>
                       <td className={`py-1 text-right ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         {formatR(factor.agreedR)}{' '}

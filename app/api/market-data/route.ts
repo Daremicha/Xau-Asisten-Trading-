@@ -109,7 +109,7 @@ export async function GET(request: Request) {
         status: 'unavailable',
         symbol: 'XAUUSD',
         marketPrice: null,
-        message: publicErrorMessage(err, 'Market data could not be fetched right now.'),
+        message: publicErrorMessage(err, 'Data pasar tidak bisa diambil sekarang.'),
         timestamp: new Date().toISOString(),
       },
       { status: 503 }

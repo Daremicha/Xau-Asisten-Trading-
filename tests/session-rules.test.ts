@@ -25,7 +25,7 @@ describe('weak setups are declined in the Asian session', () => {
   });
 
   test('the note explains only a decline the session caused', () => {
-    expect(sessionDeclineNote(40, 'Asian Session', 48)).toContain('Asian session asks for a conviction of 55');
+    expect(sessionDeclineNote(40, 'Asian Session', 48)).toContain('Sesi Asia meminta conviction minimal 55');
     expect(sessionDeclineNote(40, 'Asian Session', 60)).toBeNull();
     expect(sessionDeclineNote(70, 'Asian Session', 48)).toBeNull();
     expect(sessionDeclineNote(40, 'London Open', 30)).toBeNull();
@@ -36,7 +36,7 @@ describe('the weakest setups need the directional bias on their side', () => {
   test('under 40, a setup is declined unless the pivot bias agrees', () => {
     expect(WEAK_SETUP_BELOW).toBe(40);
     expect(weakSetupDecline(30, { 'Pivot and directional bias': 1 })).toBeNull();
-    expect(weakSetupDecline(30, { 'Pivot and directional bias': -1 })).toContain('pivot and directional bias');
+    expect(weakSetupDecline(30, { 'Pivot and directional bias': -1 })).toContain('pivot dan arah bias');
     expect(weakSetupDecline(30, {})).not.toBeNull();
     expect(weakSetupDecline(30, { 'Pivot and directional bias': 0.1 })).not.toBeNull();
   });

@@ -127,7 +127,7 @@ describe('order simulation', () => {
     const result = simulateOrder(candles, plan());
     expect(result.kind).toBe('missed');
     if (result.kind !== 'missed') return;
-    expect(result.reason).toContain('expired');
+    expect(result.reason).toContain('kedaluwarsa');
   });
 
   test('an order is dead once price trades through its invalidation without it', () => {
@@ -141,7 +141,7 @@ describe('order simulation', () => {
     const result = simulateOrder(candles, plan());
     expect(result.kind).toBe('missed');
     if (result.kind !== 'missed') return;
-    expect(result.reason).toContain('invalidation');
+    expect(result.reason).toContain('invalidasi');
   });
 
   test('an order is dead once the move happens without it', () => {
@@ -153,7 +153,7 @@ describe('order simulation', () => {
     const result = simulateOrder(candles, plan());
     expect(result.kind).toBe('missed');
     if (result.kind !== 'missed') return;
-    expect(result.reason).toContain('full stop distance');
+    expect(result.reason).toContain('satu jarak stop');
   });
 
   test('a bar holding both the stop and the target is recorded as a stop', () => {
@@ -198,7 +198,7 @@ describe('order simulation', () => {
     const result = simulateOrder(candles, plan({ maxHoldMs: 2 * 60 * 60_000 }));
     expect(result.kind).toBe('filled');
     if (result.kind !== 'filled') return;
-    expect(result.reason).toContain('holding limit');
+    expect(result.reason).toContain('batas waktu');
     expect(result.outcome).toBe('TP'); // closed above the fill
     expect(result.exitPrice).toBe(2003);
   });
@@ -525,7 +525,7 @@ describe('moving the stop to entry once a trade has paid', () => {
     if (result.kind !== 'filled') return;
     expect(result.exitPrice).toBe(2000);
     expect(result.protectedExit).toBe(true);
-    expect(result.reason).toContain('moved there');
+    expect(result.reason).toContain('dipindah ke sana');
   });
 
   test('without the rule the same trade is a full stop out', () => {

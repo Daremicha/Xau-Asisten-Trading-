@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { subscription?: unknown } | null;
   const subscription = sanitiseSubscription(body?.subscription);
   if (!subscription) {
-    return NextResponse.json({ success: false, error: 'Invalid push subscription.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Langganan push tidak valid.' }, { status: 400 });
   }
   try {
     const record = await loadRecord(recordId(subscription.endpoint));
@@ -27,6 +27,6 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.warn('Push status failed:', err);
-    return NextResponse.json({ success: false, error: 'Could not read the alert status.' }, { status: 502 });
+    return NextResponse.json({ success: false, error: 'Status notifikasi tidak bisa dibaca.' }, { status: 502 });
   }
 }

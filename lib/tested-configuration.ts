@@ -49,10 +49,10 @@ export function untestedSettingNote(style: TradingStyle, floor: number): string 
   if (followsTestedConfiguration(style, floor)) return null;
   if (style === 'Scalping') {
     return floor >= 70
-      ? 'Scalping at a floor of 70 made money in both halves, but earned less than a tenth as much.'
-      : 'Scalping below a floor of 70 fell more than 30% from its high for little return.';
+      ? 'Scalping dengan batas 70 untung di kedua paruh, tapi hasilnya kurang dari sepersepuluh.'
+      : 'Scalping dengan batas di bawah 70 turun lebih dari 30% dari puncaknya dengan hasil kecil.';
   }
-  return `${style} was not part of that test.`;
+  return `${style} tidak termasuk dalam uji itu.`;
 }
 
 /**

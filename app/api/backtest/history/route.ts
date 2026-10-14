@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   const rawInterval = url.searchParams.get('interval') ?? '15min';
   if (rawInterval !== '5min' && rawInterval !== '15min' && rawInterval !== '1h') {
     return NextResponse.json(
-      { success: false, error: 'interval must be 5min, 15min or 1h.' },
+      { success: false, error: 'interval harus 5min, 15min, atau 1h.' },
       { status: 400 }
     );
   }
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   const rawSymbol = url.searchParams.get('symbol') ?? 'XAU/USD';
   if (!HISTORY_SYMBOLS.includes(rawSymbol as HistorySymbol)) {
     return NextResponse.json(
-      { success: false, error: `symbol must be one of ${HISTORY_SYMBOLS.join(', ')}.` },
+      { success: false, error: `symbol harus salah satu dari ${HISTORY_SYMBOLS.join(', ')}.` },
       { status: 400 }
     );
   }
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     const parsed = Number(rawBefore);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return NextResponse.json(
-        { success: false, error: 'before must be a millisecond timestamp.' },
+        { success: false, error: 'before harus timestamp dalam milidetik.' },
         { status: 400 }
       );
     }
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: err instanceof Error ? err.message : 'History download failed.',
+        error: err instanceof Error ? err.message : 'Unduhan riwayat gagal.',
       },
       { status: 502 }
     );

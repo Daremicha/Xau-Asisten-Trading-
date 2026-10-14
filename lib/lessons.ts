@@ -42,10 +42,10 @@ const wib = (iso: string | undefined): number | null => {
 export function sessionOfTrade(record: SelfLearningMemoryRecord): string | null {
   const h = wib(record.placedAt ?? record.timestamp);
   if (h === null) return null;
-  if (h >= 7 && h < 14) return 'the Asian session (07:00–14:00 WIB)';
-  if (h >= 14 && h < 19) return 'the London session (14:00–19:00 WIB)';
-  if (h >= 19) return 'the New York session (19:00–24:00 WIB)';
-  return 'late hours (00:00–07:00 WIB)';
+  if (h >= 7 && h < 14) return 'sesi Asia (07:00–14:00 WIB)';
+  if (h >= 14 && h < 19) return 'sesi London (14:00–19:00 WIB)';
+  if (h >= 19) return 'sesi New York (19:00–24:00 WIB)';
+  return 'jam larut (00:00–07:00 WIB)';
 }
 
 function rOf(record: SelfLearningMemoryRecord): number {
@@ -74,7 +74,7 @@ function groupBy(
 
 const signedR = (r: number) => `${r > 0 ? '+' : ''}${r.toFixed(2)}R`;
 const weight = (trades: number) =>
-  trades >= LESSON_SOLID_TRADES ? `${trades} trades` : `only ${trades} trades, an early sign`;
+  trades >= LESSON_SOLID_TRADES ? `${trades} trade` : `baru ${trades} trade, tanda awal`;
 
 /** One dimension: name its best and worst group when they stand apart. */
 function lessonsFor(
@@ -90,15 +90,15 @@ function lessonsFor(
   if (worst.averageR <= -LESSON_MIN_EDGE_R) {
     out.push({
       tone: 'bad',
-      title: `${describe(worst.label)} have been losing`,
-      detail: `${worst.wins} of ${worst.trades} won, ${signedR(worst.averageR)} per trade (${weight(worst.trades)}).`,
+      title: `${describe(worst.label)} sedang rugi`,
+      detail: `${worst.wins} dari ${worst.trades} menang, ${signedR(worst.averageR)} per trade (${weight(worst.trades)}).`,
     });
   }
   if (best.averageR >= LESSON_MIN_EDGE_R && best !== worst) {
     out.push({
       tone: 'good',
-      title: `${describe(best.label)} have been paying`,
-      detail: `${best.wins} of ${best.trades} won, ${signedR(best.averageR)} per trade (${weight(best.trades)}).`,
+      title: `${describe(best.label)} sedang untung`,
+      detail: `${best.wins} dari ${best.trades} menang, ${signedR(best.averageR)} per trade (${weight(best.trades)}).`,
     });
   }
   return out;
@@ -116,29 +116,29 @@ export function liveVersusReplay(records: SelfLearningMemoryRecord[]): Lesson {
   if (!range) {
     return {
       tone: 'info',
-      title: `Live against the replay: ${filled.length} closed trades`,
-      detail: `The replay earned ${replay} a trade. A fair comparison needs at least ${MIN_INTERVAL_TRADES} closed live trades.`,
+      title: `Live dibanding backtest: ${filled.length} trade tertutup`,
+      detail: `Backtest menghasilkan ${replay} per trade. Perbandingan yang adil butuh minimal ${MIN_INTERVAL_TRADES} trade live tertutup.`,
     };
   }
-  const span = `${signedR(range.low)} to ${signedR(range.high)}`;
+  const span = `${signedR(range.low)} sampai ${signedR(range.high)}`;
   if (range.high < TESTED_EXPECTANCY_R) {
     return {
       tone: 'bad',
-      title: `Live trades are doing worse than the replay`,
-      detail: `${range.trades} trades averaged ${signedR(range.mean)}, and even the top of the 95% range (${span}) is under the replay's ${replay}. Real fills, costs or the market are not what was tested: cut the risk, or trade on paper, until this changes.`,
+      title: `Trade live lebih buruk daripada backtest`,
+      detail: `${range.trades} trade rata-rata ${signedR(range.mean)}, dan bahkan batas atas rentang 95% (${span}) masih di bawah backtest ${replay}. Fill, biaya, atau pasar yang nyata tidak sama dengan yang diuji: kurangi risiko, atau trading di akun demo, sampai ini berubah.`,
     };
   }
   if (range.low > TESTED_EXPECTANCY_R) {
     return {
       tone: 'good',
-      title: `Live trades are doing better than the replay`,
-      detail: `${range.trades} trades averaged ${signedR(range.mean)}, with the whole 95% range (${span}) above the replay's ${replay}. Good luck counts too; do not raise the risk on it.`,
+      title: `Trade live lebih baik daripada backtest`,
+      detail: `${range.trades} trade rata-rata ${signedR(range.mean)}, dengan seluruh rentang 95% (${span}) di atas backtest ${replay}. Keberuntungan juga ikut berperan; jangan menaikkan risiko karenanya.`,
     };
   }
   return {
     tone: 'info',
-    title: `Live trades are in line with the replay so far`,
-    detail: `${range.trades} trades averaged ${signedR(range.mean)}. The 95% range (${span}) includes the replay's ${replay}, so the difference is still within chance. More trades narrow the range.`,
+    title: `Trade live sejauh ini sejalan dengan backtest`,
+    detail: `${range.trades} trade rata-rata ${signedR(range.mean)}. Rentang 95% (${span}) mencakup backtest ${replay}, jadi selisihnya masih dalam batas kebetulan. Makin banyak trade, rentangnya makin sempit.`,
   };
 }
 
@@ -155,8 +155,8 @@ export function tradeLessons(records: SelfLearningMemoryRecord[]): Lesson[] {
     return [
       {
         tone: 'info',
-        title: 'Not enough closed trades yet',
-        detail: `${filled.length} closed so far. Lessons appear from five, and mean more from twenty.`,
+        title: 'Trade tertutup belum cukup',
+        detail: `${filled.length} tertutup sejauh ini. Pelajaran muncul mulai lima trade, dan lebih berarti mulai dua puluh.`,
       },
     ];
   }
@@ -169,32 +169,32 @@ export function tradeLessons(records: SelfLearningMemoryRecord[]): Lesson[] {
   const recentWins = recent.filter((r) => rOf(r) > 0.05).length;
   lessons.push({
     tone: recentR >= 0 ? 'good' : 'bad',
-    title: `Last ${recent.length} closed trades: ${recentWins} won, ${signedR(recentR)} in total`,
+    title: `${recent.length} trade terakhir: ${recentWins} menang, total ${signedR(recentR)}`,
     detail:
       recentR >= 0
-        ? 'The engine is in a paying stretch.'
-        : 'A losing stretch. In the two year replay, one run of ten trades in three lost money, and the totals still grew.',
+        ? 'Engine sedang dalam periode untung.'
+        : 'Periode rugi. Di backtest dua tahun, satu dari tiga rangkaian sepuluh trade rugi, dan totalnya tetap tumbuh.',
   });
 
   lessons.push(
     ...lessonsFor(
       groupBy(filled, (r) => (r.orderType.startsWith('BUY') ? 'BUY' : 'SELL')),
-      (label) => `${label} setups`
+      (label) => `Setup ${label}`
     ),
     ...lessonsFor(
       groupBy(filled, (r) => (r.orderType.includes('INSTANT') ? 'market' : 'resting')),
-      (label) => (label === 'market' ? 'Orders filled at market (instant)' : 'Resting orders (limit and stop)')
+      (label) => (label === 'market' ? 'Order yang terisi di harga market (instant)' : 'Order pending (limit dan stop)')
     ),
-    ...lessonsFor(groupBy(filled, sessionOfTrade), (label) => `Trades placed in ${label}`),
+    ...lessonsFor(groupBy(filled, sessionOfTrade), (label) => `Trade yang dipasang di ${label}`),
     ...lessonsFor(
       groupBy(filled, (r) => r.context?.anchor ?? null),
-      (label) => (label === 'Market' ? 'Entries at market price' : `${label} entries`)
+      (label) => (label === 'Market' ? 'Entry di harga market' : `Entry ${label}`)
     ),
     ...lessonsFor(
       groupBy(filled, (r) =>
         r.context ? (r.context.timeframesAligned ? 'aligned' : 'split') : null
       ),
-      (label) => (label === 'aligned' ? 'Setups with D1, H4 and H1 agreeing' : 'Setups with the timeframes split')
+      (label) => (label === 'aligned' ? 'Setup dengan D1, H4, dan H1 searah' : 'Setup dengan timeframe yang tidak searah')
     ),
     ...lessonsFor(
       groupBy(filled, (r) => {
@@ -203,16 +203,16 @@ export function tradeLessons(records: SelfLearningMemoryRecord[]): Lesson[] {
         return c >= 55 ? 'high' : c >= 40 ? 'mid' : 'low';
       }),
       (label) =>
-        label === 'high' ? 'Setups scoring 55 or more' : label === 'mid' ? 'Setups scoring 40 to 54' : 'Setups scoring under 40'
+        label === 'high' ? 'Setup dengan skor 55 ke atas' : label === 'mid' ? 'Setup dengan skor 40 sampai 54' : 'Setup dengan skor di bawah 40'
     )
   );
 
   if (live.length > 0 && missed.length / live.length >= 0.4) {
     lessons.push({
       tone: 'info',
-      title: `${missed.length} of ${live.length} orders never filled`,
+      title: `${missed.length} dari ${live.length} order tidak pernah terisi`,
       detail:
-        'A miss costs nothing: the order simply was not reached. Tested on two years, chasing those moves or moving entries closer earned less, so the engine keeps waiting for its level.',
+        'Order missed tidak ada ruginya: harganya saja yang tidak sampai. Diuji dua tahun, mengejar pergerakan itu atau memindah entry lebih dekat hasilnya lebih kecil, jadi engine tetap menunggu levelnya.',
     });
   }
 

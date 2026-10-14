@@ -117,7 +117,7 @@ async function twelveDataPage(
       exhausted: false,
       retryAfterMs: 60_000,
       message:
-        'Twelve Data is rate limiting the download. The free plan allows eight requests a minute, so the next page is retried shortly.',
+        'Twelve Data sedang membatasi unduhan. Paket gratis hanya delapan permintaan per menit, jadi halaman berikutnya dicoba lagi sebentar lagi.',
     };
   }
 
@@ -140,7 +140,7 @@ async function twelveDataPage(
     retryAfterMs: null,
     message: candles.length
       ? `Twelve Data returned ${candles.length} ${interval} candles.`
-      : 'Twelve Data has no further history before this point.',
+      : 'Twelve Data tidak punya riwayat lebih lama dari titik ini.',
   };
 }
 
@@ -175,8 +175,8 @@ async function yahooRange(interval: HistoryInterval, beforeMs: number | null): P
     exhausted: true,
     retryAfterMs: null,
     message: candles.length
-      ? `Yahoo returned ${candles.length} ${interval} candles of GC=F futures data.`
-      : 'Yahoo returned no candles for this range.',
+      ? `Yahoo returned ${candles.length} ${interval} candle data futures GC=F.`
+      : 'Yahoo tidak mengirim candle untuk rentang ini.',
   };
 }
 
@@ -202,7 +202,7 @@ export async function fetchHistoryPage(
       newestMs: null,
       exhausted: true,
       retryAfterMs: null,
-      message: `No market data key is configured, so ${symbol} history cannot be fetched.`,
+      message: `Key data pasar belum dipasang, jadi riwayat ${symbol} tidak bisa diambil.`,
     };
   }
   try {
@@ -213,7 +213,7 @@ export async function fetchHistoryPage(
     const reason = err instanceof Error ? err.message : 'unknown error';
     try {
       const fallback = await yahooRange(interval, beforeMs);
-      return { ...fallback, message: `${reason}. Fell back to ${fallback.provider}.` };
+      return { ...fallback, message: `${reason}. Beralih ke ${fallback.provider}.` };
     } catch {
       return {
         candles: [],
@@ -223,7 +223,7 @@ export async function fetchHistoryPage(
         newestMs: null,
         exhausted: true,
         retryAfterMs: null,
-        message: `No provider could supply history: ${reason}.`,
+        message: `Tidak ada provider yang bisa memberi riwayat: ${reason}.`,
       };
     }
   }
@@ -239,7 +239,7 @@ export async function fetchHistoryPage(
       newestMs: null,
       exhausted: true,
       retryAfterMs: null,
-      message: `No provider could supply history: ${
+      message: `Tidak ada provider yang bisa memberi riwayat: ${
         err instanceof Error ? err.message : 'unknown error'
       }.`,
     };

@@ -61,7 +61,7 @@ async function callOpenAI(
 
   const systemMessage =
     options.systemInstruction ||
-    'You are a Senior Institutional Quantitative Trading strategist for XAUUSD (Gold). Write in rigorous institutional English. Avoid using the word "A" followed by "I".';
+    'You are a Senior Institutional Quantitative Trading strategist for XAUUSD (Gold). Write in clear, plain Indonesian (Bahasa Indonesia) for a retail trader, keeping trading terms traders use as-is (entry, stop loss, take profit, order block, FVG) in English. Avoid using the word "A" followed by "I".';
 
   const bodyPayload: Record<string, unknown> = {
     model: options.openAIModel || 'gpt-4o',
@@ -120,7 +120,7 @@ async function callClaude(
 
   const systemMessage =
     options.systemInstruction ||
-    'You are a Senior Institutional Quantitative Trading strategist for XAUUSD (Gold). Write in rigorous institutional English. Avoid using the word "A" followed by "I". If JSON is requested, output only pure JSON.';
+    'You are a Senior Institutional Quantitative Trading strategist for XAUUSD (Gold). Write in clear, plain Indonesian (Bahasa Indonesia) for a retail trader, keeping trading terms traders use as-is (entry, stop loss, take profit, order block, FVG) in English. Avoid using the word "A" followed by "I". If JSON is requested, output only pure JSON.';
   const model = options.claudeModel || 'claude-opus-5';
 
   try {
@@ -220,7 +220,7 @@ export async function executeGenerativeSynthesisWithProvider(
                 errorRecord.message.includes('UNAVAILABLE')));
 
           if (isQuotaOrDemand) {
-            switchReason = 'Google Gemini free quota or capacity reached. Activated secondary model.';
+            switchReason = 'Kuota gratis atau kapasitas Google Gemini habis. Model cadangan diaktifkan.';
           }
 
           if (isQuotaOrDemand && attempt === 0) {
@@ -233,7 +233,7 @@ export async function executeGenerativeSynthesisWithProvider(
       }
     }
   } else {
-    switchReason = 'Google Gemini key not configured. Activated secondary model.';
+    switchReason = 'Key Google Gemini belum dipasang. Model cadangan diaktifkan.';
   }
 
   // STEP 2: Automatic Switch to Secondary Provider (OpenAI ChatGPT / gpt-4o)
@@ -245,10 +245,10 @@ export async function executeGenerativeSynthesisWithProvider(
         provider: 'openai',
         model: options.openAIModel || 'gpt-4o',
         isFallback: true,
-        switchReason: switchReason || 'Switched to ChatGPT (GPT-4o) as primary quota fallback.',
+        switchReason: switchReason || 'Beralih ke ChatGPT (GPT-4o) sebagai cadangan kuota utama.',
       };
     }
-    switchReason = 'Gemini & ChatGPT quotas reached. Activated Claude.';
+    switchReason = 'Kuota Gemini & ChatGPT habis. Claude diaktifkan.';
   }
 
   // STEP 3: Automatic Switch to Tertiary Provider (Anthropic Claude)
@@ -261,7 +261,7 @@ export async function executeGenerativeSynthesisWithProvider(
         provider: 'claude',
         model: claudeResult.model,
         isFallback: true,
-        switchReason: switchReason || 'Switched to Claude as quota fallback.',
+        switchReason: switchReason || 'Beralih ke Claude sebagai cadangan kuota.',
       };
     }
   }

@@ -129,7 +129,7 @@ describe('did the later trades go better', () => {
   test('a thin sample refuses to draw a conclusion', () => {
     const comparison = comparePhases(result([win(100), loss(-50), win(80), loss(-40)]));
     expect(comparison.verdict).toBe('insufficient');
-    expect(comparison.explanation).toContain('Too few');
+    expect(comparison.explanation).toContain('terlalu sedikit');
   });
 
   test('a better second half is reported as an improvement', () => {
@@ -146,7 +146,7 @@ describe('did the later trades go better', () => {
     const late = Array.from({ length: 12 }, () => loss(-100));
     const comparison = comparePhases(result([...early, ...late]));
     expect(comparison.verdict).toBe('declined');
-    expect(comparison.explanation).toContain('not the better ones');
+    expect(comparison.explanation).toContain('tidak lebih baik');
   });
 });
 
@@ -165,7 +165,7 @@ describe('learning against a control', () => {
     const adaptive = result(Array.from({ length: 20 }, () => loss(-90)));
     const comparison = compareRuns(control, adaptive);
     expect(comparison.verdict).toBe('worse');
-    expect(comparison.explanation).toContain('did not pay');
+    expect(comparison.explanation).toContain('tidak menguntungkan');
   });
 
   test('a difference smaller than a tenth of a percent is called noise', () => {
@@ -260,13 +260,13 @@ describe('whether the learned parameters are worth adopting', () => {
     // finalWeights left at the engine defaults, as a run that changed nothing.
     const verdict = assessAdoption(control, frozen);
     expect(verdict.worthAdopting).toBe(false);
-    expect(verdict.reason).toContain('nothing here to adopt');
+    expect(verdict.reason).toContain('Tidak ada yang perlu dipakai');
   });
 
   test('parameters that lost money are refused', () => {
     const verdict = assessAdoption(control, frozenRun(Array.from({ length: 20 }, () => win(40))));
     expect(verdict.worthAdopting).toBe(false);
-    expect(verdict.reason).toContain('would have cost money');
+    expect(verdict.reason).toContain('akan merugikan');
   });
 
   test('a win too small to separate from luck is refused', () => {
@@ -274,7 +274,7 @@ describe('whether the learned parameters are worth adopting', () => {
     const frozen = frozenRun([...Array.from({ length: 19 }, () => win(100)), win(140)]);
     const verdict = assessAdoption(control, frozen);
     expect(verdict.worthAdopting).toBe(false);
-    expect(verdict.reason).toContain('too small a margin');
+    expect(verdict.reason).toContain('terlalu kecil untuk dibedakan dari kebetulan');
   });
 
   test('a win bought with a deeper drawdown is refused', () => {
@@ -283,7 +283,7 @@ describe('whether the learned parameters are worth adopting', () => {
     const verdict = assessAdoption(control, frozen);
     expect(verdict.drawdownDelta).toBeGreaterThan(0);
     expect(verdict.worthAdopting).toBe(false);
-    expect(verdict.reason).toContain('deeper worst drawdown');
+    expect(verdict.reason).toContain('drawdown terburuknya lebih dalam');
   });
 
   test('a clear win with no worse drawdown is what the button is for', () => {
@@ -291,7 +291,7 @@ describe('whether the learned parameters are worth adopting', () => {
     const verdict = assessAdoption(control, frozen);
     expect(verdict.worthAdopting).toBe(true);
     expect(verdict.netDelta).toBe(1200);
-    expect(verdict.reason).toContain('supports adopting them');
+    expect(verdict.reason).toContain('mendukung untuk memakainya');
   });
 
   test('money in the verdict follows the account, not the dollar', () => {
@@ -316,7 +316,7 @@ describe('whether moving the stop to entry is worth doing', () => {
     const verdict = assessProtection(control, guarded);
     expect(verdict.savedTrades).toBe(0);
     expect(verdict.worthUsing).toBe(false);
-    expect(verdict.reason).toContain('would have changed nothing');
+    expect(verdict.reason).toContain('tidak akan mengubah apa pun');
   });
 
   test('turning full losses into scratches for more money is what the button is for', () => {
@@ -328,7 +328,7 @@ describe('whether moving the stop to entry is worth doing', () => {
     expect(verdict.savedTrades).toBe(10);
     expect(verdict.netDelta).toBe(950);
     expect(verdict.worthUsing).toBe(true);
-    expect(verdict.reason).toContain('supports using it');
+    expect(verdict.reason).toContain('mendukung untuk memakainya');
   });
 
   test('scratching trades that were on their way to the target is refused', () => {
@@ -342,7 +342,7 @@ describe('whether moving the stop to entry is worth doing', () => {
     const verdict = assessProtection(control, guarded);
     expect(verdict.netDelta).toBeLessThan(0);
     expect(verdict.worthUsing).toBe(false);
-    expect(verdict.reason).toContain('cost');
+    expect(verdict.reason).toContain('merugikan');
   });
 
   test('a gain too small to separate from luck is refused', () => {
@@ -354,7 +354,7 @@ describe('whether moving the stop to entry is worth doing', () => {
     const verdict = assessProtection(control, guarded);
     expect(verdict.netDelta).toBeGreaterThan(0);
     expect(verdict.worthUsing).toBe(false);
-    expect(verdict.reason).toContain('too small a margin');
+    expect(verdict.reason).toContain('terlalu kecil untuk dibedakan dari kebetulan');
   });
 
   test('the same money through a shallower hole passes', () => {
@@ -373,7 +373,7 @@ describe('whether moving the stop to entry is worth doing', () => {
     expect(verdict.netDelta).toBeGreaterThanOrEqual(0);
     expect(verdict.drawdownDelta).toBeLessThanOrEqual(-1);
     expect(verdict.worthUsing).toBe(true);
-    expect(verdict.reason).toContain('calmer ride');
+    expect(verdict.reason).toContain('perjalanan lebih tenang');
   });
 
   test('money in the verdict follows the account, not the dollar', () => {
@@ -423,7 +423,7 @@ describe('whether the risk setting was real', () => {
     // is what the balance would have to reach.
     expect(report.balanceNeeded).toBeCloseTo(20, 1);
     expect(report.message).toContain('Cent');
-    expect(report.message).toContain('changing the risk percentage changes nothing');
+    expect(report.message).toContain('mengubah persentase risiko tidak berpengaruh');
   });
 
   test('unfilled orders are not counted, since nothing was risked', () => {
@@ -457,8 +457,8 @@ describe('whether one conviction band is worth refusing', () => {
     expect(verdict.band?.min).toBe(40);
     expect(verdict.band?.max).toBe(55);
     expect(verdict.estimatedGain).toBe(3600);
-    expect(verdict.reason).toContain('in the first half');
-    expect(verdict.reason).toContain('in the second');
+    expect(verdict.reason).toContain('di paruh pertama');
+    expect(verdict.reason).toContain('di paruh kedua');
   });
 
   test('a band that only lost in one stretch is left alone', () => {
@@ -467,7 +467,7 @@ describe('whether one conviction band is worth refusing', () => {
     const late = Array.from({ length: 30 }, (_, i) => at(300 + i * 2, 45, 100));
     const verdict = assessDeadBand(result([...backbone, ...early, ...late]));
     expect(verdict.worthSkipping).toBe(false);
-    expect(verdict.reason).toContain('not consistently across both halves');
+    expect(verdict.reason).toContain('tidak konsisten di kedua paruh');
   });
 
   test('a losing band with too few trades is a bad stretch, not a rule', () => {
@@ -480,7 +480,7 @@ describe('whether one conviction band is worth refusing', () => {
   test('a run where every band paid says there is nothing to refuse', () => {
     const verdict = assessDeadBand(result(backbone));
     expect(verdict.worthSkipping).toBe(false);
-    expect(verdict.reason).toContain('nothing to refuse');
+    expect(verdict.reason).toContain('tidak ada yang perlu ditolak');
   });
 
   test('the halves are cut on the run, so each band is judged over the same market', () => {
@@ -525,7 +525,7 @@ describe('a conviction floor is judged on the risk it saves, not only the money 
     // ...and took a far deeper fall to get it.
     expect(all.maxDrawdownPercent).toBeGreaterThan(strong.maxDrawdownPercent * 5);
     expect(verdict.recommended).toBe(70);
-    expect(verdict.reason).toContain('made money in both halves');
+    expect(verdict.reason).toContain('untung di kedua paruh');
   });
 
   test('the drawdown is measured on the trades the floor keeps', () => {
@@ -551,7 +551,7 @@ describe('a conviction floor is judged on the risk it saves, not only the money 
     const steady = Array.from({ length: 200 }, (_, i) => at(i, i % 2 ? 30 : 75, 5));
     const verdict = assessFloors(steady, 1000, [0, 70], 'Cent');
     expect(verdict.recommended).toBe(0);
-    expect(verdict.reason).toContain('a floor would not have helped');
+    expect(verdict.reason).toContain('batas tidak akan membantu');
   });
 
   test('when nothing made money in both halves, it says so rather than naming a winner', () => {
@@ -561,7 +561,7 @@ describe('a conviction floor is judged on the risk it saves, not only the money 
     ];
     const verdict = assessFloors(decaying, 1000, [0, 70], 'Cent');
     expect(verdict.recommended).toBe(0);
-    expect(verdict.reason).toContain('No floor made money in both halves');
+    expect(verdict.reason).toContain('Tidak ada batas yang untung di kedua paruh');
   });
 });
 
@@ -587,8 +587,8 @@ describe('a recommended floor is only a recommendation once it has been traded',
     expect(check.held).toBe(true);
     expect(check.actual.trades).toBe(120);
     expect(check.actual.floor).toBe(70);
-    expect(check.reason).toContain('held up');
-    expect(check.reason).toContain('120 trades rather than the 99 estimated');
+    expect(check.reason).toContain('Rekomendasinya bertahan');
+    expect(check.reason).toContain('Jumlahnya 120 trade, bukan 99 seperti perkiraan');
   });
 
   test('a real run that loses its second half refutes the estimate', () => {
@@ -600,13 +600,13 @@ describe('a recommended floor is only a recommendation once it has been traded',
     const check = confirmFloor(estimate, result(trades, 378));
     expect(check.held).toBe(false);
     expect(check.actual.netDollars).toBeGreaterThan(0);
-    expect(check.reason).toContain('did not make money in both halves');
-    expect(check.reason).toContain('does not support the floor');
+    expect(check.reason).toContain('tidak untung di kedua paruh');
+    expect(check.reason).toContain('tidak mendukung batas tersebut');
   });
 
   test('a real run that loses overall says so', () => {
     const check = confirmFloor(estimate, result(Array.from({ length: 60 }, (_, i) => at(i, -1)), 378));
     expect(check.held).toBe(false);
-    expect(check.reason).toContain('lost money overall');
+    expect(check.reason).toContain('rugi secara keseluruhan');
   });
 });

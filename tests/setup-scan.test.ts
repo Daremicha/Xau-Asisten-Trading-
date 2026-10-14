@@ -42,7 +42,7 @@ describe('announcing a setup', () => {
 
   test('says what to place, and where', () => {
     const alert = newSetupAlert(setup, 's1');
-    expect(alert.title).toBe('📊 NEW SETUP: SELL LIMIT @ 4280.20');
+    expect(alert.title).toBe('📊 SETUP BARU: SELL LIMIT @ 4280.20');
     expect(alert.body).toContain('SL 4298.20 · TP1 4253.20 · lot 0.01');
   });
 
@@ -59,19 +59,19 @@ describe('the scan result shown in the app', () => {
   test('names the score and the floor that turned a setup down', () => {
     expect(
       noSetupNote({ skipped: { reason: 'below-conviction', convictionScore: 25, threshold: 55, declinedBy: 'session' } })
-    ).toBe('best setup scored 25/100, needs 55 in the Asian session');
+    ).toBe('skor setup terbaik 25/100, butuh 55 di sesi Asia');
     expect(noSetupNote({ skipped: { reason: 'below-conviction', convictionScore: 30, threshold: 40 } })).toBe(
-      'best setup scored 30/100, needs 40'
+      'skor setup terbaik 30/100, butuh 40'
     );
   });
 
   test('says when the daily loss limit is what stopped it', () => {
     expect(noSetupNote({ skipped: { reason: 'daily-limit', convictionScore: 0, threshold: 0 } })).toContain(
-      'daily loss limit'
+      'batas rugi harian'
     );
   });
 
   test('falls back to a plain line when the analysis gave no reason', () => {
-    expect(noSetupNote({})).toBe('no setup found');
+    expect(noSetupNote({})).toBe('tidak ada setup');
   });
 });

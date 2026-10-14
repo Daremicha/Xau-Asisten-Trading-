@@ -33,12 +33,12 @@ describe('the copied trade summary', () => {
   );
 
   test('states the account and the settings the trades were taken under', () => {
-    expect(text).toContain('Account: Cent - balance 378.00 Cent');
-    expect(text).toContain('Settings: Intraday - conviction Take all - SL to entry at 1R - daily limit 3%');
+    expect(text).toContain('Akun: Cent - saldo 378.00 Cent');
+    expect(text).toContain('Setelan: Intraday - conviction Ambil semua - SL ke entry di 1R - batas harian 3%');
   });
 
   test('counts a stop at the entry as a break-even, and leaves backtest trades out', () => {
-    expect(text).toContain('Trades: 3 closed (TP 1 - SL 1 - BE 1) - 1 missed');
+    expect(text).toContain('Trade: 3 tertutup (TP 1 - SL 1 - BE 1) - 1 missed');
     expect(text).not.toContain('2026-01-01');
   });
 

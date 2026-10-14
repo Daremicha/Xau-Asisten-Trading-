@@ -7,7 +7,7 @@ describe('sign-in error messages', () => {
     expect(msg).toContain('Authorized domains');
     expect(msg).toContain('NEXT_PUBLIC_FIREBASE');
     // The app still works without signing in, and the message must say so.
-    expect(msg).toContain('without signing in');
+    expect(msg).toContain('tanpa login');
   });
 
   test('closing the popup is not an error worth showing', () => {
@@ -16,7 +16,7 @@ describe('sign-in error messages', () => {
   });
 
   test('a blocked popup tells the user what to change', () => {
-    expect(describeAuthError({ code: 'auth/popup-blocked' })!).toContain('Allow popups');
+    expect(describeAuthError({ code: 'auth/popup-blocked' })!).toContain('Izinkan popup');
   });
 
   test('a disabled provider names the setting to turn on', () => {
@@ -26,11 +26,11 @@ describe('sign-in error messages', () => {
   test('an unknown failure still reassures that the app keeps working', () => {
     const msg = describeAuthError({ code: 'auth/something-new' })!;
     expect(msg).toContain('auth/something-new');
-    expect(msg).toContain('without signing in');
+    expect(msg).toContain('tanpa login');
   });
 
   test('a non Firebase error does not crash the formatter', () => {
-    expect(describeAuthError(new Error('boom'))).toContain('Sign-in failed');
-    expect(describeAuthError(null)).toContain('Sign-in failed');
+    expect(describeAuthError(new Error('boom'))).toContain('Login gagal');
+    expect(describeAuthError(null)).toContain('Login gagal');
   });
 });
