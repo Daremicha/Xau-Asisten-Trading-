@@ -90,7 +90,7 @@ function formatLocalTime(iso: string): string {
     value.toLocaleDateString('en-US', { timeZone: 'Asia/Jakarta', day: 'numeric' });
   return dayOf(at) === dayOf(new Date())
     ? time
-    : `${at.toLocaleDateString('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' })} ${time}`;
+    : `${at.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'short' })} ${time}`;
 }
 
 export default function SignalCard({
@@ -132,14 +132,14 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
             : 'bg-amber-100 text-amber-800 border-amber-300',
-          label: 'Scalp Setup (M15/M5)',
+          label: 'Setup Scalping (M15/M5)',
         };
       case 'Swing':
         return {
           bg: isDark
             ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
             : 'bg-purple-100 text-purple-800 border-purple-300',
-          label: 'Swing Setup (D1/H4)',
+          label: 'Setup Swing (D1/H4)',
         };
       case 'Intraday':
       default:
@@ -147,7 +147,7 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
             : 'bg-sky-100 text-sky-800 border-sky-300',
-          label: 'Intraday Setup (H1/M15)',
+          label: 'Setup Intraday (H1/M15)',
         };
     }
   };
@@ -159,14 +159,14 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
             : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          label: 'Cent Account (1 Oz Contract)',
+          label: 'Akun Cent (Kontrak 1 Oz)',
         };
       case 'Pro':
         return {
           bg: isDark
             ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
             : 'bg-blue-50 text-blue-700 border-blue-200',
-          label: 'Pro ECN (~0.3p Raw Spread)',
+          label: 'Pro ECN (~0.3p Spread Raw)',
         };
       case 'Standard':
       default:
@@ -174,7 +174,7 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-slate-800 text-slate-300 border-slate-700'
             : 'bg-slate-100 text-slate-700 border-slate-300',
-          label: 'Standard Account (100 Oz)',
+          label: 'Akun Standard (100 Oz)',
         };
     }
   };
@@ -185,7 +185,7 @@ export default function SignalCard({
         bg: isDark
           ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
           : 'bg-amber-50 text-amber-800 border-amber-200',
-        label: 'SMC/ICT Algorithmic Engine',
+        label: 'Engine Algoritma SMC/ICT',
         isFallback: false,
       };
     }
@@ -221,7 +221,7 @@ export default function SignalCard({
           bg: isDark
             ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
             : 'bg-purple-50 text-purple-700 border-purple-200',
-          label: 'Structural SMC/ICT engine',
+          label: 'Engine struktur SMC/ICT',
           isFallback: metadata.isFallback,
         };
     }
@@ -229,18 +229,18 @@ export default function SignalCard({
 
   const copyToClipboard = () => {
     if (!setup) return;
-    const text = `XAUUSD INSTITUTIONAL SIGNAL
-Trading Style: ${setup.tradingStyle || 'Intraday'}
-Account Type: ${setup.accountType || 'Standard'} (${setup.contractSpecs?.lotUnit || 'Standard Lots'})
-Order Type: ${setup.orderType}
-Entry Price: ${setup.entryPrice.toFixed(2)}
+    const text = `SINYAL XAUUSD
+Gaya Trading: ${setup.tradingStyle || 'Intraday'}
+Jenis Akun: ${setup.accountType || 'Standard'} (${setup.contractSpecs?.lotUnit || 'Standard Lots'})
+Jenis Order: ${setup.orderType}
+Harga Entry: ${setup.entryPrice.toFixed(2)}
 Stop Loss (SL): ${setup.stopLoss.toFixed(2)} (${setup.stopLossPips} pips)
 Take Profit 1: ${setup.takeProfit1.toFixed(2)}
 Take Profit 2: ${setup.takeProfit2.toFixed(2)}
 Take Profit 3: ${setup.takeProfit3.toFixed(2)}
-Recommended Lot Size: ${setup.recommendedLotSize.toFixed(2)} ${setup.contractSpecs?.lotUnit || 'Lots'} (Risk: $${setup.riskDollarAmount.toFixed(2)})
+Ukuran Lot Disarankan: ${setup.recommendedLotSize.toFixed(2)} ${setup.contractSpecs?.lotUnit || 'Lots'} (Risiko: $${setup.riskDollarAmount.toFixed(2)})
 Risk/Reward: ${setup.riskRewardRatio}
-Ready for direct execution in MetaTrader 5.`;
+Siap dieksekusi langsung di MetaTrader 5.`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -326,11 +326,11 @@ Ready for direct execution in MetaTrader 5.`;
                   isDark ? 'text-slate-100' : 'text-slate-900'
                 }`}
               >
-                Institutional Signal & MetaTrader 5 Execution
+                Sinyal & Eksekusi MetaTrader 5
               </h2>
             </div>
             <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Multi-timeframe synthesis (D1 &rarr; H4 &rarr; H1 &rarr; M15) &bull; Lot size calibrated to locked capital.
+              Gabungan multi-timeframe (D1 &rarr; H4 &rarr; H1 &rarr; M15) &bull; Ukuran lot disesuaikan dengan modal terkunci.
             </p>
 
             {/* Multi-Provider Failover Pipeline Indicator */}
@@ -342,16 +342,16 @@ Ready for direct execution in MetaTrader 5.`;
             >
               {/* Prices come from the deterministic engine. The language models
                   only write the narrative, so the label says exactly that. */}
-              <span className="font-semibold text-slate-300">Price levels:</span>
+              <span className="font-semibold text-slate-300">Level harga:</span>
               <span className="flex items-center gap-1 text-purple-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                Structural SMC/ICT engine
+                Engine struktur SMC/ICT
               </span>
               <span className="text-slate-600">&bull;</span>
-              <span className="font-semibold text-slate-300">Narrative:</span>
+              <span className="font-semibold text-slate-300">Narasi:</span>
               <span className="flex items-center gap-1 text-blue-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Gemini &rarr; ChatGPT &rarr; Claude, optional
+                Gemini &rarr; ChatGPT &rarr; Claude, opsional
               </span>
             </div>
           </div>
@@ -366,12 +366,12 @@ Ready for direct execution in MetaTrader 5.`;
             {isAnalyzing ? (
               <>
                 <RotateCcw className="w-4 h-4 animate-spin text-slate-950" />
-                <span>Synthesizing Market Structure...</span>
+                <span>Menyusun struktur pasar...</span>
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 fill-slate-950 text-slate-950" />
-                <span>Run XAUUSD Analysis</span>
+                <span>Analisis XAUUSD</span>
               </>
             )}
           </button>
@@ -444,13 +444,13 @@ Ready for direct execution in MetaTrader 5.`;
                     className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl border flex items-center gap-1.5 ${
                       getProviderBadge(setup.engineMetadata).bg
                     }`}
-                    title={setup.engineMetadata.switchReason || 'Active market analysis engine'}
+                    title={setup.engineMetadata.switchReason || 'Engine analisis pasar yang aktif'}
                   >
                     <Cpu className="w-3 h-3" />
                     <span>{getProviderBadge(setup.engineMetadata).label}</span>
                     {setup.engineMetadata.isFallback && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                        Failover Active
+                        Cadangan Aktif
                       </span>
                     )}
                   </span>
@@ -468,15 +468,15 @@ Ready for direct execution in MetaTrader 5.`;
                     }`}
                     title={
                       setup.modelProposal.accepted
-                        ? `Model proposal validated against ${setup.modelProposal.anchoredTo ?? 'measured structure'}.`
-                        : `Model proposal rejected: ${setup.modelProposal.reasons.join(' ')}`
+                        ? `Usulan model divalidasi terhadap ${setup.modelProposal.anchoredTo ?? 'struktur terukur'}.`
+                        : `Usulan model ditolak: ${setup.modelProposal.reasons.join(' ')}`
                     }
                   >
                     <ShieldAlert className="w-3 h-3" />
                     <span>
                       {setup.modelProposal.accepted
-                        ? 'Model proposal validated'
-                        : 'Model proposal rejected, engine levels used'}
+                        ? 'Usulan model tervalidasi'
+                        : 'Usulan model ditolak, level engine dipakai'}
                     </span>
                   </span>
                 )}
@@ -494,7 +494,7 @@ Ready for direct execution in MetaTrader 5.`;
                   }`}
                 >
                   <Info className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Miss Protection</span>
+                  <span>Perlindungan Missed</span>
                 </button>
 
                 <button
@@ -510,12 +510,12 @@ Ready for direct execution in MetaTrader 5.`;
                   {copied ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied to Clipboard</span>
+                      <span className="text-emerald-400">Tersalin</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Copy Signal for MT5</span>
+                      <span>Salin Sinyal untuk MT5</span>
                     </>
                   )}
                 </button>
@@ -545,17 +545,17 @@ Ready for direct execution in MetaTrader 5.`;
                     <div className="text-xs font-bold font-mono flex items-center gap-2">
                       <span>
                         {isFrontRunOrMissed
-                          ? '⚠️ Pending Order Front-Run / Miss Alert'
-                          : 'Live Pending Order Tracking'}
+                          ? '⚠️ Peringatan Order Pending Terlewat / Missed'
+                          : 'Pemantauan Order Pending Live'}
                       </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
-                        {distancePips} pips from limit
+                        {distancePips} pips dari limit
                       </span>
                     </div>
                     <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       {isFrontRunOrMissed
-                        ? `Market price reached $${(currentPrice ?? 0).toFixed(2)} without dipping to your pending limit at $${setup.entryPrice.toFixed(2)}. If smart money already hit TP1 or moved away, mark it as missed or convert to market execution.`
-                        : `Current Price ($${(currentPrice ?? 0).toFixed(2)}) is approaching the institutional Entry Block ($${setup.entryPrice.toFixed(2)}).`}
+                        ? `Harga pasar mencapai $${(currentPrice ?? 0).toFixed(2)} tanpa turun ke order limit kamu di $${setup.entryPrice.toFixed(2)}. Kalau harga sudah kena TP1 atau menjauh, tandai sebagai missed atau ubah jadi order market.`
+                        : `Harga sekarang ($${(currentPrice ?? 0).toFixed(2)}) mendekati Entry Block ($${setup.entryPrice.toFixed(2)}).`}
                     </p>
                   </div>
                 </div>
@@ -568,7 +568,7 @@ Ready for direct execution in MetaTrader 5.`;
                       onClick={() => currentPrice !== null && onConvertToMarketOrder(currentPrice)}
                       className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-all cursor-pointer"
                     >
-                      Instant Market Fill ($${(currentPrice ?? 0).toFixed(2)})
+                      Masuk Market Sekarang ($${(currentPrice ?? 0).toFixed(2)})
                     </button>
                   )}
                   <button
@@ -578,7 +578,7 @@ Ready for direct execution in MetaTrader 5.`;
                     onClick={() => onSimulateOutcome('MISSED')}
                     className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
                   >
-                    Mark Missed & Adapt
+                    Tandai Missed & Pelajari
                   </button>
                 </div>
               </div>
@@ -593,19 +593,19 @@ Ready for direct execution in MetaTrader 5.`;
               >
                 <div className="font-bold text-amber-400 flex items-center gap-1.5">
                   <HelpCircle className="w-4 h-4" />
-                  <span>What happens if market price misses your pending order?</span>
+                  <span>Apa yang terjadi kalau harga tidak menyentuh order pending kamu?</span>
                 </div>
                 <div className="space-y-1.5 text-[11px]">
                   <p>
-                    <strong>1. Why orders miss:</strong> Large institutions often enter early at the 50% Fair Value Gap mean threshold (Consequent Encroachment) rather than waiting to fill 100% of an unmitigated Order Block.
+                    <strong>1. Kenapa order bisa missed:</strong> Institusi besar sering masuk lebih awal di 50% Fair Value Gap (Consequent Encroachment), tidak menunggu sampai Order Block terisi 100%.
                   </p>
                   <p>
-                    <strong>2. What a miss changes:</strong> {selfLearning
-                      ? <>With self-learning on, misses teach the engine how far its entries sit from where price actually turns; once enough have built up, and only if filled trades are worth having, entries move closer on later setups.</>
-                      : <>The miss is recorded for your statistics. With self-learning off the engine&apos;s weights stay on the tested setup.</>}
+                    <strong>2. Apa yang diubah oleh missed:</strong> {selfLearning
+                      ? <>Dengan self-learning aktif, order missed mengajari engine seberapa jauh entry-nya dari titik harga benar-benar berbalik; setelah cukup banyak, dan hanya kalau trade yang terisi memang menguntungkan, entry di setup berikutnya digeser lebih dekat.</>
+                      : <>Order missed dicatat untuk statistikmu. Dengan self-learning mati, bobot engine tetap di setelan yang sudah diuji.</>}
                   </p>
                   <p>
-                    <strong>3. Instant Market Execution:</strong> If the setup has not reached TP1 and the multi-timeframe trend remains intact, you can click <em>&quot;Instant Market Fill&quot;</em> to recalibrate your entry at the live market price without increasing your dollar risk.
+                    <strong>3. Masuk di Harga Market:</strong> Kalau setup belum kena TP1 dan tren multi-timeframe masih utuh, kamu bisa menekan <em>&quot;Masuk Market Sekarang&quot;</em> untuk memindah entry ke harga market tanpa menambah risiko dalam dolar.
                   </p>
                 </div>
               </div>
@@ -623,12 +623,10 @@ Ready for direct execution in MetaTrader 5.`;
                 <History className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
                 <div>
                   <div className="font-bold">
-                    This level already missed {repeatedMiss.count === 1 ? 'once' : `${repeatedMiss.count} times`} in the last 7 days
+                    Level ini sudah missed {repeatedMiss.count === 1 ? 'sekali' : `${repeatedMiss.count} kali`} dalam 7 hari terakhir
                   </div>
                   <div className={`mt-0.5 ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
-                    Last at {formatLocalTime(repeatedMiss.lastAt)}. The order block or gap behind it is still on the chart, so the
-                    engine offers it again. Skipping re-offered levels was tested over 24 months and did not do reliably
-                    better, so it is your call whether to place it.
+                    Terakhir pada {formatLocalTime(repeatedMiss.lastAt)}. Order block atau gap di belakangnya masih ada di grafik, jadi engine menawarkannya lagi. Melewatkan level yang ditawarkan ulang sudah diuji selama 24 bulan dan hasilnya tidak konsisten lebih baik, jadi keputusan memasang order ada di tanganmu.
                   </div>
                 </div>
               </div>
@@ -643,7 +641,7 @@ Ready for direct execution in MetaTrader 5.`;
                 }`}
               >
                 <div className={`text-[11px] font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Entry Price
+                  Harga Entry
                 </div>
                 <div className={`text-lg font-black font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   ${setup.entryPrice.toFixed(2)}
@@ -660,8 +658,8 @@ Ready for direct execution in MetaTrader 5.`;
                         distancePips > 150 ? 'text-rose-400' : isDark ? 'text-slate-500' : 'text-slate-500'
                       }`}
                     >
-                      {distancePips} pips from market
-                      {distancePips > 150 ? ' • may not fill today' : ''}
+                      {distancePips} pips dari harga
+                      {distancePips > 150 ? ' • mungkin tidak terisi hari ini' : ''}
                     </div>
                     {/* A pending order is not valid forever. This is the point
                         past which the structure it reads no longer describes
@@ -695,7 +693,7 @@ Ready for direct execution in MetaTrader 5.`;
                   ${setup.stopLoss.toFixed(2)}
                 </div>
                 <div className="text-[10px] text-rose-400 font-mono mt-0.5">
-                  Risk: {setup.stopLossPips} pips
+                  Risiko: {setup.stopLossPips} pips
                 </div>
               </div>
 
@@ -712,7 +710,7 @@ Ready for direct execution in MetaTrader 5.`;
                   ${setup.takeProfit1.toFixed(2)}
                 </div>
                 <div className="text-[10px] text-emerald-400 font-mono mt-0.5">
-                  Primary TP target
+                  Target TP utama
                 </div>
               </div>
 
@@ -723,7 +721,7 @@ Ready for direct execution in MetaTrader 5.`;
                 }`}
               >
                 <div className="text-[11px] text-emerald-400 font-medium mb-1 flex items-center gap-1">
-                  <Target className="w-3 h-3" /> TP2 & TP3 Targets
+                  <Target className="w-3 h-3" /> Target TP2 & TP3
                 </div>
                 <div className="text-base font-black font-mono text-emerald-400">
                   TP2: ${setup.takeProfit2.toFixed(2)}
@@ -747,9 +745,7 @@ Ready for direct execution in MetaTrader 5.`;
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
                 <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  <span className="font-bold">Once price reaches ${breakEvenTrigger?.toFixed(2)}</span>, move the
-                  stop to your entry at ${setup.entryPrice.toFixed(2)}. From that point the trade can
-                  cost you the spread but not the stop, and the targets are unchanged.
+                  <span className="font-bold">Setelah harga mencapai ${breakEvenTrigger?.toFixed(2)}</span>, pindahkan stop ke entry di ${setup.entryPrice.toFixed(2)}. Sejak saat itu trade paling rugi sebesar spread, bukan stop, dan target tidak berubah.
                 </p>
               </div>
             )}
@@ -763,7 +759,7 @@ Ready for direct execution in MetaTrader 5.`;
               <div>
                 <div className="text-xs text-amber-500 font-bold flex items-center gap-1.5">
                   <Zap className="w-3.5 h-3.5" />
-                  <span>MetaTrader 5 Recommended Volume</span>
+                  <span>Volume Disarankan untuk MetaTrader 5</span>
                 </div>
                 <div
                   className={`text-2xl font-black font-mono mt-0.5 flex items-baseline gap-2 ${
@@ -772,21 +768,21 @@ Ready for direct execution in MetaTrader 5.`;
                 >
                   <span>{setup.recommendedLotSize.toFixed(2)}</span>
                   <span className="text-sm font-bold text-amber-500">
-                    {setup.contractSpecs?.lotUnit || (setup.accountType === 'Cent' ? 'Cent Lots' : 'Standard Lots')}
+                    {setup.contractSpecs?.lotUnit || (setup.accountType === 'Cent' ? 'Cent Lot' : 'Lot Standard')}
                   </span>
                 </div>
                 <div className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   {setup.accountType === 'Cent'
-                    ? `Contract Size: 1 Troy Oz per Cent Lot • Min trade 0.01 lot`
+                    ? `Ukuran Kontrak: 1 Troy Oz per Cent Lot • Minimal 0.01 lot`
                     : setup.accountType === 'Pro'
-                    ? `Contract Size: 100 Troy Oz • Commission factored`
-                    : `Contract Size: 100 Troy Oz per Standard Lot • Zero commission`}
+                    ? `Ukuran Kontrak: 100 Troy Oz • Komisi sudah dihitung`
+                    : `Ukuran Kontrak: 100 Troy Oz per Lot Standard • Tanpa komisi`}
                 </div>
               </div>
 
               <div className={`text-left sm:text-right text-xs font-mono space-y-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 <div>
-                  Risk Budget:{' '}
+                  Risiko per Trade:{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {formatAccountMoney(setup.riskDollarAmount, setup.accountType)} (
                     {setup.effectiveRiskPercentage ?? setup.riskPercentage}%)
@@ -797,9 +793,9 @@ Ready for direct execution in MetaTrader 5.`;
                     read deliberately commits less of it. */}
                 {setup.entryAnchor === 'Asian Range Breakout' && (
                   <div id="london-breakout-badge" className="text-sky-400">
-                    Strategy: <strong>London breakout</strong>
+                    Strategi: <strong>London breakout</strong>
                     <span className="text-[10px] block leading-snug mt-0.5">
-                      Stop order beyond the Asian range, with the trend. Delete it at 10:00 London if unfilled.
+                      Order stop di luar range Asia, searah tren. Hapus jam 10:00 London kalau belum terisi.
                     </span>
                   </div>
                 )}
@@ -817,7 +813,7 @@ Ready for direct execution in MetaTrader 5.`;
                     Conviction: <strong>{setup.convictionBand}</strong> ({setup.convictionScore}/100)
                     {setup.convictionMultiplier !== undefined && setup.convictionMultiplier < 1 && (
                       <span className="text-[10px] block leading-snug mt-0.5">
-                        Sized at {Math.round(setup.convictionMultiplier * 100)}% of your {setup.riskPercentage}% budget.
+                        Dipakai {Math.round(setup.convictionMultiplier * 100)}% dari risiko {setup.riskPercentage}% kamu.
                       </span>
                     )}
                   </div>
@@ -828,15 +824,15 @@ Ready for direct execution in MetaTrader 5.`;
                     understate the real exposure. */}
                 {typeof setup.actualRiskDollars === 'number' && (
                   <div id="risk-at-stop" className={setup.exceedsRiskBudget ? 'text-rose-400' : undefined}>
-                    Loss at SL:{' '}
+                    Rugi di SL:{' '}
                     <strong>{formatAccountMoney(setup.actualRiskDollars, setup.accountType)}</strong>
                     {typeof setup.balanceAtSetup === 'number' && setup.balanceAtSetup > 0 && (
-                      <> ({((setup.actualRiskDollars / setup.balanceAtSetup) * 100).toFixed(1)}% of balance)</>
+                      <> ({((setup.actualRiskDollars / setup.balanceAtSetup) * 100).toFixed(1)}% dari saldo)</>
                     )}
                     <span className="text-[10px] block leading-snug mt-0.5">
                       {setup.exceedsRiskBudget
-                        ? `The broker's smallest lot loses more than your ${setup.riskPercentage}% budget. With the risk guard on in Account, setups like this are refused.`
-                        : `Spread and stop slippage included, within your ${setup.riskPercentage}% budget.`}
+                        ? `Lot terkecil broker rugi lebih dari risiko ${setup.riskPercentage}% kamu. Kalau penjaga risiko di Akun aktif, setup seperti ini ditolak.`
+                        : `Sudah termasuk spread dan slippage stop, masih dalam risiko ${setup.riskPercentage}% kamu.`}
                     </span>
                   </div>
                 )}
@@ -845,7 +841,7 @@ Ready for direct execution in MetaTrader 5.`;
                   <strong className="text-emerald-500 font-bold">{setup.riskRewardRatio}</strong>
                 </div>
                 <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {setup.accountType} tier &bull; {setup.tradingStyle} profile
+                  {setup.accountType} &bull; {setup.tradingStyle}
                 </div>
               </div>
             </div>
@@ -868,7 +864,7 @@ Ready for direct execution in MetaTrader 5.`;
                 }`}
               >
                 <Cpu className="w-3.5 h-3.5 text-amber-400" />
-                <span>Institutional Confluence Rationale ({setup.tradingStyle})</span>
+                <span>Alasan Konfluensi ({setup.tradingStyle})</span>
               </div>
               <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 {setup.institutionalRationale}
@@ -891,7 +887,7 @@ Ready for direct execution in MetaTrader 5.`;
                   }`}
                 >
                   <Target className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Why the targets sit where they do</span>
+                  <span>Kenapa target ada di situ</span>
                 </div>
                 <div className="space-y-1.5">
                   {setup.targetBasis.map((reason, index) => (
@@ -903,8 +899,7 @@ Ready for direct execution in MetaTrader 5.`;
                 </div>
                 {setup.targetsFellBack && (
                   <p className={`text-[10px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                    No level sat near where the reward the trade needs puts the target, so it stays on that
-                    distance rather than being pulled in to whatever was nearest.
+                    Tidak ada level di dekat jarak reward yang dibutuhkan trade ini, jadi target tetap di jarak itu, tidak ditarik ke level terdekat.
                   </p>
                 )}
               </div>
@@ -925,7 +920,7 @@ Ready for direct execution in MetaTrader 5.`;
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5 text-sky-400" />
-                  <span>What the engine read for this setup</span>
+                  <span>Yang dibaca engine untuk setup ini</span>
                 </div>
                 <div className="space-y-1.5">
                   {setup.inputsConsulted.map((input) => (
@@ -957,7 +952,7 @@ Ready for direct execution in MetaTrader 5.`;
                 }`}
               >
                 <TrendingUp className="w-3.5 h-3.5 text-sky-400" />
-                <span>MetaTrader 5 Order Execution Guide ({setup.accountType} Tier)</span>
+                <span>Panduan Eksekusi Order MetaTrader 5 ({setup.accountType} Tier)</span>
               </div>
               <ul className={`space-y-1 text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 {setup.executionInstructionsMT5.map((step, idx) => (
@@ -984,11 +979,10 @@ Ready for direct execution in MetaTrader 5.`;
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Autonomous Self-Learning Engine Evaluation</span>
+                    <span>Evaluasi Engine Self-Learning</span>
                   </div>
                   <p className={`text-xs mt-1 leading-relaxed max-w-xl ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    When market price hits Stop Loss, reaches Take Profit, or misses your pending order,
-                    trigger an evaluation to update institutional predictive weights.
+                    Saat harga menyentuh Stop Loss, mencapai Take Profit, atau melewatkan order pending kamu, catat evaluasinya supaya bobot engine diperbarui.
                   </p>
                 </div>
 
@@ -1027,10 +1021,10 @@ Ready for direct execution in MetaTrader 5.`;
                         disabled={isEvaluatingOutcome}
                         onClick={() => onSimulateOutcome('TP', 1)}
                         className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-xs transition-all shadow active:scale-95 cursor-pointer"
-                        title="Simulate Take Profit 1 Hit"
+                        title="Catat TP1 tercapai"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Price Hit TP1 ({tp1Gain})</span>
+                        <span>Kena TP1 ({tp1Gain})</span>
                       </button>
 
                       <button
@@ -1039,10 +1033,10 @@ Ready for direct execution in MetaTrader 5.`;
                         disabled={isEvaluatingOutcome}
                         onClick={() => onSimulateOutcome('TP', 2)}
                         className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-xs transition-all shadow active:scale-95 cursor-pointer"
-                        title="Simulate Take Profit 2 Hit"
+                        title="Catat TP2 tercapai"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Hit TP2 ({tp2Gain})</span>
+                        <span>Kena TP2 ({tp2Gain})</span>
                       </button>
 
                       <button
@@ -1051,10 +1045,10 @@ Ready for direct execution in MetaTrader 5.`;
                         disabled={isEvaluatingOutcome}
                         onClick={() => onSimulateOutcome('SL')}
                         className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-xs transition-all shadow active:scale-95 cursor-pointer"
-                        title="Simulate Stop Loss Hit"
+                        title="Catat SL tersentuh"
                       >
                         <XCircle className="w-4 h-4" />
-                        <span>Price Hit SL ({slLoss})</span>
+                        <span>Kena SL ({slLoss})</span>
                       </button>
 
                       <button
@@ -1067,7 +1061,7 @@ Ready for direct execution in MetaTrader 5.`;
                             ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
                             : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
                         }`}
-                        title="Simulate Pending Order Missed"
+                        title="Catat order pending missed"
                       >
                         <AlertTriangle className="w-4 h-4" />
                         <span>Order Missed ({noMove})</span>
@@ -1091,14 +1085,14 @@ Ready for direct execution in MetaTrader 5.`;
               <Filter className="w-5 h-5 text-sky-400" />
               <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                 {skipped.reason === 'unfillable'
-                  ? 'Price has run away from its level'
+                  ? 'Harga sudah menjauh dari levelnya'
                   : skipped.reason === 'feed-mismatch'
-                  ? 'The only price available is the wrong instrument'
+                  ? 'Harga yang tersedia dari instrumen yang salah'
                   : skipped.reason === 'daily-limit'
-                  ? 'Daily loss limit reached'
+                  ? 'Batas rugi harian tercapai'
                   : skipped.reason === 'risk-cap'
-                  ? 'The smallest lot would break your risk setting'
-                  : 'Nothing worth trading right now'}
+                  ? 'Lot terkecil akan melanggar setelan risikomu'
+                  : 'Belum ada yang layak di-trade sekarang'}
               </h3>
             </div>
 
@@ -1108,12 +1102,12 @@ Ready for direct execution in MetaTrader 5.`;
                 className={`text-center text-xs space-y-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}
               >
                 <p>
-                  There was a setup, but at the broker&apos;s smallest lot its stop would lose{' '}
+                  Ada setup, tapi dengan lot terkecil broker stop-nya akan rugi{' '}
                   <strong className="text-rose-400">
                     {formatAccountMoney(skipped.riskCap.actualRiskDollars, skipped.riskCap.accountType)} (
-                    {skipped.riskCap.actualPercent.toFixed(1)}% of the balance)
+                    {skipped.riskCap.actualPercent.toFixed(1)}% dari saldo)
                   </strong>
-                  , spread and slippage included. Your setting allows{' '}
+                  , sudah termasuk spread dan slippage. Setelanmu mengizinkan{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.riskCap.riskPercentage}% (
                     {formatAccountMoney(skipped.riskCap.budgetDollars, skipped.riskCap.accountType)})
@@ -1121,7 +1115,7 @@ Ready for direct execution in MetaTrader 5.`;
                   .
                 </p>
                 <p>
-                  The same trade fits your setting from a balance of about{' '}
+                  Trade yang sama pas dengan setelanmu mulai dari saldo sekitar{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {formatAccountMoney(skipped.riskCap.balanceNeeded, skipped.riskCap.accountType)}
                   </strong>
@@ -1130,28 +1124,26 @@ Ready for direct execution in MetaTrader 5.`;
               </div>
             ) : skipped.reason === 'feed-mismatch' ? (
               <div className={`text-center text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Gold futures and spot XAUUSD are different contracts, tens of dollars apart. Levels
-                read from one do not work at a broker quoting the other, so none were produced.
+                Futures emas dan XAUUSD spot adalah kontrak berbeda, selisihnya puluhan dolar. Level dari yang satu tidak berlaku di broker yang memakai harga yang lain, jadi tidak ada level yang dibuat.
               </div>
             ) : skipped.reason === 'unfillable' ? (
               <div className={`text-center text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                An order left at that level would be recorded as a missed entry the moment it was
-                placed, so none was offered. Waiting costs nothing.
+                Order di level itu akan langsung tercatat missed begitu dipasang, jadi tidak ditawarkan. Menunggu tidak ada ruginya.
               </div>
             ) : (
             <div className={`text-center font-mono text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              Best available setup scored{' '}
+              Setup terbaik skornya{' '}
               <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                 {skipped.convictionScore}/100
               </strong>{' '}
               ({skipped.band}),{' '}
               {skipped.reason === 'dead-band' && skipped.deadBand ? (
                 <>
-                  inside the{' '}
+                  di dalam rentang{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.deadBand.label}
                   </strong>{' '}
-                  band, which your backtest showed losing money in both halves of the period.
+                  , yang menurut backtest kamu rugi di kedua paruh periode.
                 </>
               ) : skipped.declinedBy === 'weak-setup' ? (
                 <>
@@ -1159,11 +1151,11 @@ Ready for direct execution in MetaTrader 5.`;
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.threshold}
                   </strong>
-                  , and the pivot bias does not back it.
+                  , dan bias pivot tidak mendukungnya.
                 </>
               ) : skipped.declinedBy === 'session' ? (
                 <>
-                  under the Asian session&apos;s{' '}
+                  di bawah batas sesi Asia{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.threshold}
                   </strong>
@@ -1171,7 +1163,7 @@ Ready for direct execution in MetaTrader 5.`;
                 </>
               ) : (
                 <>
-                  under your floor of{' '}
+                  di bawah batas kamu{' '}
                   <strong className={isDark ? 'text-slate-200' : 'text-slate-900'}>
                     {skipped.threshold}
                   </strong>
@@ -1204,7 +1196,7 @@ Ready for direct execution in MetaTrader 5.`;
               >
                 <div className={`text-xs font-bold mb-1 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
                   <Clock className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" />
-                  {skipped.nextCheck.marketClosed ? 'Market reopens' : 'Check again at'}{' '}
+                  {skipped.nextCheck.marketClosed ? 'Pasar buka lagi' : 'Cek lagi jam'}{' '}
                   {formatLocalTime(skipped.nextCheck.at)}
                 </div>
                 <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -1212,13 +1204,12 @@ Ready for direct execution in MetaTrader 5.`;
                 </p>
                 {typeof skipped.watchPrice === 'number' && (
                   <p className={`text-[11px] mt-1 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Sooner if price falls back below ${skipped.watchPrice.toFixed(2)}, which is where an
-                    order at that level becomes placeable again.
+                    Lebih cepat kalau harga kembali ke bawah ${skipped.watchPrice.toFixed(2)}, karena di situ order di level itu bisa dipasang lagi.
                   </p>
                 )}
                 {skipped.nextCheck.session && !skipped.nextCheck.marketClosed && (
                   <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                    Next session: {skipped.nextCheck.session.name} at{' '}
+                    Sesi berikutnya: {skipped.nextCheck.session.name} jam{' '}
                     {formatLocalTime(skipped.nextCheck.session.at)}.
                   </p>
                 )}
@@ -1227,18 +1218,18 @@ Ready for direct execution in MetaTrader 5.`;
 
             <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
               {skipped.reason === 'daily-limit'
-                ? 'A bad day ends here, before it becomes a bad week. You can change or turn off the limit in Capital & Account Configuration.'
+                ? 'Hari yang buruk berhenti di sini, sebelum jadi minggu yang buruk. Kamu bisa mengubah atau mematikan batas ini di Modal & Pengaturan Akun.'
                 : skipped.reason === 'risk-cap'
-                ? 'Raise the balance, or raise the risk per trade, or turn the risk guard off in Account to take it at the smallest lot anyway. A run of stops at this size empties a small account quickly.'
+                ? 'Naikkan saldo, naikkan risiko per trade, atau matikan penjaga risiko di Akun untuk tetap mengambilnya dengan lot terkecil. Rangkaian stop dengan ukuran ini cepat menghabiskan akun kecil.'
                 : skipped.reason === 'feed-mismatch'
-                ? 'Automatic fills and closes are paused while this lasts, so nothing is recorded from a price your market never traded. Run the analysis again once the spot feed is back.'
+                ? 'Fill dan penutupan otomatis dihentikan selama ini berlangsung, jadi tidak ada yang dicatat dari harga yang tidak pernah terjadi di pasarmu. Jalankan analisis lagi setelah feed spot kembali.'
                 : skipped.reason === 'unfillable'
-                ? 'Run the analysis again once price has pulled back toward the level, or switch to a style whose stop is wide enough to reach it.'
+                ? 'Jalankan analisis lagi setelah harga kembali mendekati level, atau ganti ke gaya trading yang stop-nya cukup lebar untuk menjangkaunya.'
                 : skipped.reason === 'dead-band'
-                ? 'Skipping costs nothing. Run the analysis again later, or turn the refused band off in the Strategy Backtest Lab.'
+                ? 'Melewatkan tidak ada ruginya. Jalankan analisis lagi nanti, atau matikan penolakan rentang itu di Lab Backtest.'
                 : skipped.declinedBy === 'weak-setup' || skipped.declinedBy === 'session'
-                ? 'This rule is part of Take all as it was tested, so lowering the floor does not change it. Skipping costs nothing; run the analysis again later.'
-                : 'Skipping costs nothing. Run the analysis again later, or lower the floor in Capital & Account Configuration.'}
+                ? 'Aturan ini bagian dari Ambil semua sesuai yang diuji, jadi menurunkan batas tidak mengubahnya. Melewatkan tidak ada ruginya; jalankan analisis lagi nanti.'
+                : 'Melewatkan tidak ada ruginya. Jalankan analisis lagi nanti, atau turunkan batas di Modal & Pengaturan Akun.'}
             </p>
           </div>
         ) : lastOutcome ? (
@@ -1270,7 +1261,7 @@ Ready for direct execution in MetaTrader 5.`;
                     <XCircle className="w-5 h-5 text-rose-500" />
                   )}
                   <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                    {isWin ? 'Take Profit Recorded' : isMiss ? 'Missed Entry Recorded' : 'Stop Loss Recorded'}
+                    {isWin ? 'Take Profit Tercatat' : isMiss ? 'Entry Missed Tercatat' : 'Stop Loss Tercatat'}
                   </h3>
                 </div>
 
@@ -1288,13 +1279,13 @@ Ready for direct execution in MetaTrader 5.`;
                     </div>
                   </div>
                   <div>
-                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Closed at</div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Ditutup di</div>
                     <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                       ${(closed.closedPrice ?? lastOutcome.record.exitPrice).toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Result</div>
+                    <div className={isDark ? 'text-slate-500' : 'text-slate-400'}>Hasil</div>
                     <div className={`font-bold ${accent}`}>
                       {formatAccountMoney(pnl, closed.accountType ?? accountType, { signed: true })}
                     </div>
@@ -1314,15 +1305,12 @@ Ready for direct execution in MetaTrader 5.`;
                       isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
                     }`}
                   >
-                    <strong>Delete the {closed.orderType} at {closed.entryPrice.toFixed(2)} in MT5 now.</strong> The app
-                    has stopped tracking it, but MT5 keeps a pending order until you delete it, so it can still fill
-                    later. If it already filled, record the real result in Results, under &quot;Re-examine trades the
-                    engine closed&quot;, with &quot;Correct this row&quot; once the trade closes.
+                    <strong>Hapus {closed.orderType} di {closed.entryPrice.toFixed(2)} di MT5 sekarang.</strong> Aplikasi sudah berhenti memantaunya, tapi MT5 menyimpan order pending sampai kamu menghapusnya, jadi order itu masih bisa terisi nanti. Kalau sudah terisi, catat hasil sebenarnya di Hasil, bagian &quot;Order MISSED ternyata terisi di MT5?&quot;, setelah trade-nya tertutup.
                   </div>
                 )}
 
                 <p className={`text-[11px] text-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                  Balance and the learning engine are already updated. Run a new analysis for the next setup.
+                  Saldo dan engine belajar sudah diperbarui. Jalankan analisis baru untuk setup berikutnya.
                 </p>
               </div>
             );
@@ -1338,10 +1326,10 @@ Ready for direct execution in MetaTrader 5.`;
               <Cpu className="w-6 h-6" />
             </div>
             <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-              No Active Setup Yet
+              Belum Ada Setup Aktif
             </h3>
             <p className={`text-xs max-w-md mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              Click &quot;Run XAUUSD Analysis&quot; above to capture real-time order flow and evaluate D1 &rarr; H4 &rarr; H1 &rarr; M15 market structure for institutional entry, SL, and TP.
+              Tekan &quot;Analisis XAUUSD&quot; di atas untuk membaca order flow real-time dan struktur pasar D1 &rarr; H4 &rarr; H1 &rarr; M15 untuk entry, SL, dan TP.
             </p>
           </div>
         )}

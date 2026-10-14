@@ -94,7 +94,7 @@ export default function MarketChart({
               XAUUSD
             </span>
             <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 font-semibold border border-amber-500/20">
-              Gold / US Dollar
+              Emas / Dolar AS
             </span>
           </div>
 
@@ -123,12 +123,12 @@ export default function MarketChart({
                 }
                 title={
                   quotaPaced
-                    ? "The provider's daily request allowance is being rationed, so this quote is held deliberately rather than merely lagging. The candles are TradingView's own live feed."
-                    : "Age of the bid and ask from the market data provider. The candles are TradingView's own live feed."
+                    ? "Jatah request harian provider sedang dihemat, jadi harga ini sengaja ditahan, bukan sekadar terlambat. Candle di grafik berasal dari feed live TradingView sendiri."
+                    : "Umur harga bid dan ask dari provider data pasar. Candle di grafik berasal dari feed live TradingView sendiri."
                 }
               >
                 quote {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s` : `${Math.floor(quoteAgeSeconds / 60)}m`} old
-                {quotaPaced ? ', rationed' : ''}
+                {quotaPaced ? ', dihemat' : ''}
               </span>
             )}
 
@@ -143,10 +143,10 @@ export default function MarketChart({
                     ? 'border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-700'
                     : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
                 }`}
-                title="Fetch a fresh quote now"
+                title="Ambil harga terbaru sekarang"
               >
                 <RefreshCw className={`w-3 h-3 ${isRefreshingQuote ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
+                <span className="hidden sm:inline">Segarkan</span>
               </button>
             )}
             {/* Reflects the real feed state. Claiming a connection that does not
@@ -163,12 +163,12 @@ export default function MarketChart({
               }`}
             >
               {feedStatus === 'live'
-                ? 'Live feed connected'
+                ? 'Feed live tersambung'
                 : feedStatus === 'stale'
-                ? 'Stale quote'
+                ? 'Harga tertunda'
                 : feedStatus === 'unavailable'
-                ? 'Feed unavailable'
-                : 'Connecting'}
+                ? 'Feed tidak tersedia'
+                : 'Menghubungkan'}
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold hidden md:inline-block">
               WIB (UTC+7)
@@ -223,7 +223,7 @@ export default function MarketChart({
                   ? 'text-slate-400 hover:text-slate-100'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="TradingView's own live XAUUSD feed"
+              title="Feed live XAUUSD dari TradingView"
             >
               <Activity className="w-3.5 h-3.5" />
               <span>TradingView</span>
@@ -239,10 +239,10 @@ export default function MarketChart({
                   ? 'text-slate-400 hover:text-slate-100'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="The engine's own entry, stop and target levels"
+              title="Level entry, stop, dan target dari engine"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Levels</span>
+              <span>Level</span>
             </button>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function MarketChart({
               userTimeZone
             )}&studies_overrides=%7B%7D&overrides=%7B%22mainSeriesProperties.candleStyle.upColor%22%3A%22%2310b981%22%2C%22mainSeriesProperties.candleStyle.downColor%22%3A%22%23ef4444%22%2C%22mainSeriesProperties.candleStyle.wickUpColor%22%3A%22%2310b981%22%2C%22mainSeriesProperties.candleStyle.wickDownColor%22%3A%22%23ef4444%22%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=en&utm_source=localhost`}
             className="w-full h-full border-0"
-            title="TradingView XAUUSD Chart"
+            title="Grafik XAUUSD TradingView"
             // Third-party frame: send no referrer, and do not block first paint.
             referrerPolicy="no-referrer"
             loading="lazy"
@@ -313,7 +313,7 @@ export default function MarketChart({
                     isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
                   }`}
                 >
-                  {selectedTimeframe} Institutional Structure
+                  {selectedTimeframe} Struktur Institusional
                 </span>
               </div>
             </div>
@@ -331,7 +331,7 @@ export default function MarketChart({
                   }`}
                 >
                   <Crosshair className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Institutional Execution Coordinates</span>
+                  <span>Koordinat Eksekusi</span>
                 </div>
 
                 <div className="space-y-1.5 text-xs font-mono">
@@ -344,7 +344,7 @@ export default function MarketChart({
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
-                      <Target className="w-3 h-3 text-emerald-500" /> TP3 (Extended Liquidity)
+                      <Target className="w-3 h-3 text-emerald-500" /> TP3 (Likuiditas Lanjutan)
                     </span>
                     <span className="font-bold">${activeSetup.takeProfit3.toFixed(2)}</span>
                   </div>
@@ -358,7 +358,7 @@ export default function MarketChart({
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
-                      <Target className="w-3 h-3 text-emerald-500" /> TP2 (Structural Target)
+                      <Target className="w-3 h-3 text-emerald-500" /> TP2 (Target Struktur)
                     </span>
                     <span className="font-bold">${activeSetup.takeProfit2.toFixed(2)}</span>
                   </div>
@@ -372,7 +372,7 @@ export default function MarketChart({
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
-                      <Target className="w-3 h-3 text-emerald-500" /> TP1 (Conservative 1:2 R:R)
+                      <Target className="w-3 h-3 text-emerald-500" /> TP1 (Konservatif)
                     </span>
                     <span className="font-bold">${activeSetup.takeProfit1.toFixed(2)}</span>
                   </div>
@@ -417,10 +417,10 @@ export default function MarketChart({
               }`}
             >
               <span>
-                SMC Status: <span className="text-amber-500 font-bold">Unmitigated Order Block + FVG Validated</span>
+                Status SMC: <span className="text-amber-500 font-bold">Order Block belum termitigasi + FVG tervalidasi</span>
               </span>
               <span className={isDark ? 'text-slate-300 font-bold' : 'text-slate-700 font-bold'}>
-                Current Market: <span className="text-emerald-500">{currentPrice === null ? '—' : `$${currentPrice.toFixed(2)}`}</span>
+                Harga Sekarang: <span className="text-emerald-500">{currentPrice === null ? '—' : `$${currentPrice.toFixed(2)}`}</span>
               </span>
             </div>
           </div>

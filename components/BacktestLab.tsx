@@ -116,7 +116,7 @@ export default function BacktestLab({
   const handleRun = async () => {
     setError(null);
     setRunning(true);
-    setProgress({ phase: 'download', label: 'Requesting history from the data provider…', percent: 2 });
+    setProgress({ phase: 'download', label: 'Meminta data historis dari provider…', percent: 2 });
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -140,7 +140,7 @@ export default function BacktestLab({
       onResult(job);
     } catch (err) {
       onResult(null);
-      setError(err instanceof Error ? err.message : 'The backtest could not be completed.');
+      setError(err instanceof Error ? err.message : 'Backtest tidak bisa diselesaikan.');
     } finally {
       setRunning(false);
       abortRef.current = null;
@@ -258,7 +258,7 @@ export default function BacktestLab({
     if (inUse) {
       return {
         disabled: true,
-        label: 'Already in use on live setups',
+        label: 'Sudah dipakai di setup live',
         className:
           'flex items-center justify-center gap-1.5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-3 py-2 rounded-xl cursor-default',
       };
@@ -333,16 +333,15 @@ export default function BacktestLab({
           </div>
           <div className="min-w-0">
             <h2 className={`text-base font-bold flex items-center gap-2 flex-wrap ${strong}`}>
-              Strategy Backtest Lab
+              Lab Backtest Strategi
               {adoptedPrior && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
-                  Backtested parameters live
+                  Parameter hasil backtest aktif
                 </span>
               )}
             </h2>
             <p className={`text-xs ${muted}`}>
-              Replays the live engine over real history, trades it twice, and measures whether learning
-              from each result made the later signals better.
+              Menjalankan ulang engine live di data historis asli, men-trade-nya dua kali, dan mengukur apakah belajar dari setiap hasil membuat sinyal berikutnya lebih baik.
             </p>
           </div>
         </div>
@@ -351,7 +350,7 @@ export default function BacktestLab({
       {/* Run configuration */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className={`border rounded-xl p-3 ${panel}`}>
-          <div className={`text-[11px] mb-1.5 ${muted}`}>History to replay</div>
+          <div className={`text-[11px] mb-1.5 ${muted}`}>Panjang data yang diuji</div>
           <div className="flex gap-1.5">
             {MONTH_CHOICES.map((choice) => (
               <button
@@ -368,14 +367,14 @@ export default function BacktestLab({
                     : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {choice} mo
+                {choice} bln
               </button>
             ))}
           </div>
         </div>
 
         <div className={`border rounded-xl p-3 ${panel}`}>
-          <div className={`text-[11px] mb-1.5 ${muted}`}>Execution timeframe</div>
+          <div className={`text-[11px] mb-1.5 ${muted}`}>Timeframe eksekusi</div>
           <div className="flex gap-1.5">
             {(['15min', '1h'] as HistoryInterval[]).map((choice) => (
               <button
@@ -392,17 +391,17 @@ export default function BacktestLab({
                     : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {choice === '15min' ? 'M15 base' : 'H1 base'}
+                {choice === '15min' ? 'Basis M15' : 'Basis H1'}
               </button>
             ))}
           </div>
           <p className={`text-[10px] mt-1.5 ${muted}`}>
-            Structure is always read M15 → H1 → H4 → D1. This is the candle fills and exits are measured on.
+            Struktur selalu dibaca M15 → H1 → H4 → D1. Ini candle yang dipakai untuk mengukur fill dan exit.
           </p>
         </div>
 
         <div className={`border rounded-xl p-3 ${panel}`}>
-          <div className={`text-[11px] mb-1.5 ${muted}`}>Only trade conviction above</div>
+          <div className={`text-[11px] mb-1.5 ${muted}`}>Hanya ambil conviction di atas</div>
           <div className="flex gap-1.5">
             {FLOOR_CHOICES.map((choice) => (
               <button
@@ -419,18 +418,18 @@ export default function BacktestLab({
                     : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {choice === 0 ? 'All' : choice}
+                {choice === 0 ? 'Semua' : choice}
               </button>
             ))}
           </div>
           <p className={`text-[10px] mt-1.5 ${muted}`}>
-            Skipping a weak setup costs nothing. The breakdown below shows which bands paid.
+            Melewatkan setup lemah tidak ada ruginya. Rincian di bawah menunjukkan rentang mana yang untung.
           </p>
         </div>
 
         <div className={`border rounded-xl p-3 flex flex-col justify-between ${panel}`}>
           <div className={`text-[11px] ${muted}`}>
-            {tradingStyle} • {accountType} • {money(equity)} • {riskPercentage}% risk
+            {tradingStyle} • {accountType} • {money(equity)} • {riskPercentage}% risiko
           </div>
           {running ? (
             <button
@@ -440,7 +439,7 @@ export default function BacktestLab({
               className="mt-2 w-full flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
             >
               <Square className="w-3.5 h-3.5" />
-              <span>Stop</span>
+              <span>Hentikan</span>
             </button>
           ) : (
             <button
@@ -450,7 +449,7 @@ export default function BacktestLab({
               className="mt-2 w-full flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
             >
               <Play className="w-3.5 h-3.5" />
-              <span>Run {months} month backtest</span>
+              <span>Jalankan backtest {months} bulan</span>
             </button>
           )}
         </div>
@@ -462,15 +461,15 @@ export default function BacktestLab({
         id="live-settings-strip"
         className={`border rounded-xl px-3 py-2 mb-4 text-[11px] leading-relaxed ${panel} ${muted}`}
       >
-        <span className={strong}>Live analysis is using:</span>{' '}
+        <span className={strong}>Analisis live sedang memakai:</span>{' '}
         {[
-          adoptedPrior ? 'backtested starting parameters' : 'the engine defaults',
+          adoptedPrior ? 'parameter awal hasil backtest' : 'setelan bawaan engine',
           protectStopAtR !== null
-            ? `the stop moved to entry at ${protectStopAtR}R`
-            : 'stops left where the engine puts them',
+            ? `stop dipindah ke entry di ${protectStopAtR}R`
+            : 'stop dibiarkan di tempat yang ditentukan engine',
           skipConvictionBand !== null
-            ? `no setups scoring ${skipConvictionBand.min} to ${skipConvictionBand.max - 1}`
-            : 'every conviction band',
+            ? `tidak ada setup dengan skor ${skipConvictionBand.min} sampai ${skipConvictionBand.max - 1}`
+            : 'semua rentang conviction',
         ].join(' • ')}
         .
       </div>
@@ -500,9 +499,7 @@ export default function BacktestLab({
 
       {!result && !running && !error && (
         <div className={`border rounded-xl p-6 text-center text-xs ${panel} ${muted}`}>
-          Nothing has been replayed yet. A 24 month run downloads real XAUUSD candles, produces a setup
-          the same way the live engine does at every decision point, and settles each one against the
-          candles that actually followed it.
+          Belum ada yang diuji ulang. Uji 24 bulan akan mengunduh candle XAUUSD asli, membuat setup dengan cara yang sama seperti engine live di setiap titik keputusan, lalu menentukan hasil masing-masing dari candle yang benar-benar terjadi sesudahnya.
         </div>
       )}
 
@@ -514,30 +511,30 @@ export default function BacktestLab({
               <History className={`w-3.5 h-3.5 ${muted}`} />
               <span className={strong}>
                 {formatDate(result.coverage.from)} → {formatDate(result.coverage.to)} •{' '}
-                {result.coverage.bars.toLocaleString('en-US')} candles • {result.coverage.monthsCovered} months
+                {result.coverage.bars.toLocaleString('en-US')} candle • {result.coverage.monthsCovered} bulan
               </span>
             </div>
             <p className={muted}>
               {result.control.summary.minConviction > 0 &&
-                `Only setups scoring ${result.control.summary.minConviction} or above were traded; ${result.control.summary.belowConviction.toLocaleString(
+                `Hanya setup dengan skor ${result.control.summary.minConviction} ke atas yang diambil; ${result.control.summary.belowConviction.toLocaleString(
                   'en-US'
-                )} were refused. `}
-              Source: {result.coverage.provider ?? 'unknown'}.{' '}
+                )} ditolak. `}
+              Sumber: {result.coverage.provider ?? 'unknown'}.{' '}
               {result.coverage.complete
-                ? 'The provider supplied the whole period requested.'
-                : `The provider stopped short of the ${result.coverage.requestedMonths} months requested, so the result covers ${result.coverage.monthsCovered} months.`}
+                ? 'Provider menyediakan seluruh periode yang diminta.'
+                : `Provider berhenti sebelum ${result.coverage.requestedMonths} bulan yang diminta, jadi hasilnya mencakup ${result.coverage.monthsCovered} bulan.`}
               {!result.coverage.complete &&
                 result.coverage.interval === '15min' &&
-                ' Yahoo only serves sixty days of fifteen minute candles. For a longer replay, set a Twelve Data key or switch to the H1 base.'}
+                ' Yahoo hanya menyediakan enam puluh hari candle 15 menit. Untuk uji lebih panjang, pasang key Twelve Data atau ganti ke basis H1.'}
               {(result.control.summary.dailyLimitSkips ?? 0) > 0 &&
-                ` The daily loss limit stopped trading for the rest of the day ${result.control.summary.dailyLimitSkips} times.`}
+                ` Batas rugi harian menghentikan trading untuk sisa hari itu sebanyak ${result.control.summary.dailyLimitSkips} kali.`}
               {(result.control.summary.riskCapSkips ?? 0) > 0 &&
-                ` The risk guard refused ${(result.control.summary.riskCapSkips ?? 0).toLocaleString(
+                ` Penjaga risiko menolak ${(result.control.summary.riskCapSkips ?? 0).toLocaleString(
                   'en-US'
-                )} setups because the smallest lot would have lost more than ${riskPercentage}% of the balance at the time. Turn the guard off in Account to replay them at the smallest lot.`}
+                )} setup karena lot terkecil akan rugi lebih dari ${riskPercentage}% saldo saat itu. Matikan penjaga di Akun untuk menguji ulang setup itu dengan lot terkecil.`}
               {result.news &&
-                ` News: ${result.news.releases} high impact dollar releases in this period${
-                  result.news.archived > 0 ? `, ${result.news.archived} of them from the archived live calendar` : ''
+                ` Berita: ${result.news.releases} rilis dolar berdampak tinggi di periode ini${
+                  result.news.archived > 0 ? `, ${result.news.archived} di antaranya dari arsip kalender live` : ''
                 }.`}
             </p>
           </div>
@@ -564,22 +561,22 @@ export default function BacktestLab({
               )}
               <h3 className={`text-sm font-bold ${strong}`}>
                 {result.comparison.verdict === 'better'
-                  ? 'Learning improved the results'
+                  ? 'Belajar membuat hasil lebih baik'
                   : result.comparison.verdict === 'worse'
-                  ? 'Learning did not pay over this period'
-                  : 'Learning made no measurable difference'}
+                  ? 'Belajar tidak menguntungkan di periode ini'
+                  : 'Belajar tidak membuat perbedaan yang terukur'}
               </h3>
             </div>
             <p className={`text-xs ${muted}`}>
-              <span className={strong}>Against the control: </span>
+              <span className={strong}>Dibanding kontrol: </span>
               {result.comparison.explanation}
             </p>
             <p className={`text-xs mt-1 ${muted}`}>
-              <span className={strong}>Within the learning run: </span>
+              <span className={strong}>Di dalam run belajar: </span>
               {result.phases.explanation}
             </p>
             <p className={`text-xs mt-1 ${muted}`}>
-              <span className={strong}>If you adopt its parameters: </span>
+              <span className={strong}>Kalau parameternya dipakai: </span>
               {adoption?.reason}
             </p>
           </div>
@@ -592,22 +589,22 @@ export default function BacktestLab({
             <table className="w-full text-xs">
               <thead>
                 <tr className={muted}>
-                  <th className="text-left font-medium py-1.5">Measure</th>
-                  <th className="text-right font-medium py-1.5">Fixed parameters</th>
-                  <th className="text-right font-medium py-1.5">Learning from results</th>
-                  <th className="text-right font-medium py-1.5">Learned, held fixed</th>
+                  <th className="text-left font-medium py-1.5">Ukuran</th>
+                  <th className="text-right font-medium py-1.5">Parameter tetap</th>
+                  <th className="text-right font-medium py-1.5">Belajar dari hasil</th>
+                  <th className="text-right font-medium py-1.5">Hasil belajar, dibekukan</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
                 {[
                   {
-                    label: 'Signals produced',
+                    label: 'Sinyal dihasilkan',
                     control: result.controlStats.totalSignals.toString(),
                     adaptive: result.adaptiveStats.totalSignals.toString(),
                     frozen: result.frozenStats.totalSignals.toString(),
                   },
                   {
-                    label: 'Orders filled',
+                    label: 'Order terisi',
                     control: `${result.controlStats.filled} (${result.controlStats.missRate ?? 0}% missed)`,
                     adaptive: `${result.adaptiveStats.filled} (${result.adaptiveStats.missRate ?? 0}% missed)`,
                     frozen: `${result.frozenStats.filled} (${result.frozenStats.missRate ?? 0}% missed)`,
@@ -619,13 +616,13 @@ export default function BacktestLab({
                     frozen: result.frozenStats.winRate === null ? '—' : `${result.frozenStats.winRate}%`,
                   },
                   {
-                    label: 'Net result',
+                    label: 'Hasil bersih',
                     control: money(result.controlStats.netDollars, true),
                     adaptive: money(result.adaptiveStats.netDollars, true),
                     frozen: money(result.frozenStats.netDollars, true),
                   },
                   {
-                    label: 'Return on balance',
+                    label: 'Return dari saldo',
                     control: `${result.controlStats.returnPercent}%`,
                     adaptive: `${result.adaptiveStats.returnPercent}%`,
                     frozen: `${result.frozenStats.returnPercent}%`,
@@ -637,7 +634,7 @@ export default function BacktestLab({
                     frozen: result.frozenStats.profitFactor?.toFixed(2) ?? '—',
                   },
                   {
-                    label: 'Average per trade',
+                    label: 'Rata-rata per trade',
                     control:
                       result.controlStats.expectancyDollars === null
                         ? '—'
@@ -652,13 +649,13 @@ export default function BacktestLab({
                         : money(result.frozenStats.expectancyDollars, true),
                   },
                   {
-                    label: 'Worst drawdown',
+                    label: 'Drawdown terburuk',
                     control: `${result.controlStats.maxDrawdownPercent}%`,
                     adaptive: `${result.adaptiveStats.maxDrawdownPercent}%`,
                     frozen: `${result.frozenStats.maxDrawdownPercent}%`,
                   },
                   {
-                    label: 'Longest losing run',
+                    label: 'Rugi beruntun terpanjang',
                     control: `${result.controlStats.worstLosingStreak}`,
                     adaptive: `${result.adaptiveStats.worstLosingStreak}`,
                     frozen: `${result.frozenStats.worstLosingStreak}`,
@@ -679,7 +676,7 @@ export default function BacktestLab({
           {curveData.length > 1 && (
             <div className={`border rounded-xl p-3 ${panel}`}>
               <div className={`text-xs mb-2 ${strong}`}>
-                Balance through the period, all three runs on the same dates
+                Saldo sepanjang periode, ketiga run di tanggal yang sama
               </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -762,9 +759,9 @@ export default function BacktestLab({
           {/* Did the later half trade better */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className={`border rounded-xl p-3 text-xs ${panel}`}>
-              <div className={`mb-2 ${strong}`}>First half of the learning run</div>
+              <div className={`mb-2 ${strong}`}>Paruh pertama run belajar</div>
               <div className={`font-mono ${muted}`}>
-                {result.phases.firstHalf.filled} filled • {result.phases.firstHalf.winRate ?? '—'}% won •{' '}
+                {result.phases.firstHalf.filled} terisi • {result.phases.firstHalf.winRate ?? '—'}% menang •{' '}
                 {result.phases.firstHalf.expectancyDollars === null
                   ? '—'
                   : money(result.phases.firstHalf.expectancyDollars, true)}{' '}
@@ -772,9 +769,9 @@ export default function BacktestLab({
               </div>
             </div>
             <div className={`border rounded-xl p-3 text-xs ${panel}`}>
-              <div className={`mb-2 ${strong}`}>Second half, after learning from the first</div>
+              <div className={`mb-2 ${strong}`}>Paruh kedua, setelah belajar dari paruh pertama</div>
               <div className="font-mono text-sky-400">
-                {result.phases.secondHalf.filled} filled • {result.phases.secondHalf.winRate ?? '—'}% won •{' '}
+                {result.phases.secondHalf.filled} terisi • {result.phases.secondHalf.winRate ?? '—'}% menang •{' '}
                 {result.phases.secondHalf.expectancyDollars === null
                   ? '—'
                   : money(result.phases.secondHalf.expectancyDollars, true)}{' '}
@@ -785,7 +782,7 @@ export default function BacktestLab({
 
           {learningCurve.length > 2 && (
             <div className={`border rounded-xl p-3 ${panel}`}>
-              <div className={`text-xs mb-2 ${strong}`}>Strike rate over the last twenty trades</div>
+              <div className={`text-xs mb-2 ${strong}`}>Tingkat menang 20 trade terakhir</div>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={learningCurve} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
@@ -824,20 +821,20 @@ export default function BacktestLab({
           {quality && (
             <div className={`border rounded-xl p-3 ${panel}`}>
               <div className={`text-xs mb-2 ${strong}`}>
-                Which conviction bands paid, on the fixed parameter run
+                Rentang conviction mana yang untung, di run parameter tetap
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className={muted}>
                       <th className="text-left font-medium py-1">Conviction</th>
-                      <th className="text-right font-medium py-1">Signals</th>
-                      <th className="text-right font-medium py-1">Filled</th>
-                      <th className="text-right font-medium py-1">Won</th>
+                      <th className="text-right font-medium py-1">Sinyal</th>
+                      <th className="text-right font-medium py-1">Terisi</th>
+                      <th className="text-right font-medium py-1">Menang</th>
                       <th className="text-right font-medium py-1">Per trade</th>
-                      <th className="text-right font-medium py-1">1st half</th>
-                      <th className="text-right font-medium py-1">2nd half</th>
-                      <th className="text-right font-medium py-1">Net</th>
+                      <th className="text-right font-medium py-1">Paruh 1</th>
+                      <th className="text-right font-medium py-1">Paruh 2</th>
+                      <th className="text-right font-medium py-1">Bersih</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">
@@ -887,13 +884,13 @@ export default function BacktestLab({
               </div>
 
               <div className={`mt-2 text-[11px] leading-relaxed ${muted}`}>
-                Refusing everything below a floor would have left:{' '}
+                Kalau semua setup di bawah batas ditolak, hasilnya:{' '}
                 {quality.verdict.floors.map((f, i) => (
                   <span key={f.floor} id={`backtest-floor-${f.floor}`}>
                     {i > 0 && ' • '}
                     <span className={f.floor === quality.verdict.recommended ? 'text-emerald-400 font-bold' : ''}>
-                      {f.floor === 0 ? 'all setups' : `${f.floor}+`} {money(f.netDollars, true)} from {f.trades} trades,{' '}
-                      worst drawdown {f.maxDrawdownPercent}%{f.consistent ? '' : ' (not profitable in both halves)'}
+                      {f.floor === 0 ? 'semua setup' : `${f.floor}+`} {money(f.netDollars, true)} dari {f.trades} trade,{' '}
+                      drawdown terburuk {f.maxDrawdownPercent}%{f.consistent ? '' : ' (tidak untung di kedua paruh)'}
                     </span>
                   </span>
                 ))}
@@ -911,7 +908,7 @@ export default function BacktestLab({
                   }`}
                 >
                   <span className="font-bold">
-                    {result.floorCheck.held ? 'Checked: the floor holds up. ' : 'Checked: the floor does not hold up. '}
+                    {result.floorCheck.held ? 'Dicek: batas ini bertahan. ' : 'Dicek: batas ini tidak bertahan. '}
                   </span>
                   {result.floorCheck.reason}
                 </div>
@@ -923,16 +920,16 @@ export default function BacktestLab({
           <div className={`border rounded-xl p-3 ${panel}`}>
             <div className={`text-xs mb-2 flex items-center gap-1.5 ${strong}`}>
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Parameters the learning run ended on
+              Parameter akhir run belajar
             </div>
             <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[11px] ${muted}`}>
               <div>Order block: <span className={strong}>{result.adaptive.finalWeights.orderBlockWeight}</span></div>
               <div>Fair value gap: <span className={strong}>{result.adaptive.finalWeights.fairValueGapWeight}</span></div>
-              <div>Liquidity: <span className={strong}>{result.adaptive.finalWeights.liquiditySweepWeight}</span></div>
-              <div>News shield: <span className={strong}>{result.adaptive.finalWeights.newsImpactWeight}</span></div>
-              <div>Indicators: <span className={strong}>{result.adaptive.finalWeights.indicatorConfluenceWeight}</span></div>
-              <div>Stop buffer: <span className={strong}>{result.adaptive.finalWeights.atrBufferFactor}× ATR</span></div>
-              <div>Entry pulled closer: <span className={strong}>{result.adaptive.finalWeights.entryBufferPips ?? 0} pips</span></div>
+              <div>Likuiditas: <span className={strong}>{result.adaptive.finalWeights.liquiditySweepWeight}</span></div>
+              <div>Pelindung berita: <span className={strong}>{result.adaptive.finalWeights.newsImpactWeight}</span></div>
+              <div>Indikator: <span className={strong}>{result.adaptive.finalWeights.indicatorConfluenceWeight}</span></div>
+              <div>Jarak aman stop: <span className={strong}>{result.adaptive.finalWeights.atrBufferFactor}× ATR</span></div>
+              <div>Entry ditarik lebih dekat: <span className={strong}>{result.adaptive.finalWeights.entryBufferPips ?? 0} pips</span></div>
             </div>
             {/* Which factors the run found it could trust, over enough trades to judge them. */}
             {(() => {
@@ -940,10 +937,10 @@ export default function BacktestLab({
               return (
                 <div id="backtest-factor-multipliers" className={`mt-2 text-[11px] ${muted}`}>
                   {moved.length === 0 ? (
-                    'The learning run ended with every factor at its full say: none cleared the bar of being reliably right or wrong.'
+                    'Run belajar berakhir dengan semua faktor tetap berbobot penuh: tidak ada yang terbukti selalu benar atau salah.'
                   ) : (
                     <>
-                      Factor trust the learning run ended on:{' '}
+                      Kepercayaan faktor di akhir run belajar:{' '}
                       {moved.map(([name, value], i) => (
                         <span key={name}>
                           {i > 0 ? ', ' : ''}
@@ -953,7 +950,7 @@ export default function BacktestLab({
                           </span>
                         </span>
                       ))}
-                      . Adopting carries these into live analysis.
+                      . Kalau dipakai, nilai ini ikut ke analisis live.
                     </>
                   )}
                 </div>
@@ -962,16 +959,16 @@ export default function BacktestLab({
             {factorTable.length > 0 && (
               <div id="backtest-factor-table" className="mt-3 overflow-x-auto">
                 <div className={`text-[11px] font-semibold mb-1 ${strong}`}>
-                  Every factor over the whole period, on the fixed parameter run
+                  Semua faktor selama seluruh periode, di run parameter tetap
                 </div>
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className={muted}>
-                      <th className="text-left font-medium py-1">Factor</th>
-                      <th className="text-right font-medium py-1">When it agreed</th>
-                      <th className="text-right font-medium py-1">When outvoted</th>
-                      <th className="text-right font-medium py-1">Gap</th>
-                      <th className="text-right font-medium py-1">Beyond noise</th>
+                      <th className="text-left font-medium py-1">Faktor</th>
+                      <th className="text-right font-medium py-1">Saat setuju</th>
+                      <th className="text-right font-medium py-1">Saat kalah suara</th>
+                      <th className="text-right font-medium py-1">Selisih</th>
+                      <th className="text-right font-medium py-1">Melebihi noise</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">
@@ -1002,10 +999,7 @@ export default function BacktestLab({
                   </tbody>
                 </table>
                 <p className={`text-[10px] mt-1 ${muted}`}>
-                  Gap is what trades a factor backed returned minus trades it argued against. A factor worth
-                  listening to has a positive gap; a negative one means the market kept doing what it argued
-                  against. Only a gap at least {NOISE_BAR_STANDARD_ERRORS}× its own noise is coloured, and only
-                  those can move the engine.
+                  Selisih adalah hasil trade yang didukung sebuah faktor dikurangi hasil trade yang ditentangnya. Faktor yang layak didengar punya selisih positif; selisih negatif berarti pasar terus melakukan hal yang ditentang faktor itu. Hanya selisih minimal {NOISE_BAR_STANDARD_ERRORS}× noise-nya sendiri yang diberi warna, dan hanya itu yang bisa menggeser engine.
                 </p>
               </div>
             )}
@@ -1022,7 +1016,7 @@ export default function BacktestLab({
                     className={state.className}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>{state.label ?? 'Use these as the live starting parameters'}</span>
+                    <span>{state.label ?? 'Pakai ini sebagai parameter awal live'}</span>
                   </button>
                 );
               })()}
@@ -1037,7 +1031,7 @@ export default function BacktestLab({
                       : 'border-slate-200 text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Back to engine defaults
+                  Kembali ke setelan bawaan engine
                 </button>
               )}
             </div>
@@ -1049,14 +1043,11 @@ export default function BacktestLab({
               {adoption?.reason}
             </p>
             <p className={`text-[11px] mt-1 ${muted}`}>
-              The button is enabled only when adopting is an improvement this period supports, so if
-              you can press it, pressing it is the right call. Otherwise your current settings are
-              already the better ones.
+              Tombol hanya aktif kalau memakai parameter ini memang perbaikan yang didukung periode ini, jadi kalau bisa ditekan, menekannya adalah pilihan yang benar. Kalau tidak, setelanmu sekarang sudah lebih baik.
             </p>
             {adoptedPrior && (
               <p className="text-[11px] mt-2 text-emerald-400">
-                Live analysis is starting from backtested parameters and keeps learning from your real
-                trades on top of them.
+                Analisis live mulai dari parameter hasil backtest dan tetap belajar dari trade aslimu di atasnya.
               </p>
             )}
           </div>
@@ -1071,7 +1062,7 @@ export default function BacktestLab({
             >
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <div className={`text-xs mb-1 ${strong}`}>The risk setting is not what was traded</div>
+                <div className={`text-xs mb-1 ${strong}`}>Setelan risiko berbeda dari yang diuji</div>
                 <p className={`text-[11px] leading-relaxed ${muted}`}>{riskFloor.message}</p>
               </div>
             </div>
@@ -1082,23 +1073,23 @@ export default function BacktestLab({
             <div className={`border rounded-xl p-3 ${panel}`}>
               <div className={`text-xs mb-2 flex items-center gap-1.5 ${strong}`}>
                 <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
-                Moving the stop to entry once a trade is 1R up
+                Memindah stop ke entry setelah trade untung 1R
               </div>
               <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] ${muted}`}>
                 <div>
-                  Net<br />
+                  Bersih<br />
                   <span className={strong}>{money(result.guardedStats.netDollars, true)}</span>
                 </div>
                 <div>
-                  Against<br />
+                  Dibanding<br />
                   <span className={strong}>{money(result.controlStats.netDollars, true)}</span>
                 </div>
                 <div>
-                  Worst drawdown<br />
+                  Drawdown terburuk<br />
                   <span className={strong}>{result.guardedStats.maxDrawdownPercent}%</span>
                 </div>
                 <div>
-                  Trades saved<br />
+                  Trade terselamatkan<br />
                   <span className={strong}>{protection.savedTrades}</span>
                 </div>
               </div>
@@ -1119,7 +1110,7 @@ export default function BacktestLab({
                       ) : (
                         <ShieldCheck className="w-3.5 h-3.5" />
                       )}
-                      <span>{state.label ?? 'Use this rule on live setups'}</span>
+                      <span>{state.label ?? 'Pakai aturan ini di setup live'}</span>
                     </button>
                   );
                 })()}
@@ -1134,7 +1125,7 @@ export default function BacktestLab({
                         : 'border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Leave stops where the engine puts them
+                    Biarkan stop di tempat yang ditentukan engine
                   </button>
                 )}
               </div>
@@ -1142,13 +1133,12 @@ export default function BacktestLab({
                 {protection.reason}
               </p>
               <p className={`text-[11px] mt-1 ${muted}`}>
-                A scratch exit counts as a loss in the win rate above, because it is not a win. What
-                it is not is a full stop out, which is the whole point of the rule.
+                Keluar impas dihitung kalah di win rate di atas, karena memang bukan menang. Tapi itu bukan kena stop penuh, dan itulah inti aturan ini.
               </p>
               {protectStopAtR !== null && (
                 <p className="text-[11px] mt-2 text-emerald-400">
-                  Live setups now carry the instruction to move the stop to entry once the trade is
-                  {' '}{protectStopAtR}R in profit.
+                  Setup live sekarang membawa instruksi untuk memindah stop ke entry setelah trade untung
+                  {' '}{protectStopAtR}R.
                 </p>
               )}
             </div>
@@ -1159,7 +1149,7 @@ export default function BacktestLab({
             <div className={`border rounded-xl p-3 ${panel}`}>
               <div className={`text-xs mb-2 flex items-center gap-1.5 ${strong}`}>
                 <Ban className="w-3.5 h-3.5 text-rose-400" />
-                Refusing one conviction band outright
+                Menolak satu rentang conviction sepenuhnya
               </div>
               <p className={`text-[11px] leading-relaxed ${deadBand.worthSkipping ? strong : muted}`}>
                 {deadBand.reason}
@@ -1180,8 +1170,8 @@ export default function BacktestLab({
                       <span>
                         {state.label ??
                           (deadBand.band
-                            ? `Refuse ${deadBand.band.label.toLowerCase()} on live setups`
-                            : 'Refuse this band on live setups')}
+                            ? `Tolak ${deadBand.band.label.toLowerCase()} di setup live`
+                            : 'Tolak rentang ini di setup live')}
                       </span>
                     </button>
                   );
@@ -1197,18 +1187,17 @@ export default function BacktestLab({
                         : 'border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Take every band again
+                    Ambil semua rentang lagi
                   </button>
                 )}
               </div>
               <p className={`text-[11px] mt-2 ${muted}`}>
-                The gain above is what this run&rsquo;s own trades would have summed to without that band.
-                Turn it on and re-run to trade the period properly, with sizing and compounding applied.
+                Keuntungan di atas adalah jumlah trade run ini kalau rentang itu dibuang. Nyalakan lalu jalankan ulang untuk menguji periode ini dengan benar, lengkap dengan ukuran lot dan pertumbuhan saldo.
               </p>
               {skipConvictionBand !== null && (
                 <p className="text-[11px] mt-2 text-emerald-400">
-                  Live analysis is refusing setups scoring {skipConvictionBand.min} to{' '}
-                  {skipConvictionBand.max - 1} and saying so rather than offering them.
+                  Analisis live menolak setup dengan skor {skipConvictionBand.min} sampai{' '}
+                  {skipConvictionBand.max - 1} dan memberitahukannya, bukan menawarkannya.
                 </p>
               )}
             </div>
@@ -1217,7 +1206,7 @@ export default function BacktestLab({
           {/* Last trades */}
           {result.adaptive.trades.length > 0 && (
             <div className={`border rounded-xl p-3 ${panel}`}>
-              <div className={`text-xs mb-2 ${strong}`}>Last ten trades of the learning run</div>
+              <div className={`text-xs mb-2 ${strong}`}>Sepuluh trade terakhir run belajar</div>
               <div className="space-y-1 font-mono text-[11px]">
                 {result.adaptive.trades.slice(-10).reverse().map((trade) => (
                   <div
@@ -1229,7 +1218,7 @@ export default function BacktestLab({
                     <span className={muted}>{formatDate(trade.openedAt)}</span>
                     <span className={strong}>{trade.orderType}</span>
                     <span className={muted}>
-                      {trade.entryPrice.toFixed(2)} → {trade.filled ? trade.exitPrice.toFixed(2) : 'no fill'}
+                      {trade.entryPrice.toFixed(2)} → {trade.filled ? trade.exitPrice.toFixed(2) : 'tidak terisi'}
                     </span>
                     <span
                       className={
@@ -1246,21 +1235,7 @@ export default function BacktestLab({
 
           {/* What this test does and does not prove */}
           <div className={`border rounded-xl p-3 text-[11px] leading-relaxed ${panel} ${muted}`}>
-            <span className={strong}>How to read this.</span> Every decision saw only the candles that had
-            printed at that moment. When one candle contained both the stop and the target the stop was
-            taken, because the order inside a bar cannot be recovered from its open, high, low and close.
-            Spread is charged on every fill, and commission where the account charges it. The news
-            shield reacts to every FOMC decision, payrolls and CPI release in the period, plus any other dollar
-            release the live calendar has shown since the archive started. Older releases outside those three
-            are unknown to the replay, so it widens fewer stops than live analysis would. Market fills, stops and holding-limit closes lose two pips to slippage, and a stop gapped
-            through at a bar&apos;s open fills at that open. Swap is not modelled. Position size is a
-            fixed percentage of the running balance, so a winning stretch compounds and the later trades
-            dominate the total. Past results are evidence about parameters, not a promise about the next
-            trade. The third column freezes the learning run&apos;s final parameters from the first candle,
-            because the weights it ended on are the end of a path rather than a configuration that was ever
-            traded as such. When that column does win and the adopt button opens, a period is still a single
-            sample: running the same test at 12 months, or on the other base timeframe, and seeing it win
-            there too is what separates a real improvement from a fit to one stretch of chart.
+            <span className={strong}>Cara membaca ini.</span> Setiap keputusan hanya melihat candle yang sudah terbentuk saat itu. Kalau satu candle menyentuh stop dan target sekaligus, yang diambil stop, karena urutan di dalam candle tidak bisa diketahui dari open, high, low, dan close-nya. Spread dibebankan di setiap fill, begitu juga komisi kalau akun mengenakannya. Pelindung berita bereaksi pada setiap keputusan FOMC, NFP, dan rilis CPI di periode ini, ditambah rilis dolar lain yang pernah tampil di kalender live sejak arsip dimulai. Rilis lama di luar tiga itu tidak diketahui uji ulang, jadi stop yang diperlebar lebih sedikit daripada di analisis live. Fill market, stop, dan penutupan karena batas waktu kena slippage dua pip, dan stop yang terlewati gap di open candle terisi di open itu. Swap tidak dihitung. Ukuran posisi adalah persentase tetap dari saldo berjalan, jadi periode menang ikut memperbesar hasil dan trade belakangan paling berpengaruh ke total. Hasil masa lalu adalah bukti tentang parameter, bukan janji tentang trade berikutnya. Kolom ketiga membekukan parameter akhir run belajar sejak candle pertama, karena bobot akhirnya adalah ujung sebuah perjalanan, bukan setelan yang pernah di-trade seperti itu. Kalau kolom itu menang dan tombol pakai terbuka, satu periode tetap hanya satu sampel: menjalankan uji yang sama di 12 bulan, atau di basis timeframe lain, lalu melihatnya menang juga di sana, itulah yang membedakan perbaikan nyata dari kecocokan kebetulan dengan satu potongan grafik.
           </div>
         </div>
       )}

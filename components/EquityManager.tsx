@@ -103,7 +103,7 @@ export default function EquityManager({
     e.preventDefault();
     const val = parseFloat(inputVal);
     if (isNaN(val) || val <= 0) {
-      setErrorMsg('Please enter a valid initial equity amount greater than $0.00');
+      setErrorMsg('Masukkan modal awal yang valid, lebih dari $0.00');
       return;
     }
     setErrorMsg('');
@@ -128,7 +128,7 @@ export default function EquityManager({
     e.preventDefault();
     const typed = parseFloat(editVal.replace(',', '.'));
     if (!Number.isFinite(typed) || typed <= 0) {
-      setEditError('Enter a balance greater than zero.');
+      setEditError('Masukkan saldo lebih dari nol.');
       return;
     }
     onSetEquity(typed / unitsPerUsd);
@@ -177,23 +177,23 @@ export default function EquityManager({
           </div>
           <div>
             <h2 className={`text-base font-bold flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Capital &amp; Account Configuration
+              Modal &amp; Pengaturan Akun
               {isLocked && !isBroke ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                  <Lock className="w-3 h-3" /> Locked
+                  <Lock className="w-3 h-3" /> Terkunci
                 </span>
               ) : isBroke ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-500 border border-rose-500/30">
-                  <AlertTriangle className="w-3 h-3" /> Depleted ($0.00)
+                  <AlertTriangle className="w-3 h-3" /> Habis ($0.00)
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-500 border border-sky-500/30">
-                  <Unlock className="w-3 h-3" /> Setup Needed
+                  <Unlock className="w-3 h-3" /> Perlu Diatur
                 </span>
               )}
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Institutional risk allocation: Tailored for your execution style and broker account tier.
+              Alokasi risiko: disesuaikan dengan gaya trading dan jenis akun broker kamu.
             </p>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function EquityManager({
           }`}
         >
           <span className={`text-[11px] px-2 font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            <Percent className="w-3 h-3" /> Risk Budget:
+            <Percent className="w-3 h-3" /> Risiko per Trade:
           </span>
           {[0.5, 1.0, 2.0, 3.0].map((pct) => (
             <button
@@ -233,10 +233,8 @@ export default function EquityManager({
           className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200"
         >
           <p className="text-[11px] leading-relaxed">
-            <span className="font-bold text-amber-300">Not the tested setting. </span>
-            On 24 months of XAUUSD (Sep 2024 – Sep 2026), {TESTED_STYLE} with conviction {TESTED_FLOOR}+ and the stop
-            moved to entry at {TESTED_PROTECT_AT_R}R made money in both halves: profit factor 1.30 after slippage, worst drawdown 20%,
-            about six trades a week. {untestedSettingNote(tradingStyle, minConviction)}
+            <span className="font-bold text-amber-300">Bukan setelan yang sudah diuji. </span>
+            Pada 24 bulan data XAUUSD (Sep 2024 – Sep 2026), {TESTED_STYLE} dengan conviction {TESTED_FLOOR}+ dan stop dipindah ke entry di {TESTED_PROTECT_AT_R}R untung di kedua paruh: profit factor 1,30 setelah slippage, drawdown terburuk 20%, sekitar enam trade per minggu. {untestedSettingNote(tradingStyle, minConviction)}
           </p>
           {onApplyTestedConfiguration && (
             <button
@@ -245,7 +243,7 @@ export default function EquityManager({
               onClick={onApplyTestedConfiguration}
               className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold cursor-pointer hover:bg-amber-400"
             >
-              Use {TESTED_STYLE} + {TESTED_FLOOR}, stop to entry at {TESTED_PROTECT_AT_R}R
+              Pakai {TESTED_STYLE} + {TESTED_FLOOR}, stop ke entry di {TESTED_PROTECT_AT_R}R
             </button>
           )}
         </div>
@@ -263,7 +261,7 @@ export default function EquityManager({
             isDark ? 'text-slate-400' : 'text-slate-600'
           }`}
         >
-          <Filter className="w-3 h-3" /> Only trade conviction above:
+          <Filter className="w-3 h-3" /> Hanya ambil conviction di atas:
         </span>
         <div className="flex items-center gap-1.5 flex-wrap">
           {[0, 40, 55, 70].map((score) => (
@@ -280,14 +278,14 @@ export default function EquityManager({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
               }`}
             >
-              {score === 0 ? 'Take all' : score}
+              {score === 0 ? 'Ambil semua' : score}
             </button>
           ))}
         </div>
         <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           {minConviction === 0
-            ? 'Every setup the engine produces is offered.'
-            : `Setups scoring under ${minConviction} are declined instead of traded. Test a floor in the Backtest Lab first.`}
+            ? 'Setiap setup dari engine akan ditawarkan.'
+            : `Setup dengan skor di bawah ${minConviction} ditolak, tidak ditawarkan. Uji batas ini di Backtest Lab dulu.`}
         </span>
       </div>
 
@@ -303,7 +301,7 @@ export default function EquityManager({
             isDark ? 'text-slate-400' : 'text-slate-600'
           }`}
         >
-          <Shield className="w-3 h-3" /> Stop for the day after losing:
+          <Shield className="w-3 h-3" /> Berhenti hari ini setelah rugi:
         </span>
         <div className="flex items-center gap-1.5 flex-wrap">
           {DAILY_LOSS_LIMIT_CHOICES.map((percent) => (
@@ -320,15 +318,15 @@ export default function EquityManager({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
               }`}
             >
-              {percent === 0 ? 'Off' : `${percent}%`}
+              {percent === 0 ? 'Mati' : `${percent}%`}
             </button>
           ))}
         </div>
         <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           {dailyLossLimit === 0
-            ? 'No daily limit: setups are offered however the day has gone.'
-            : `Once today's closed trades lose ${dailyLossLimit}% of the day's starting balance, no new setup until the next trading day (04:00/05:00 WIB).${
-                dailyLossLimit === DEFAULT_DAILY_LOSS_LIMIT ? ' 3% held up best in the 24 month replay.' : ''
+            ? 'Tanpa batas harian: setup tetap ditawarkan apa pun hasil hari ini.'
+            : `Begitu trade tertutup hari ini rugi ${dailyLossLimit}% dari saldo awal hari itu, tidak ada setup baru sampai hari trading berikutnya (04:00/05:00 WIB).${
+                dailyLossLimit === DEFAULT_DAILY_LOSS_LIMIT ? ' 3% paling tahan di uji ulang 24 bulan.' : ''
               }`}
         </span>
       </div>
@@ -369,7 +367,7 @@ export default function EquityManager({
                   isDark ? 'text-slate-400' : 'text-slate-600'
                 }`}
               >
-                <ShieldAlert className="w-3 h-3" /> Risk guard:
+                <ShieldAlert className="w-3 h-3" /> Penjaga risiko:
               </span>
               <div className="flex items-center gap-1.5">
                 {[false, true].map((on) => (
@@ -388,22 +386,22 @@ export default function EquityManager({
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                     }`}
                   >
-                    {on ? 'On' : 'Off'}
+                    {on ? 'Aktif' : 'Mati'}
                   </button>
                 ))}
               </div>
               <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {riskGuard
-                  ? `On: a setup is refused when the smallest lot would lose more than ${riskPercentage}% of the balance, spread and stop slippage included.`
-                  : `Off: setups are offered at the smallest lot even when it loses more than ${riskPercentage}%. The card shows the real figure.`}
+                  ? `Aktif: setup ditolak kalau lot terkecil akan rugi lebih dari ${riskPercentage}% saldo, sudah termasuk spread dan slippage stop.`
+                  : `Mati: setup tetap ditawarkan dengan lot terkecil walaupun ruginya lebih dari ${riskPercentage}%. Kartu setup menampilkan angka sebenarnya.`}
                 {minLotRisk !== null && minLotPercent !== null && (
                   <span className={`block mt-0.5 font-semibold ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
-                    At this balance the smallest lot on a typical {Math.round(typicalStop * 10)} pip stop loses{' '}
-                    {formatAccountMoney(minLotRisk, accountType)}, {minLotPercent.toFixed(1)}% of the balance.
+                    Di saldo ini, lot terkecil dengan stop biasa {Math.round(typicalStop * 10)} pip rugi{' '}
+                    {formatAccountMoney(minLotRisk, accountType)}, {minLotPercent.toFixed(1)}% dari saldo.
                     {riskGuard
-                      ? ' Almost every setup will be refused until the balance or the risk setting is higher.'
+                      ? ' Hampir semua setup akan ditolak sampai saldo atau setelan risiko lebih tinggi.'
                       : ''}{' '}
-                    The balance that fits {riskPercentage}% is about{' '}
+                    Saldo yang pas untuk {riskPercentage}% sekitar{' '}
                     {formatAccountMoney(minLotRisk / (riskPercentage / 100), accountType)}.
                   </span>
                 )}
@@ -441,14 +439,14 @@ export default function EquityManager({
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
-                {on ? 'On' : 'Off'}
+                {on ? 'Aktif' : 'Mati'}
               </button>
             ))}
           </div>
           <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {selfLearning
-              ? 'On: every closed trade re-tunes the engine for the next setup. See Results for what it learned. In the two year replay this earned about 9% less than fixed rules (profit factor 1.28 against 1.31).'
-              : 'Off: the engine keeps the tested rules. Trades are still recorded and their lessons still shown in Results.'}
+              ? 'Aktif: setiap trade yang tertutup menyetel ulang engine untuk setup berikutnya. Lihat Hasil untuk apa yang dipelajari. Di uji ulang dua tahun, cara ini menghasilkan sekitar 9% lebih sedikit dari aturan tetap (profit factor 1,28 lawan 1,31).'
+              : 'Mati: engine memakai aturan yang sudah diuji. Trade tetap dicatat dan pelajarannya tetap tampil di Hasil.'}
           </span>
         </div>
       )}
@@ -467,7 +465,7 @@ export default function EquityManager({
               isDark ? 'text-slate-400' : 'text-slate-600'
             }`}
           >
-            <Target className="w-3 h-3" /> Quick TP ({QUICK_TARGET_R}R):
+            <Target className="w-3 h-3" /> TP Cepat ({QUICK_TARGET_R}R):
           </span>
           <div className="flex items-center gap-1.5">
             {[false, true].map((on) => (
@@ -484,14 +482,14 @@ export default function EquityManager({
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
-                {on ? 'On' : 'Off'}
+                {on ? 'Aktif' : 'Mati'}
               </button>
             ))}
           </div>
           <span className={`text-[10px] sm:ml-auto ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {quickTarget
-              ? `On: one target at ${QUICK_TARGET_R}R, same entry, stop and lot. About 72% of filled trades win, each for less. Over two years it earned about a third less than the engine's own targets.`
-              : "Off: the engine's own targets. About 43% of filled trades win, and it earned the most over the two year replay."}
+              ? `Aktif: satu target di ${QUICK_TARGET_R}R, entry, stop, dan lot sama. Sekitar 72% trade terisi menang, masing-masing lebih kecil. Selama dua tahun hasilnya sekitar sepertiga lebih sedikit dari target engine sendiri.`
+              : "Mati: target dari engine sendiri. Sekitar 43% trade terisi menang, dan hasilnya paling besar di uji ulang dua tahun."}
           </span>
         </div>
       )}
@@ -512,15 +510,15 @@ export default function EquityManager({
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-500" />
               <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                Trading Style
+                Gaya Trading
               </span>
             </div>
             <span className="text-[11px] text-amber-500 font-medium">
               {tradingStyle === 'Scalping'
-                ? 'M15/M5 Turnover'
+                ? 'Putaran M15/M5'
                 : tradingStyle === 'Intraday'
-                ? 'H1/M15 Cycles'
-                : 'D1/H4 Swings'}
+                ? 'Siklus H1/M15'
+                : 'Swing D1/H4'}
             </span>
           </div>
 
@@ -563,15 +561,15 @@ export default function EquityManager({
             <div className="flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-sky-500" />
               <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                Account Tier
+                Jenis Akun
               </span>
             </div>
             <span className="text-[11px] text-sky-500 font-medium">
               {accountType === 'Standard'
-                ? 'Standard Lot'
+                ? 'Lot Standar'
                 : accountType === 'Cent'
-                ? 'Cent Micro'
-                : 'Raw ECN'}
+                ? 'Cent Mikro'
+                : 'ECN Raw'}
             </span>
           </div>
 
@@ -602,7 +600,7 @@ export default function EquityManager({
                     {accountType === acc && <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />}
                   </div>
                   <div className={`text-[10px] mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {acc === 'Standard' ? '$0 Comm' : acc === 'Cent' ? (centDisabled ? 'N/A' : 'USC') : 'Raw'}
+                    {acc === 'Standard' ? 'Komisi $0' : acc === 'Cent' ? (centDisabled ? 'N/A' : 'USC') : 'Raw'}
                   </div>
                 </button>
               );
@@ -620,11 +618,11 @@ export default function EquityManager({
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-emerald-500" />
               <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                Broker Selection
+                Pilihan Broker
               </span>
             </div>
             <span className="text-[11px] text-emerald-400 font-mono font-bold">
-              {getBrokerSpreadForTier(selectedBroker)} pips spread
+              {getBrokerSpreadForTier(selectedBroker)} pip spread
             </span>
           </div>
 
@@ -658,7 +656,7 @@ export default function EquityManager({
             <span>{currentBroker.tagline}</span>
             {currentBroker.popularInIndonesia && (
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">
-                Top in Indonesia
+                Populer di Indonesia
               </span>
             )}
           </div>
@@ -677,12 +675,10 @@ export default function EquityManager({
               <Shield className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <div>
                 <h3 className={`text-sm font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>
-                  Set and Lock Initial Trading Balance &amp; Select Broker
+                  Atur dan Kunci Saldo Awal &amp; Pilih Broker
                 </h3>
                 <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Enter your account balance below in USD. Once locked, this capital amount is frozen to enforce
-                  institutional discipline. Spreads and commissions vary per broker (e.g. HFM, Exness, IC Markets),
-                  directly calibrating your XAUUSD lot size and net take-profit calculations.
+                  Masukkan saldo akunmu di bawah dalam USD. Setelah dikunci, modal ini dibekukan supaya disiplin terjaga. Spread dan komisi berbeda untuk tiap broker (mis. HFM, Exness, IC Markets), dan langsung memengaruhi ukuran lot XAUUSD serta perhitungan take profit bersih.
                 </p>
               </div>
             </div>
@@ -690,7 +686,7 @@ export default function EquityManager({
             {/* Broker selection cards when inputting manual equity */}
             <div className="mt-4">
               <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Select Execution Broker (Different Brokers Have Different Spreads):
+                Pilih Broker Eksekusi (Spread Tiap Broker Berbeda):
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {Object.values(BROKER_PROFILES).map((broker) => {
@@ -756,7 +752,7 @@ export default function EquityManager({
                   step="any"
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
-                  placeholder="e.g. 5000"
+                  placeholder="mis. 5000"
                   className={`w-full border rounded-xl pl-8 pr-4 py-2.5 text-base font-mono font-bold outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-500'
@@ -765,7 +761,7 @@ export default function EquityManager({
                 />
                 {depositPreview && (
                   <p className="text-[11px] mt-1.5 text-sky-500 font-mono">
-                    Shown as {depositPreview} on a cent account.
+                    Tampil sebagai {depositPreview} di akun cent.
                   </p>
                 )}
               </div>
@@ -776,7 +772,7 @@ export default function EquityManager({
                 className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm px-5 py-2.5 rounded-xl shadow transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
-                <span>Confirm &amp; Permanently Lock Equity</span>
+                <span>Konfirmasi &amp; Kunci Equity</span>
               </button>
             </div>
 
@@ -793,7 +789,7 @@ export default function EquityManager({
               }`}
             >
               <div className={`flex items-center justify-between text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <span>Locked Account Equity</span>
+                <span>Equity Akun Terkunci</span>
                 <Lock className="w-3.5 h-3.5 text-amber-500" />
               </div>
               {editing ? (
@@ -815,14 +811,14 @@ export default function EquityManager({
                     {isCentAccount(accountType) ? 'USC' : 'USD'}
                   </span>
                   <button type="submit" id="equity-edit-save" className="px-2 py-1 rounded-lg bg-emerald-500 text-slate-950 text-xs font-bold cursor-pointer">
-                    Save
+                    Simpan
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditing(false)}
                     className={`px-2 py-1 rounded-lg text-xs font-bold cursor-pointer ${isDark ? 'text-slate-400' : 'text-slate-600'}`}
                   >
-                    Cancel
+                    Batal
                   </button>
                 </form>
               ) : (
@@ -838,7 +834,7 @@ export default function EquityManager({
                       isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Edit
+                    Ubah
                   </button>
                 </div>
               )}
@@ -846,11 +842,11 @@ export default function EquityManager({
               <div className={`text-[11px] mt-1 flex items-center gap-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {isCent ? (
                   <span className="text-sky-500 font-medium">
-                    Cent account &bull; {formatAccountMoney(equity, 'Standard')} deposited
+                    Akun cent &bull; {formatAccountMoney(equity, 'Standard')} disetor
                   </span>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Institutional Anchor
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Patokan Institusional
                   </>
                 )}
               </div>
@@ -863,7 +859,7 @@ export default function EquityManager({
               }`}
             >
               <div className={`flex items-center justify-between text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <span>Risk Per Setup ({riskPercentage}%)</span>
+                <span>Risiko per Setup ({riskPercentage}%)</span>
                 <Shield className="w-3.5 h-3.5 text-sky-500" />
               </div>
               <div className="text-2xl font-black font-mono text-amber-500">
@@ -871,10 +867,10 @@ export default function EquityManager({
               </div>
               <div className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {tradingStyle === 'Scalping'
-                  ? 'Tight stop allowance on M15/M5'
+                  ? 'Stop ketat untuk M15/M5'
                   : tradingStyle === 'Intraday'
-                  ? 'Max loss tolerance on session SL'
-                  : 'Wide buffer for macro D1 swing'}
+                  ? 'Batas rugi untuk SL sesi'
+                  : 'Jarak lebar untuk swing D1'}
               </div>
             </div>
 
@@ -895,8 +891,8 @@ export default function EquityManager({
               </div>
               <div className={`text-[11px] mt-1 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {accountType === 'Pro'
-                  ? `Raw + $${currentBroker.commissionProPerLot}/lot comm`
-                  : `${accountType} floating spread`}
+                  ? `Raw + $${currentBroker.commissionProPerLot}/lot komisi`
+                  : `${accountType} spread mengambang`}
               </div>
             </div>
 
@@ -907,13 +903,13 @@ export default function EquityManager({
               }`}
             >
               <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <span>Execution Framework</span>
+                <span>Kerangka Eksekusi</span>
                 <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">
                   {tradingStyle} • {accountType}
                 </span>
               </div>
               <div className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Capital frozen. Sizing calibrated for {accountType === 'Cent' ? 'Cent Lots' : 'Standard/Pro Lots'}.
+                Modal dibekukan. Ukuran lot disesuaikan untuk {accountType === 'Cent' ? 'Cent Lot' : 'Lot Standard/Pro'}.
               </div>
               {equity <= 0 && (
                 <button
@@ -922,7 +918,7 @@ export default function EquityManager({
                   onClick={onResetEquity}
                   className="mt-2 text-xs font-bold text-rose-500 hover:text-rose-400 underline cursor-pointer"
                 >
-                  Reset Depleted Account
+                  Atur Ulang Akun yang Habis
                 </button>
               )}
             </div>
@@ -938,23 +934,23 @@ export default function EquityManager({
           >
             <Info className="w-4 h-4 text-amber-500 shrink-0" />
             <span>
-              <strong>Execution Matrix:</strong> Broker is set to <strong>{currentBroker.name}</strong> ({getBrokerSpreadForTier(selectedBroker)} pips typical gold spread).{' '}
+              <strong>Matriks Eksekusi:</strong> Broker yang dipakai <strong>{currentBroker.name}</strong> ({getBrokerSpreadForTier(selectedBroker)} pips spread emas biasa).{' '}
               {accountType === 'Cent'
-                ? `Cent Account applies 1 Troy Oz contract size (1/100 standard). Recommended lot size will be expressed in Cent Lots to protect small equity.`
+                ? `Akun Cent memakai ukuran kontrak 1 Troy Oz (1/100 standar). Ukuran lot yang disarankan ditulis dalam Cent Lot supaya modal kecil terlindungi.`
                 : accountType === 'Pro'
-                ? `Pro Account utilizes raw spreads (~${currentBroker.spreadProPips} pips). A $${currentBroker.commissionProPerLot.toFixed(2)}/lot round turn commission is accounted for directly in position risk.`
-                : `Standard Account utilizes standard 100 Troy Oz contracts with all broker fees incorporated into floating spreads.`}{' '}
+                ? `Akun Pro memakai spread raw (~${currentBroker.spreadProPips} pips). Komisi pulang-pergi $${currentBroker.commissionProPerLot.toFixed(2)}/lot langsung dihitung ke dalam risiko posisi.`
+                : `Akun Standard memakai kontrak standar 100 Troy Oz, dengan semua biaya broker sudah termasuk dalam spread mengambang.`}{' '}
               {tradingStyle === 'Scalping'
-                ? `Stop losses are framed tightly, between ${stopBandPips('Scalping').min} and ${
+                ? `Stop loss dibuat ketat, antara ${stopBandPips('Scalping').min} dan ${
                     stopBandPips('Scalping').max
-                  } pips, for fast market turns.`
+                  } pips, untuk pergerakan pasar yang cepat.`
                 : tradingStyle === 'Swing'
-                ? `Stop losses are broadened to between ${stopBandPips('Swing').min} and ${
+                ? `Stop loss diperlebar antara ${stopBandPips('Swing').min} dan ${
                     stopBandPips('Swing').max
-                  } pips to capture macro institutional expansions.`
-                : `Stop losses are calibrated between ${stopBandPips('Intraday').min} and ${
+                  } pips untuk menangkap pergerakan besar.`
+                : `Stop loss diatur antara ${stopBandPips('Intraday').min} dan ${
                     stopBandPips('Intraday').max
-                  } pips for daily session liquidity runs.`}
+                  } pips untuk pergerakan likuiditas sesi harian.`}
             </span>
           </div>
         </div>

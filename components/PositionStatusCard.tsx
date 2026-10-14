@@ -67,7 +67,7 @@ export default function PositionStatusCard({
       }`}
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Entry status</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Status entry</span>
         <span
           className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
             isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
@@ -81,13 +81,13 @@ export default function PositionStatusCard({
         <>
           <div className="flex items-center gap-1.5 font-bold text-sm">
             <Clock className="w-4 h-4 shrink-0" />
-            <span>Not filled yet</span>
+            <span>Belum terisi</span>
           </div>
           <div className={`text-[11px] font-mono mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            {position.distanceToEntryPips} pips to {setup.entryPrice.toFixed(2)}
+            {position.distanceToEntryPips} pips ke {setup.entryPrice.toFixed(2)}
           </div>
           <div className={`text-[10px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-            Current {currentPrice === null ? '—' : currentPrice.toFixed(2)}
+            Sekarang {currentPrice === null ? '—' : currentPrice.toFixed(2)}
             {quoteAgeSeconds !== null && (
               <span className={quoteAgeSeconds > 30 ? 'text-amber-500' : undefined}>
                 {' '}
@@ -108,10 +108,10 @@ export default function PositionStatusCard({
             )}
             <span>
               {position.closedBy
-                ? `Closed at ${position.closedBy}`
+                ? `Ditutup di ${position.closedBy}`
                 : profitable
-                ? 'Floating profit'
-                : 'Floating loss'}
+                ? 'Profit berjalan'
+                : 'Rugi berjalan'}
             </span>
           </div>
 
@@ -120,7 +120,7 @@ export default function PositionStatusCard({
           </div>
           <div className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             {profitable ? '+' : ''}
-            {position.floatingPips} pips from {setup.entryPrice.toFixed(2)}
+            {position.floatingPips} pips dari {setup.entryPrice.toFixed(2)}
             {quoteAgeSeconds !== null && (
               <span className={quoteAgeSeconds > 30 ? 'text-amber-500' : isDark ? 'text-slate-500' : 'text-slate-500'}>
                 {' '}
@@ -161,7 +161,7 @@ export default function PositionStatusCard({
             isDark ? 'border-slate-800 text-amber-500/90' : 'border-slate-200 text-amber-600'
           }`}
         >
-          Not closing on this quote: {resolutionHeldBack}
+          Tidak ditutup dengan harga ini: {resolutionHeldBack}
         </div>
       )}
     </div>

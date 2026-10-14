@@ -161,13 +161,13 @@ export default function Home() {
       const push = await enableClosedAppAlerts(trackedSetup, scanSettings);
       // Proof on the spot that alerts reach this device's notification shade,
       // and an honest word on whether they also arrive with the app closed.
-      void triggerBrowserNotification('XAU Assistant notifications are on', {
+      void triggerBrowserNotification('Notifikasi Asisten XAU aktif', {
         body:
           push === 'on'
-            ? 'TP, SL, fill and missed-order alerts will reach this phone even when the app is closed.'
+            ? 'Notifikasi TP, SL, order terisi, dan order missed akan sampai ke HP ini walaupun aplikasi tertutup.'
             : push === 'unconfigured'
-              ? 'You will be alerted while the app is open. Alerts with the app closed are not set up on the server yet.'
-              : 'You will be alerted while the app is open. This device could not sign up for alerts with the app closed.',
+              ? 'Kamu akan diberi tahu selama aplikasi terbuka. Notifikasi saat aplikasi tertutup belum diatur di server.'
+              : 'Kamu akan diberi tahu selama aplikasi terbuka. Perangkat ini gagal mendaftar notifikasi saat aplikasi tertutup.',
         tag: 'notifications-enabled',
       });
     }
@@ -225,7 +225,7 @@ export default function Home() {
   const [quotaPaced, setQuotaPaced] = useState<boolean>(false);
   /** Whether an order is working, read by the poller without re-creating it. */
   const liveOrderRef = React.useRef<boolean>(false);
-  const [feedMessage, setFeedMessage] = useState<string>('Connecting to the market data provider.');
+  const [feedMessage, setFeedMessage] = useState<string>('Menghubungkan ke provider data pasar.');
   const [feedSource, setFeedSource] = useState<string | null>(null);
   const [liveRead, setLiveRead] = useState<LiveRead | null>(null);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
@@ -635,11 +635,11 @@ export default function Home() {
       setSkippedSetup(null);
       const at = Date.parse(announced.announcedAt);
       setFeedMessage(
-        `Loaded the setup announced${
+        `Setup yang diumumkan sudah dimuat${
           Number.isFinite(at)
-            ? ` at ${new Date(at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB`
+            ? ` jam ${new Date(at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB`
             : ''
-        }. Check the price is still near the entry before placing it in MT5.`
+        }. Pastikan harga masih dekat entry sebelum memasangnya di MT5.`
       );
     };
     void load();
@@ -724,9 +724,9 @@ export default function Home() {
                 setRecordsLoaded(true);
                 markMigrated(user.uid);
                 setMigrationNotice(
-                  `Your guest data was copied to this account: ${local.learningRecords.length} recorded trade${
-                    local.learningRecords.length === 1 ? '' : 's'
-                  } and your saved balance.`
+                  `Data tamu kamu sudah disalin ke akun ini: ${local.learningRecords.length} trade tercatat${
+                    local.learningRecords.length === 1 ? '' : ''
+                  } dan saldo tersimpan.`
                 );
                 return;
               }
@@ -945,7 +945,7 @@ export default function Home() {
 
       if (!res.ok || !data?.success || typeof data.marketPrice !== 'number') {
         setFeedStatus('unavailable');
-        setFeedMessage(data?.message || 'The market data provider could not be reached.');
+        setFeedMessage(data?.message || 'Provider data pasar tidak bisa dihubungi.');
         return;
       }
 
@@ -986,7 +986,7 @@ export default function Home() {
       }
     } catch {
       setFeedStatus('unavailable');
-      setFeedMessage('Network error while contacting the market data provider.');
+      setFeedMessage('Gangguan jaringan saat menghubungi provider data pasar.');
     }
   }, [accountType, selectedBroker]);
 
@@ -1113,12 +1113,12 @@ export default function Home() {
    */
   const tickTrust = useMemo(() => {
     if (!activeSetup || marketPrice === null) {
-      return { ok: false as const, reason: 'No open order, or no price.' };
+      return { ok: false as const, reason: 'Tidak ada order terbuka, atau tidak ada harga.' };
     }
     if (!quoteIsSpot) {
       return {
         ok: false as const,
-        reason: 'The only quote available is the COMEX futures contract, which trades away from spot.',
+        reason: 'Harga yang tersedia hanya kontrak futures COMEX, yang harganya berbeda dari spot.',
       };
     }
     return tickMayResolve({
@@ -1161,22 +1161,22 @@ export default function Home() {
 
     resolvedRef.current = activeSetup.id;
     const { trigger: hit, level } = close;
-    const when = close.at ? ` at ${new Date(close.at).toLocaleString()}` : '';
+    const when = close.at ? ` pada ${new Date(close.at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB` : '';
     const fillPrice =
       replay && (replay.kind === 'running' || replay.kind === 'closed') ? replay.fillPrice : activeSetup.entryPrice;
     setAutoResolveNotice(
       close.breakEven
-        ? `Price came back to the entry at ${fillPrice.toFixed(2)}${when} after the stop had moved there. The engine recorded it as a break-even.`
+        ? `Harga kembali ke entry di ${fillPrice.toFixed(2)}${when} setelah stop dipindah ke sana. Engine mencatatnya sebagai impas (break-even).`
         : hit === 'SL'
-        ? `Price reached the stop at ${activeSetup.stopLoss.toFixed(
+        ? `Harga menyentuh stop di ${activeSetup.stopLoss.toFixed(
             2
-          )}${when}. The engine closed the trade and recorded it.`
-        : `Price reached ${hit} at ${(hit === 'TP3'
+          )}${when}. Engine menutup trade dan mencatatnya.`
+        : `Harga mencapai ${hit} di ${(hit === 'TP3'
             ? activeSetup.takeProfit3
             : hit === 'TP2'
             ? activeSetup.takeProfit2
             : activeSetup.takeProfit1
-          ).toFixed(2)}${when}. The engine closed the trade and recorded it.`
+          ).toFixed(2)}${when}. Engine menutup trade dan mencatatnya.`
     );
     const exit = close.breakEven
       ? fillPrice
@@ -1213,7 +1213,7 @@ export default function Home() {
     if (!miss) return;
 
     resolvedRef.current = activeSetup.id;
-    setAutoResolveNotice(`${miss.reason} The engine recorded it as a missed entry.`);
+    setAutoResolveNotice(`${miss.reason} Engine mencatatnya sebagai entry missed.`);
     const missNote = missedAlert(activeSetup, miss.reason);
     void triggerBrowserNotification(missNote.title, { body: missNote.body, tag: missNote.tag });
     void handleSimulateOutcome('MISSED', 1, missCause(miss.cause));
@@ -1388,7 +1388,7 @@ export default function Home() {
     // the reason visible in the banner instead of surfacing a raw error.
     if (marketPrice === null) {
       setFeedStatus('unavailable');
-      setFeedMessage('Cannot run an analysis without a live quote. Retry the market data connection first.');
+      setFeedMessage('Analisis tidak bisa dijalankan tanpa harga live. Coba sambungkan ulang data pasar dulu.');
       return;
     }
     setIsAnalyzing(true);
@@ -1416,7 +1416,7 @@ export default function Home() {
 
       const data = await res.json();
       if (!res.ok || !data?.success) {
-        setFeedMessage(data?.error || 'The analysis engine could not produce a setup.');
+        setFeedMessage(data?.error || 'Engine analisis tidak bisa membuat setup.');
         if (res.status === 503) setFeedStatus('unavailable');
         return;
       }
@@ -1429,10 +1429,10 @@ export default function Home() {
         if (activeSetup) {
           setFeedMessage(
             skip.reason === 'unfillable'
-              ? 'No new setup: price has run too far from its level for an order to rest there. Your current order is unchanged.'
+              ? 'Tidak ada setup baru: harga sudah terlalu jauh dari levelnya untuk dipasang order. Order kamu sekarang tidak berubah.'
               : skip.reason === 'daily-limit'
-              ? 'No new setup: today has reached your daily loss limit. Your current order is unchanged.'
-              : 'No new setup met the engine quality rules. Your current order is unchanged.'
+              ? 'Tidak ada setup baru: hari ini sudah mencapai batas rugi harian. Order kamu sekarang tidak berubah.'
+              : 'Tidak ada setup baru yang lolos aturan kualitas engine. Order kamu sekarang tidak berubah.'
           );
         }
         return;
@@ -1503,12 +1503,12 @@ export default function Home() {
         : parseFloat((newEntryPrice - tpDistance * 2.2).toFixed(2)),
       status: 'ACTIVE',
       executionInstructionsMT5: [
-        `Converted to instant Market Order at $${newEntryPrice.toFixed(2)}`,
-        `Adjusted Lot Size: ${adjustedLot.toFixed(2)} ${activeSetup.contractSpecs?.lotUnit || 'Lots'}`,
-        `Stop Loss preserved at $${activeSetup.stopLoss.toFixed(2)} (${slPips} pips)`,
+        `Diubah jadi order Market di $${newEntryPrice.toFixed(2)}`,
+        `Ukuran lot disesuaikan: ${adjustedLot.toFixed(2)} ${activeSetup.contractSpecs?.lotUnit || 'Lots'}`,
+        `Stop Loss tetap di $${activeSetup.stopLoss.toFixed(2)} (${slPips} pips)`,
         lotCalculation.exceedsRiskBudget
-          ? `WARNING: the broker minimum lot risks $${lotCalculation.actualRiskDollars.toFixed(2)}, above your $${lotCalculation.riskDollars.toFixed(2)} budget`
-          : `Risk held at $${lotCalculation.actualRiskDollars.toFixed(2)}`,
+          ? `PERINGATAN: lot minimum broker berisiko $${lotCalculation.actualRiskDollars.toFixed(2)}, di atas risiko $${lotCalculation.riskDollars.toFixed(2)} kamu`
+          : `Risiko tetap $${lotCalculation.actualRiskDollars.toFixed(2)}`,
       ],
     };
 
@@ -1879,14 +1879,14 @@ export default function Home() {
               <div>
                 <div className="font-bold text-sm tracking-tight">
                   {feedStatus === 'unavailable'
-                    ? 'No live market data'
+                    ? 'Tidak ada data pasar live'
                     : feedStatus === 'stale'
-                    ? 'Quote is stale'
-                    : 'Connecting to market data'}
+                    ? 'Harga tertunda'
+                    : 'Menghubungkan ke data pasar'}
                 </div>
                 <div className="text-xs opacity-90 mt-0.5">{feedMessage}</div>
                 <div className="text-xs opacity-75 mt-1">
-                  Analysis is disabled until a live quote is available, so no signal is ever built on an invented price.
+                  Analisis dinonaktifkan sampai ada harga live, supaya sinyal tidak pernah dibuat dari harga karangan.
                 </div>
               </div>
             </div>
@@ -1898,7 +1898,7 @@ export default function Home() {
               className="text-xs px-2.5 py-1.5 rounded-lg border border-current hover:bg-white/10 cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingFeed ? 'animate-spin' : ''}`} />
-              <span>Retry</span>
+              <span>Coba lagi</span>
             </button>
           </div>
         )}
@@ -1915,10 +1915,10 @@ export default function Home() {
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-sm">Pending order closed automatically</div>
+                <div className="font-bold text-sm">Order pending ditutup otomatis</div>
                 <div className="text-xs opacity-90 mt-0.5">{autoResolveNotice}</div>
                 <div className="text-xs opacity-75 mt-1">
-                  No action needed. The engine has already learned from it.
+                  Tidak perlu melakukan apa-apa. Engine sudah belajar darinya.
                 </div>
               </div>
             </div>
@@ -1944,11 +1944,10 @@ export default function Home() {
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-bold text-sm">This one needs your answer</div>
+              <div className="font-bold text-sm">Yang ini perlu jawabanmu</div>
               <div className="text-xs opacity-90 mt-0.5">{outcomeNeedsUser}</div>
               <div className="text-xs opacity-75 mt-1">
-                Check your terminal and record what happened with the buttons on the signal card. The
-                engine will not guess at it, because a guess here becomes a lesson it learns wrongly.
+                Cek terminal MT5 kamu lalu catat apa yang terjadi lewat tombol di kartu sinyal. Engine tidak akan menebak, karena tebakan di sini jadi pelajaran yang salah.
               </div>
             </div>
           </div>
@@ -1965,10 +1964,10 @@ export default function Home() {
               <CloudOff className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-bold text-sm">Your data was not saved to the cloud</div>
+              <div className="font-bold text-sm">Datamu belum tersimpan ke cloud</div>
               <div className="text-xs opacity-90 mt-0.5">{syncStatus.detail}</div>
               <div className="text-xs opacity-75 mt-1">
-                Nothing is lost. This browser still holds your balance and trades.
+                Tidak ada yang hilang. Browser ini masih menyimpan saldo dan trade kamu.
               </div>
             </div>
           </div>
@@ -1979,9 +1978,9 @@ export default function Home() {
           <div className="p-4 rounded-xl border bg-sky-500/15 border-sky-500/40 text-sky-300 flex items-center gap-3">
             <RefreshCw className="w-5 h-5 animate-spin shrink-0" />
             <div>
-              <div className="font-bold text-sm">Copying your data to this account</div>
+              <div className="font-bold text-sm">Menyalin datamu ke akun ini</div>
               <div className="text-xs opacity-90 mt-0.5">
-                Your balance and recorded trades are being saved to the cloud. This happens once.
+                Saldo dan trade tercatat sedang disimpan ke cloud. Ini hanya terjadi sekali.
               </div>
             </div>
           </div>
@@ -1994,7 +1993,7 @@ export default function Home() {
                 <BellRing className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-sm">Data transferred</div>
+                <div className="font-bold text-sm">Data berhasil dipindahkan</div>
                 <div className="text-xs opacity-90 mt-0.5">{migrationNotice}</div>
               </div>
             </div>
@@ -2031,7 +2030,7 @@ export default function Home() {
                 <div className="font-bold text-sm tracking-tight flex items-center gap-2">
                   <span>{activeProximityAlert.title}</span>
                   <span className="text-[11px] px-1.5 py-0.5 rounded bg-black/40 font-mono">
-                    Distance: ${activeProximityAlert.distanceDollars.toFixed(2)} ({activeProximityAlert.distancePips} pips)
+                    Jarak: ${activeProximityAlert.distanceDollars.toFixed(2)} ({activeProximityAlert.distancePips} pips)
                   </span>
                 </div>
                 <div className="text-xs opacity-90 mt-0.5">{activeProximityAlert.message}</div>
@@ -2044,7 +2043,7 @@ export default function Home() {
               className="text-xs px-2.5 py-1.5 rounded-lg border border-current hover:bg-white/10 cursor-pointer flex items-center gap-1 shrink-0"
             >
               <X className="w-3.5 h-3.5" />
-              <span>Dismiss</span>
+              <span>Tutup</span>
             </button>
           </div>
         )}
@@ -2056,7 +2055,7 @@ export default function Home() {
             {feedStatus === 'live' && feedSource && (
               <span className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                <span>Live data source: {feedSource}. Refreshed about once a minute.</span>
+                <span>Sumber data live: {feedSource}. Diperbarui sekitar sekali per menit.</span>
               </span>
             )}
             <span className="flex items-center gap-1.5" title={lastSavedLabel ?? undefined}>
@@ -2134,8 +2133,8 @@ export default function Home() {
         {/* Market: sessions, structure, pivots and the calendar. */}
         <section id="section-market" className={tab === 'market' ? 'space-y-6' : 'hidden'}>
           <SectionHeading
-            title="Market analysis"
-            subtitle="Trading sessions, multi-timeframe structure, pivot bias and USD news, all in WIB."
+            title="Analisis pasar"
+            subtitle="Sesi trading, struktur multi-timeframe, bias pivot, dan berita USD, semuanya dalam WIB."
             theme={theme}
           />
           {/* Global Trading Sessions in WIB Time */}
@@ -2161,8 +2160,7 @@ export default function Home() {
                       : 'bg-white border-slate-200 text-slate-500'
                   }`}
                 >
-                  Market structure appears once the feed has delivered enough candles to measure it. Nothing is shown
-                  here until then.
+                  Struktur pasar muncul setelah feed mengirim cukup candle untuk diukur. Sampai saat itu tidak ada yang ditampilkan di sini.
                 </div>
               )}
 
@@ -2181,8 +2179,8 @@ export default function Home() {
         {/* Results: the balance, the recorded trades and their review. */}
         <section id="section-results" className={tab === 'results' ? 'space-y-6' : 'hidden'}>
           <SectionHeading
-            title="Results"
-            subtitle="Balance growth, lessons from your trades, every recorded trade, the copyable summary and trades worth re-checking."
+            title="Hasil"
+            subtitle="Pertumbuhan saldo, pelajaran dari trade kamu, semua trade tercatat, ringkasan yang bisa disalin, dan trade yang perlu dicek ulang."
             theme={theme}
           />
           <PortfolioGrowthCard
@@ -2260,8 +2258,8 @@ export default function Home() {
         {/* Account: balance, risk and trading settings, and alerts. */}
         <section id="section-account" className={tab === 'account' ? 'space-y-6' : 'hidden'}>
           <SectionHeading
-            title="Account & settings"
-            subtitle="Balance, risk per trade, trading style, broker, daily limit, quick TP, self-learning and phone alerts."
+            title="Akun & pengaturan"
+            subtitle="Saldo, risiko per trade, gaya trading, broker, batas harian, TP cepat, self-learning, dan notifikasi HP."
             theme={theme}
           />
           {/* Equity & Risk Allocation (Lock Enforcement) */}
@@ -2306,9 +2304,9 @@ export default function Home() {
               theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
             }`}
           >
-            XAUUSD Institutional Trading Assistant &bull; Smart Money Concepts &bull; ICT Framework
+            Asisten Trading XAUUSD &bull; Smart Money Concepts &bull; ICT
             <br />
-            Risk Warning: Gold spot trading carries market risk. Exercise proper institutional money management.
+            Peringatan Risiko: Trading emas mengandung risiko pasar. Kelola uangmu dengan disiplin.
           </p>
         </section>
       </main>

@@ -3,17 +3,17 @@ import './globals.css'; // Global styles
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 
 export const metadata: Metadata = {
-  title: 'XAUUSD Institutional Trading Assistant',
-  description: 'Real-time institutional SMC & ICT analysis, multi-timeframe setups, self-learning strategy engine, and risk management for XAUUSD.',
+  title: 'Asisten Trading XAUUSD',
+  description: 'Analisis SMC & ICT real-time, setup multi-timeframe, engine strategi self-learning, dan manajemen risiko untuk XAUUSD.',
   openGraph: {
-    title: 'XAUUSD Institutional Trading Assistant',
-    description: 'Real-time institutional SMC & ICT analysis, multi-timeframe setups, self-learning strategy engine, and risk management for XAUUSD.',
+    title: 'Asisten Trading XAUUSD',
+    description: 'Analisis SMC & ICT real-time, setup multi-timeframe, engine strategi self-learning, dan manajemen risiko untuk XAUUSD.',
     type: 'website',
   },
-  applicationName: 'XAU Assistant',
+  applicationName: 'Asisten XAU',
   appleWebApp: {
     capable: true,
-    title: 'XAU Assistant',
+    title: 'Asisten XAU',
     statusBarStyle: 'black-translucent',
   },
   icons: {
@@ -22,8 +22,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'XAUUSD Institutional Trading Assistant',
-    description: 'Real-time institutional SMC & ICT analysis, multi-timeframe setups, self-learning strategy engine, and risk management for XAUUSD.',
+    title: 'Asisten Trading XAUUSD',
+    description: 'Analisis SMC & ICT real-time, setup multi-timeframe, engine strategi self-learning, dan manajemen risiko untuk XAUUSD.',
   },
 };
 
@@ -33,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html lang="en">
+    <html lang="id">
       <body suppressHydrationWarning>
         <ServiceWorkerRegistrar />
         {children}

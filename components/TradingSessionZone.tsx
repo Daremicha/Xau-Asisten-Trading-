@@ -30,7 +30,7 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
         })
       );
       setLocalDateStr(
-        now.toLocaleDateString('en-US', {
+        now.toLocaleDateString('id-ID', {
           timeZone: 'Asia/Jakarta',
           weekday: 'short',
           month: 'short',
@@ -51,20 +51,20 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
       case 'Extreme':
         return (
           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            Extreme Volume
+            Volume Sangat Tinggi
           </span>
         );
       case 'High':
         return (
           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            High Volatility
+            Volatilitas Tinggi
           </span>
         );
       case 'Moderate':
       default:
         return (
           <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30">
-            Moderate Range
+            Pergerakan Sedang
           </span>
         );
     }
@@ -93,13 +93,13 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
                 isDark ? 'text-slate-100' : 'text-slate-900'
               }`}
             >
-              Institutional Trading Sessions
+              Sesi Trading Institusional
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
-                24H Cycle
+                Siklus 24 Jam
               </span>
             </h2>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Tokyo, London, and New York market hours synchronized to WIB (UTC+7 Jakarta).
+              Jam pasar Tokyo, London, dan New York dalam WIB (UTC+7 Jakarta).
             </p>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
         >
           <div className="flex items-center gap-1.5 text-xs">
             <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] font-medium opacity-70">Western Indonesia Time:</span>
+            <span className="text-[11px] font-medium opacity-70">Waktu Indonesia Barat:</span>
             <span className="font-semibold text-slate-300">{localDateStr}</span>
             <span className="text-slate-500">•</span>
             <span className="font-bold text-amber-400">{localTimeStr || '--:--:--'} WIB</span>
@@ -180,13 +180,13 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
                 }`}
               >
                 <div className="flex justify-between items-center text-[11px] mb-0.5">
-                  <span className={`${isDark ? 'text-slate-400' : 'text-slate-500'}`}>WIB Hours:</span>
+                  <span className={`${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Jam WIB:</span>
                   <span className="font-bold text-amber-400">
                     {sess.localOpenFormatted} - {sess.localCloseFormatted} WIB
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[10px] opacity-65">
-                  <span>UTC Hours:</span>
+                  <span>Jam UTC:</span>
                   <span>
                     {String(sess.utcOpen).padStart(2, '0')}:00 - {String(sess.utcClose).padStart(2, '0')}:00 UTC
                   </span>
@@ -196,7 +196,7 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
               {/* Volatility & Characteristics */}
               <div className="space-y-1 mb-3">
                 <div className="flex items-center justify-between">
-                  <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Volatility:</span>
+                  <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Volatilitas:</span>
                   {getVolatilityBadge(sess.volatilityLevel)}
                 </div>
                 <p className={`text-[11px] leading-relaxed mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -212,7 +212,7 @@ export default function TradingSessionZone({ theme = 'dark' }: TradingSessionZon
                   {sess.statusText}
                 </span>
                 {sess.isActive && (
-                  <span className="text-[10px] text-slate-400">{sess.progressPercentage}% elapsed</span>
+                  <span className="text-[10px] text-slate-400">{sess.progressPercentage}% berjalan</span>
                 )}
               </div>
               {sess.isActive ? (
