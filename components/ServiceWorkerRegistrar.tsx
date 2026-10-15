@@ -6,9 +6,14 @@ import { useEffect } from 'react';
 export default function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('Service worker registration failed:', err);
-    });
+    // Always fetched fresh, so a fix to how notifications are delivered
+    // reaches the phone on the next open instead of a day later.
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => registration.update().catch(() => undefined))
+      .catch((err) => {
+        console.warn('Service worker registration failed:', err);
+      });
   }, []);
   return null;
 }
