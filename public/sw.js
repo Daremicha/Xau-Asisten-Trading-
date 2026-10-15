@@ -30,7 +30,45 @@ self.addEventListener('push', (event) => {
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-96.png',
       requireInteraction: true,
+      vibrate: [200, 100, 200],
+      timestamp: Date.now(),
     })
+  );
+});
+
+// The browser can replace a subscription on its own, when the push service
+// rotates keys or expires one. The server would then keep pushing to an
+// address nobody reads, and alerts stopped until the app happened to be
+// opened. Subscribe again at once and hand the server the new address with
+// the old one, so it moves the watched trade and the scan settings across.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const previous = event.oldSubscription;
+  event.waitUntil(
+    (async () => {
+      let subscription = event.newSubscription;
+      if (!subscription) {
+        const config = await (await fetch('/api/push/config')).json();
+        if (!config || !config.enabled || !config.publicKey) return;
+        const padded = (config.publicKey + '='.repeat((4 - (config.publicKey.length % 4)) % 4))
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const raw = atob(padded);
+        const key = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
+        subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+      }
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription: subscription.toJSON(),
+          previousEndpoint: previous ? previous.endpoint : undefined,
+        }),
+      });
+    })().catch(() => {})
   );
 });
 

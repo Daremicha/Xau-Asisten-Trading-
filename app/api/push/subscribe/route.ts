@@ -21,16 +21,39 @@ export async function POST(request: Request) {
     subscription?: unknown;
     setup?: unknown;
     scan?: unknown;
+    previousEndpoint?: unknown;
   } | null;
   const subscription = sanitiseSubscription(body?.subscription);
   if (!subscription) {
     return NextResponse.json({ success: false, error: 'Langganan push tidak valid.' }, { status: 400 });
   }
 
-  const setup = sanitiseWatchedSetup(body?.setup);
   const id = recordId(subscription.endpoint);
 
   try {
+    // The browser replaced this phone's subscription while the app was closed
+    // (the service worker's pushsubscriptionchange). Everything the old one was
+    // watching moves to the new one, so alerts carry on without the app being
+    // opened to send it all again.
+    const previousEndpoint =
+      typeof body?.previousEndpoint === 'string' && body.previousEndpoint !== subscription.endpoint
+        ? body.previousEndpoint
+        : null;
+    if (previousEndpoint) {
+      const oldId = recordId(previousEndpoint);
+      const old = await loadRecord(oldId);
+      if (old) {
+        if (!(await loadRecord(id))) {
+          await saveRecord(id, { ...old, subscription, updatedAt: new Date().toISOString() });
+        }
+        await deleteRecord(oldId);
+      }
+      if (body?.setup === undefined) {
+        return NextResponse.json({ success: true, moved: Boolean(old) });
+      }
+    }
+
+    const setup = sanitiseWatchedSetup(body?.setup);
     const existing = await loadRecord(id);
     const sameSetup = Boolean(existing?.setup && setup && existing.setup.id === setup.id);
     const sent = sameSetup ? existing!.sent : [];

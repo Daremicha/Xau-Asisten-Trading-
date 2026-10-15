@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { getMarketSnapshot } from '@/lib/price-feed';
 import { replayOrder } from '@/lib/order-replay';
 import { messagesFor } from '@/lib/push-watch';
@@ -71,12 +71,17 @@ async function run(request: Request) {
     const ids = await watchingIds();
     // Every fifteen minutes, whether or not a trade is open, look for a new
     // setup for the phones that asked. Its own lock keeps it to that pace.
-    const scanned = await scanForSetups();
+    //
+    // It runs after the response, so the open trades below are checked and
+    // their fills, stops and targets pushed first. A scan runs a full analysis
+    // per phone; done first, it held every trade alert back by its own length
+    // and could run the request out of time before they were sent.
+    after(() => scanForSetups().catch((err) => console.warn('Setup scan failed:', err)));
     // Nothing to watch means nothing to spend a quote on. The run is still
     // noted, so the app can show that the scheduler is alive.
     if (ids.length === 0) {
-      await recordCheck({ at: new Date().toISOString(), watching: 0, sent: scanned });
-      return NextResponse.json({ success: true, watching: 0, sent: 0, offered: scanned });
+      await recordCheck({ at: new Date().toISOString(), watching: 0, sent: 0 });
+      return NextResponse.json({ success: true, watching: 0, sent: 0 });
     }
 
     const snapshot = await getMarketSnapshot(true);
@@ -126,8 +131,8 @@ async function run(request: Request) {
       }
     }
 
-    await recordCheck({ at: new Date().toISOString(), watching: ids.length, sent: sent + scanned });
-    return NextResponse.json({ success: true, watching: ids.length, sent, offered: scanned, price });
+    await recordCheck({ at: new Date().toISOString(), watching: ids.length, sent });
+    return NextResponse.json({ success: true, watching: ids.length, sent, price });
   } catch (err) {
     console.warn('Push check failed:', err);
     return NextResponse.json({ success: false, error: 'Pemeriksaan tidak bisa diselesaikan.' }, { status: 502 });
@@ -190,16 +195,11 @@ async function scanForSetups(): Promise<number> {
       continue;
     }
 
-    // The models' opinion rides along with the announcement. It never stops
-    // one: their verdicts are recorded and judged on live results first.
-    const aiReview = await reviewOnce(setup, setup.currentMarketPrice ?? null)
-      .then((r) => (r.status === 'done' ? r.review : undefined))
-      .catch(() => undefined);
-    const stored = {
-      ...setup,
-      protectAtR: record.scan.protectAtR,
-      ...(aiReview !== undefined ? { aiReview } : {}),
-    };
+    // The setup is announced at once. The models' opinion used to be awaited
+    // first, which could hold a setup back by a minute while price moved
+    // toward its entry; it is gathered afterwards and stored with the offer,
+    // so the app still shows it when the setup is opened.
+    const stored = { ...setup, protectAtR: record.scan.protectAtR };
     const alert = newSetupAlert(stored, setup.id);
     const outcome = await sendPush(record.subscription, {
       key: `${setup.id}:new`,
@@ -218,6 +218,17 @@ async function scanForSetups(): Promise<number> {
         : `ditemukan ${setup.orderType} @ ${setup.entryPrice.toFixed(2)} tapi notifikasi tidak bisa dikirim`,
       { offer: { setup: stored, at }, lastOffer: { key, at } }
     );
+    if (outcome === 'sent') {
+      const aiReview = await reviewOnce(setup, setup.currentMarketPrice ?? null)
+        .then((r) => (r.status === 'done' ? r.review : undefined))
+        .catch(() => undefined);
+      if (aiReview !== undefined) {
+        const latest = await loadRecord(id);
+        if (latest?.offer?.setup.id === setup.id) {
+          await saveRecord(id, { ...latest, offer: { ...latest.offer, setup: { ...latest.offer.setup, aiReview } } });
+        }
+      }
+    }
   }
   return offered;
 }
