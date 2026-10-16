@@ -49,7 +49,14 @@ import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { factorReliability, NOISE_BAR_STANDARD_ERRORS } from '@/lib/factor-learning';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 import RobustnessCard from '@/components/RobustnessCard';
-import { monteCarloRiskReport, type MonteCarloReport, type RResult } from '@/lib/robustness';
+import {
+  monteCarloRiskReport,
+  monteCarloRiskSensitivity,
+  type MonteCarloReport,
+  type MonteCarloSensitivityRow,
+  type RResult,
+} from '@/lib/robustness';
+import { assessDeploymentGate } from '@/lib/deployment-gate';
 import type { WalkForwardResult } from '@/lib/walk-forward';
 import { stressCostScenarios, type CostStressReport } from '@/lib/cost-stress';
 
@@ -300,6 +307,13 @@ export default function BacktestLab({
         : null,
     [result, riskPercentage]
   );
+  const riskSensitivity = useMemo<MonteCarloSensitivityRow[]>(
+    () =>
+      result
+        ? monteCarloRiskSensitivity(result.control.trades.filter((trade) => trade.filled).map((trade) => trade.rMultiple))
+        : [],
+    [result]
+  );
   const costStress = useMemo<CostStressReport[]>(
     () =>
       result
@@ -373,16 +387,16 @@ export default function BacktestLab({
     if (walkResult?.status !== 'complete' || !walkResult.frozenStats) {
       return { allowed: false, reason: 'Jalankan validasi walk-forward sebelum mengadopsi parameter.' };
     }
-    if (walkResult.frozenStats.netDollars <= 0) {
-      return { allowed: false, reason: 'Parameter kandidat gagal menghasilkan net positif pada test out-of-sample.' };
-    }
     const realistic = adoptionStress.find((report) => report.scenario.id === 'realistic-extra-cost');
     const stress = adoptionStress.find((report) => report.scenario.id === 'stress-extra-cost');
-    if (!realistic?.profitable || !stress?.profitable) {
-      return { allowed: false, reason: 'Parameter kandidat gagal stress cost realistic atau stress.' };
-    }
-    return { allowed: true, reason: 'Gate lulus: frozen test out-of-sample dan dua stress cost tetap profitable.' };
-  }, [adoption, adoptionStress, walkResult]);
+    return assessDeploymentGate({
+      coverage: result?.coverage ?? { complete: false, provider: null },
+      frozenStats: walkResult.frozenStats,
+      folds: walkResult.folds,
+      realisticProfitable: realistic?.profitable === true,
+      stressProfitable: stress?.profitable === true,
+    });
+  }, [adoption, adoptionStress, result, walkResult]);
 
   /**
    * The same promise for the management rule: the button turns on only when
@@ -789,6 +803,7 @@ export default function BacktestLab({
               Ini bukan prediksi profit dan tidak menggantikan validasi out-of-sample atau data broker.
             </p>
             {monteCarlo ? (
+              <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
                   <div className={muted}>Peluang DD ≥ {monteCarlo.ruinDrawdownPercent}%</div>
@@ -811,6 +826,33 @@ export default function BacktestLab({
                   <div className={`font-mono font-bold ${strong}`}>{monteCarlo.maxDrawdownPercent.worst}%</div>
                 </div>
               </div>
+              {riskSensitivity.length > 0 && (
+                <div className="overflow-x-auto mt-3">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className={muted}>
+                        <th className="text-left font-medium py-1">Risiko per trade</th>
+                        <th className="text-right font-medium py-1">DD median</th>
+                        <th className="text-right font-medium py-1">DD P95</th>
+                        <th className="text-right font-medium py-1">Peluang DD ≥30%</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {riskSensitivity.map((row) => (
+                        <tr key={row.riskPerTradePercent} className={isDark ? 'border-t border-slate-800' : 'border-t border-slate-100'}>
+                          <td className={`py-1 ${strong}`}>{row.riskPerTradePercent}%</td>
+                          <td className={`py-1 text-right ${muted}`}>{row.maxDrawdownPercent.median}%</td>
+                          <td className={`py-1 text-right ${strong}`}>{row.maxDrawdownPercent.p95}%</td>
+                          <td className={`py-1 text-right ${row.probabilityOfRuinPercent > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            {row.probabilityOfRuinPercent}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              </>
             ) : (
               <div className={`rounded-lg border p-2 text-xs ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                 Jalankan backtest dengan setidaknya 20 trade terisi untuk melihat simulasi sequence risk.

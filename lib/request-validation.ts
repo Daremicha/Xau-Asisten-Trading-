@@ -98,7 +98,7 @@ export function validateAnalyzeBody(body: unknown): ValidationResult<ValidatedAn
     if (min >= 0 && max <= 101 && max > min) skipConvictionBand = { min, max };
   }
 
-  const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 1.0;
+  const riskPercentage = isFiniteNumber(b.riskPercentage) ? b.riskPercentage : 0.5;
   if (riskPercentage <= 0 || riskPercentage > 100) {
     errors.push('riskPercentage harus lebih dari 0 dan maksimal 100.');
   }

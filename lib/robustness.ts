@@ -221,6 +221,34 @@ export function monteCarloRiskReport(
   };
 }
 
+export interface MonteCarloSensitivityRow {
+  riskPerTradePercent: number;
+  maxDrawdownPercent: MonteCarloReport['maxDrawdownPercent'];
+  probabilityOfRuinPercent: number;
+}
+
+/** Compare the same observed trades at conservative and aggressive risk sizes. */
+export function monteCarloRiskSensitivity(
+  rMultiples: number[],
+  riskLevels = [0.25, 0.5, 1],
+  simulations = 2_000
+): MonteCarloSensitivityRow[] {
+  return riskLevels.flatMap((riskPerTradePercent) => {
+    const report = monteCarloRiskReport(rMultiples, {
+      riskPerTradePercent,
+      simulations,
+      seed: 19,
+    });
+    return report
+      ? [{
+          riskPerTradePercent: report.riskPerTradePercent,
+          maxDrawdownPercent: report.maxDrawdownPercent,
+          probabilityOfRuinPercent: report.probabilityOfRuinPercent,
+        }]
+      : [];
+  });
+}
+
 export function robustnessReport(results: RResult[], extraDollars = STRESS_EXTRA_DOLLARS): RobustnessReport {
   const quarters = byQuarter(results);
   const counted = quarters.filter((q) => q.trades >= MIN_QUARTER_TRADES);

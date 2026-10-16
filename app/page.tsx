@@ -234,7 +234,9 @@ export default function Home() {
   const [equity, setEquity] = useState<number>(5000);
   const [initialEquity, setInitialEquity] = useState<number>(5000);
   const [isEquityLocked, setIsEquityLocked] = useState<boolean>(false);
-  const [riskPercentage, setRiskPercentage] = useState<number>(1.0);
+  // Fresh profiles start conservatively while forward-test evidence is still thin.
+  // Existing saved profiles keep their own explicit setting when hydrated below.
+  const [riskPercentage, setRiskPercentage] = useState<number>(0.5);
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>(TESTED_STYLE);
   // Read inside the auth listener, which must not resubscribe when the style changes.
   const tradingStyleRef = React.useRef<TradingStyle>('Intraday');
