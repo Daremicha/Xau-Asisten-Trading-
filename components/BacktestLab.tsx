@@ -313,6 +313,18 @@ export default function BacktestLab({
    * button promises that pressing it is the right call; it has to say as
    * plainly when pressing it is no longer needed.
    */
+  const adoptionStress = useMemo<CostStressReport[]>(
+    () =>
+      result
+        ? stressCostScenarios(
+            result.frozen.trades,
+            result.frozen.summary.startingEquity,
+            undefined,
+            result.economicEvents
+          )
+        : [],
+    [result]
+  );
   const switchState = (inUse: boolean, supported: boolean, colour: 'sky' | 'amber' | 'rose') => {
     if (inUse) {
       return {
@@ -344,6 +356,23 @@ export default function BacktestLab({
     () => (result ? assessAdoption(result.control, result.frozen) : null),
     [result]
   );
+  const adoptionGate = useMemo(() => {
+    if (!adoption?.worthAdopting) {
+      return { allowed: false, reason: 'Backtest penuh belum mendukung adopsi parameter ini.' };
+    }
+    if (walkResult?.status !== 'complete' || !walkResult.frozenStats) {
+      return { allowed: false, reason: 'Jalankan validasi walk-forward sebelum mengadopsi parameter.' };
+    }
+    if (walkResult.frozenStats.netDollars <= 0) {
+      return { allowed: false, reason: 'Parameter kandidat gagal menghasilkan net positif pada test out-of-sample.' };
+    }
+    const realistic = adoptionStress.find((report) => report.scenario.id === 'realistic-extra-cost');
+    const stress = adoptionStress.find((report) => report.scenario.id === 'stress-extra-cost');
+    if (!realistic?.profitable || !stress?.profitable) {
+      return { allowed: false, reason: 'Parameter kandidat gagal stress cost realistic atau stress.' };
+    }
+    return { allowed: true, reason: 'Gate lulus: frozen test out-of-sample dan dua stress cost tetap profitable.' };
+  }, [adoption, adoptionStress, walkResult]);
 
   /**
    * The same promise for the management rule: the button turns on only when
@@ -1196,7 +1225,7 @@ export default function BacktestLab({
 
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
               {(() => {
-                const state = switchState(adoptedPrior !== null, adoption?.worthAdopting ?? false, 'amber');
+                const state = switchState(adoptedPrior !== null, adoptionGate.allowed, 'amber');
                 return (
                   <button
                     type="button"
@@ -1227,10 +1256,13 @@ export default function BacktestLab({
             </div>
             <p
               className={`text-[11px] mt-2 ${
-                adoption?.worthAdopting ? 'text-emerald-400' : muted
+                adoptionGate.allowed ? 'text-emerald-400' : muted
               }`}
             >
               {adoption?.reason}
+            </p>
+            <p className={`text-[11px] mt-1 ${adoptionGate.allowed ? 'text-emerald-400' : 'text-amber-400'}`}>
+              Adoption gate: {adoptionGate.reason}
             </p>
             <p className={`text-[11px] mt-1 ${muted}`}>
               Tombol hanya aktif kalau memakai parameter ini memang perbaikan yang didukung periode ini, jadi kalau bisa ditekan, menekannya adalah pilihan yang benar. Kalau tidak, setelanmu sekarang sudah lebih baik.
