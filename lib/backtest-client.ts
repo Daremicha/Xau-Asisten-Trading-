@@ -34,6 +34,7 @@ import {
 import { normalisePrior } from './learning-engine';
 import { fromWire, mergeCandles, INTERVAL_MS, type HistoryInterval } from './history-feed';
 import { historicalHighImpactEvents } from './historical-calendar';
+import { runWalkForward, type WalkForwardResult } from './walk-forward';
 import { AccountType, BrokerId, TradingStyle, type ForexFactoryEvent } from './types';
 
 /** Average days in a month, so "24 months" means two calendar years of data. */
@@ -51,7 +52,15 @@ const BREAK_EVEN_AT_R = 1;
 /** Retries per page when the provider is rate limiting. */
 const MAX_RATE_LIMIT_RETRIES = 3;
 
-export type BacktestPhase = 'download' | 'control' | 'adaptive' | 'frozen' | 'protected' | 'floor' | 'done';
+export type BacktestPhase =
+  | 'download'
+  | 'control'
+  | 'adaptive'
+  | 'frozen'
+  | 'protected'
+  | 'floor'
+  | 'walk-forward'
+  | 'done';
 
 export interface BacktestProgressUpdate {
   phase: BacktestPhase;
@@ -431,4 +440,55 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
     floorCheck,
     ranAt: new Date().toISOString(),
   };
+}
+
+/** Run strict train-validation-test folds over the same downloaded history. */
+export async function runWalkForwardJob(options: BacktestJobOptions): Promise<WalkForwardResult> {
+  const { candles, coverage } = await downloadHistory({ ...options, onProgress: options.onProgress });
+  if (candles.length < 500) {
+    throw new Error(
+      coverage.message ||
+        'Provider mengirim riwayat terlalu sedikit untuk validasi walk-forward.'
+    );
+  }
+
+  const events = options.economicEvents ?? (await downloadCalendar(options.signal));
+  const barsPerMonth = Math.max(1, Math.round((DAYS_PER_MONTH * 86_400_000) / INTERVAL_MS[options.interval]));
+  const trainMonths = Math.max(3, Math.floor(options.months / 2));
+  const holdoutMonths = Math.max(1, Math.floor(options.months / 8));
+  const trainBars = trainMonths * barsPerMonth;
+  const validationBars = holdoutMonths * barsPerMonth;
+  const testBars = holdoutMonths * barsPerMonth;
+
+  options.onProgress?.({
+    phase: 'walk-forward',
+    label: `Menjalankan fold walk-forward: train ${trainMonths} bulan, validasi ${holdoutMonths} bulan, test ${holdoutMonths} bulan.`,
+    percent: 50,
+  });
+  await yieldToBrowser();
+  assertLive(options.signal);
+
+  const result = runWalkForward(
+    candles,
+    {
+      intervalMs: INTERVAL_MS[options.interval],
+      tradingStyle: options.tradingStyle,
+      accountType: options.accountType,
+      brokerId: options.brokerId,
+      startingEquity: options.equity,
+      riskPercentage: options.riskPercentage,
+      minConviction: options.minConviction,
+      skipConvictionBand: options.skipConvictionBand ?? null,
+      dailyLossLimitPercent: options.dailyLossLimitPercent ?? null,
+      quickTarget: options.quickTarget ?? false,
+      riskGuard: options.riskGuard ?? false,
+      economicEvents: events,
+      londonBreakout: true,
+      cooldownBars: undefined,
+      windowBars: undefined,
+    },
+    { trainBars, validationBars, testBars, stepBars: testBars }
+  );
+  options.onProgress?.({ phase: 'done', label: 'Validasi walk-forward selesai.', percent: 100 });
+  return result;
 }

@@ -27,7 +27,12 @@ import {
   ShieldCheck,
   Ban,
 } from 'lucide-react';
-import { runBacktestJob, type BacktestJobResult, type BacktestProgressUpdate } from '@/lib/backtest-client';
+import {
+  runBacktestJob,
+  runWalkForwardJob,
+  type BacktestJobResult,
+  type BacktestProgressUpdate,
+} from '@/lib/backtest-client';
 import type { HistoryInterval } from '@/lib/history-feed';
 import { formatAccountMoney } from '@/lib/account-display';
 import {
@@ -45,6 +50,7 @@ import { factorReliability, NOISE_BAR_STANDARD_ERRORS } from '@/lib/factor-learn
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 import RobustnessCard from '@/components/RobustnessCard';
 import type { RResult } from '@/lib/robustness';
+import type { WalkForwardResult } from '@/lib/walk-forward';
 
 interface BacktestLabProps {
   tradingStyle: TradingStyle;
@@ -112,6 +118,10 @@ export default function BacktestLab({
   const [progress, setProgress] = useState<BacktestProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [walkRunning, setWalkRunning] = useState(false);
+  const [walkProgress, setWalkProgress] = useState<BacktestProgressUpdate | null>(null);
+  const [walkResult, setWalkResult] = useState<WalkForwardResult | null>(null);
+  const [walkError, setWalkError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const handleRun = async () => {
@@ -151,6 +161,41 @@ export default function BacktestLab({
   const handleCancel = () => {
     abortRef.current?.abort();
     setProgress(null);
+    setWalkProgress(null);
+  };
+
+  const handleWalkForward = async () => {
+    setWalkError(null);
+    setWalkResult(null);
+    setWalkRunning(true);
+    setWalkProgress({ phase: 'download', label: 'Meminta data historis untuk walk-forward…', percent: 2 });
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const walk = await runWalkForwardJob({
+        months,
+        interval: executionInterval,
+        tradingStyle,
+        accountType,
+        brokerId,
+        equity,
+        riskPercentage,
+        minConviction,
+        skipConvictionBand,
+        dailyLossLimitPercent: dailyLossLimit,
+        quickTarget,
+        riskGuard,
+        signal: controller.signal,
+        onProgress: setWalkProgress,
+      });
+      setWalkResult(walk);
+    } catch (err) {
+      setWalkError(err instanceof Error ? err.message : 'Validasi walk-forward gagal.');
+    } finally {
+      setWalkRunning(false);
+      abortRef.current = null;
+    }
   };
 
   /**
@@ -358,7 +403,7 @@ export default function BacktestLab({
                 key={choice}
                 type="button"
                 id={`backtest-months-${choice}`}
-                disabled={running}
+                disabled={running || walkRunning}
                 onClick={() => setMonths(choice)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                   months === choice
@@ -382,7 +427,7 @@ export default function BacktestLab({
                 key={choice}
                 type="button"
                 id={`backtest-interval-${choice}`}
-                disabled={running}
+                disabled={running || walkRunning}
                 onClick={() => setExecutionInterval(choice)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                   executionInterval === choice
@@ -409,7 +454,7 @@ export default function BacktestLab({
                 key={choice}
                 type="button"
                 id={`backtest-quality-${choice}`}
-                disabled={running}
+                disabled={running || walkRunning}
                 onClick={() => setMinConviction(choice)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                   minConviction === choice
@@ -432,7 +477,7 @@ export default function BacktestLab({
           <div className={`text-[11px] ${muted}`}>
             {tradingStyle} • {accountType} • {money(equity)} • {riskPercentage}% risiko
           </div>
-          {running ? (
+          {running || walkRunning ? (
             <button
               type="button"
               id="backtest-cancel-btn"
@@ -443,15 +488,26 @@ export default function BacktestLab({
               <span>Hentikan</span>
             </button>
           ) : (
-            <button
-              type="button"
-              id="run-backtest-btn"
-              onClick={handleRun}
-              className="mt-2 w-full flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>Jalankan backtest {months} bulan</span>
-            </button>
+            <div className="mt-2 space-y-1.5">
+              <button
+                type="button"
+                id="run-backtest-btn"
+                onClick={handleRun}
+                className="w-full flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Backtest biasa {months} bulan</span>
+              </button>
+              <button
+                type="button"
+                id="run-walk-forward-btn"
+                onClick={handleWalkForward}
+                className="w-full flex items-center justify-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all active:scale-95 cursor-pointer"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>Validasi walk-forward</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -491,6 +547,21 @@ export default function BacktestLab({
         </div>
       )}
 
+      {walkRunning && walkProgress && (
+        <div className={`border border-violet-500/30 rounded-xl p-3 mb-4 ${panel}`}>
+          <div className={`flex items-center gap-2 text-xs ${strong}`}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" />
+            <span className="truncate">{walkProgress.label}</span>
+          </div>
+          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+            <div
+              className="h-full bg-violet-500 rounded-full transition-all"
+              style={{ width: `${Math.max(2, Math.min(100, walkProgress.percent))}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="border border-rose-500/40 bg-rose-500/10 text-rose-400 rounded-xl p-3 mb-4 text-xs flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -498,9 +569,78 @@ export default function BacktestLab({
         </div>
       )}
 
+      {walkError && (
+        <div className="border border-rose-500/40 bg-rose-500/10 text-rose-400 rounded-xl p-3 mb-4 text-xs flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{walkError}</span>
+        </div>
+      )}
+
       {!result && !running && !error && (
         <div className={`border rounded-xl p-6 text-center text-xs ${panel} ${muted}`}>
           Belum ada yang diuji ulang. Uji 24 bulan akan mengunduh candle XAUUSD asli, membuat setup dengan cara yang sama seperti engine live di setiap titik keputusan, lalu menentukan hasil masing-masing dari candle yang benar-benar terjadi sesudahnya.
+        </div>
+      )}
+
+      {walkResult && (
+        <div className={`border border-violet-500/30 rounded-xl p-4 mb-4 ${panel}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <ShieldCheck className="w-4 h-4 text-violet-400" />
+            <h3 className={`text-sm font-bold ${strong}`}>Validasi walk-forward</h3>
+          </div>
+          <p className={`text-xs ${muted} mb-3`}>
+            {walkResult.message} Training tidak masuk statistik test. Parameter frozen hanya berasal dari training tiap fold.
+          </p>
+          {walkResult.status === 'insufficient' ? (
+            <p className="text-xs text-amber-400">Data belum cukup untuk satu fold lengkap.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={muted}>
+                    <th className="text-left font-medium py-1.5">Ukuran test</th>
+                    <th className="text-right font-medium py-1.5">Control</th>
+                    <th className="text-right font-medium py-1.5">Frozen dari training</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {[
+                    {
+                      label: 'Fold selesai',
+                      control: walkResult.folds.length.toString(),
+                      frozen: walkResult.folds.length.toString(),
+                    },
+                    {
+                      label: 'Trade test',
+                      control: walkResult.controlStats?.filled.toString() ?? '—',
+                      frozen: walkResult.frozenStats?.filled.toString() ?? '—',
+                    },
+                    {
+                      label: 'Hasil bersih',
+                      control: walkResult.controlStats ? money(walkResult.controlStats.netDollars, true) : '—',
+                      frozen: walkResult.frozenStats ? money(walkResult.frozenStats.netDollars, true) : '—',
+                    },
+                    {
+                      label: 'Profit factor',
+                      control: walkResult.controlStats?.profitFactor?.toFixed(2) ?? '—',
+                      frozen: walkResult.frozenStats?.profitFactor?.toFixed(2) ?? '—',
+                    },
+                    {
+                      label: 'Max drawdown',
+                      control: walkResult.controlStats ? `${walkResult.controlStats.maxDrawdownPercent}%` : '—',
+                      frozen: walkResult.frozenStats ? `${walkResult.frozenStats.maxDrawdownPercent}%` : '—',
+                    },
+                  ].map((row) => (
+                    <tr key={row.label} className="border-t border-slate-800/60">
+                      <td className={`py-1.5 ${muted}`}>{row.label}</td>
+                      <td className={`text-right py-1.5 ${strong}`}>{row.control}</td>
+                      <td className={`text-right py-1.5 ${strong}`}>{row.frozen}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
