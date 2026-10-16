@@ -112,6 +112,8 @@ export interface BacktestJobResult {
   coverage: BacktestCoverage;
   /** What the replay knew about scheduled releases. */
   news: BacktestNews;
+  /** Events used by the replay, retained for execution-cost stress analysis. */
+  economicEvents: ForexFactoryEvent[];
   control: BacktestResult;
   adaptive: BacktestResult;
   /**
@@ -425,6 +427,7 @@ export async function runBacktestJob(options: BacktestJobOptions): Promise<Backt
   return {
     coverage,
     news,
+    economicEvents: options.economicEvents ?? [],
     control,
     adaptive,
     frozen,

@@ -51,6 +51,7 @@ import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 import RobustnessCard from '@/components/RobustnessCard';
 import type { RResult } from '@/lib/robustness';
 import type { WalkForwardResult } from '@/lib/walk-forward';
+import { stressCostScenarios, type CostStressReport } from '@/lib/cost-stress';
 
 interface BacktestLabProps {
   tradingStyle: TradingStyle;
@@ -287,6 +288,18 @@ export default function BacktestLab({
       (result?.control.trades ?? [])
         .filter((t) => t.filled)
         .map((t) => ({ openedAt: t.openedAt, rMultiple: t.rMultiple, riskDistance: Math.abs(t.fillPrice - t.stopLoss) })),
+    [result]
+  );
+  const costStress = useMemo<CostStressReport[]>(
+    () =>
+      result
+        ? stressCostScenarios(
+            result.control.trades,
+            result.control.summary.startingEquity,
+            undefined,
+            result.economicEvents
+          )
+        : [],
     [result]
   );
 
@@ -724,6 +737,42 @@ export default function BacktestLab({
 
           {/* The fixed run pushed harder: by quarter, with a range, with worse costs. */}
           <RobustnessCard results={robustResults} theme={theme} />
+
+          <div className={`border rounded-xl p-4 ${panel}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <h3 className={`text-sm font-bold ${strong}`}>Stress biaya eksekusi</h3>
+            </div>
+            <p className={`text-[11px] ${muted} mb-3`}>
+              Biaya di tabel ini adalah tambahan di atas baseline replay. Nilai realistic dan stress adalah asumsi, bukan data historis broker.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={muted}>
+                    <th className="text-left font-medium py-1.5">Skenario</th>
+                    <th className="text-right font-medium py-1.5">Trade terdampak</th>
+                    <th className="text-right font-medium py-1.5">Net</th>
+                    <th className="text-right font-medium py-1.5">PF</th>
+                    <th className="text-right font-medium py-1.5">Max DD</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {costStress.map((stress) => (
+                    <tr key={stress.scenario.id} className="border-t border-slate-800/60">
+                      <td className={`py-1.5 ${muted}`}>{stress.scenario.label}</td>
+                      <td className={`text-right py-1.5 ${muted}`}>{stress.adjustedTrades}</td>
+                      <td className={`text-right py-1.5 ${stress.profitable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {money(stress.netDollars, true)}
+                      </td>
+                      <td className={`text-right py-1.5 ${strong}`}>{stress.profitFactor?.toFixed(2) ?? '—'}</td>
+                      <td className={`text-right py-1.5 ${strong}`}>{stress.maxDrawdownPercent}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           {/* Side by side */}
           <div className="overflow-x-auto">
