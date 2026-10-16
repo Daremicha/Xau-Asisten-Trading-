@@ -70,15 +70,13 @@ export function untestedSettingNote(style: TradingStyle, floor: number): string 
 export const LIVE_LEARNING = false;
 
 /**
- * Self-learning as the user's own switch, on unless they turn it off.
+ * Self-learning remains available as an explicit user switch, but starts off.
  *
- * The user wants an engine that adjusts after every trade, and the replay
- * above put the cost of that at about 9% of the result, so it is offered as
- * their choice, with the numbers beside it. When on, live trades re-tune the
- * confluence weights exactly as the replay's adaptive run did; nothing else
- * learns from them.
+ * The fixed-parameter replay beat the adaptive replay in the documented test.
+ * A fresh live profile must therefore start from the tested configuration;
+ * users can still enable learning after reviewing its trade-off.
  */
-export const DEFAULT_SELF_LEARNING = true;
+export const DEFAULT_SELF_LEARNING = false;
 
 /** The records the engine may learn from: all of them, or none while learning is off. */
 export function learningInput<T>(records: T[], enabled: boolean = LIVE_LEARNING): T[] {
