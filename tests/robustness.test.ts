@@ -3,6 +3,7 @@ import {
   byQuarter,
   expectancyInterval,
   MIN_INTERVAL_TRADES,
+  monteCarloRiskReport,
   robustnessReport,
   stressed,
   type RResult,
@@ -84,6 +85,27 @@ describe('the verdict', () => {
 
   test('too few trades is said plainly', () => {
     expect(robustnessReport(series([1], MIN_INTERVAL_TRADES - 1)).verdict).toBe('insufficient');
+  });
+});
+
+describe('Monte Carlo sequence risk', () => {
+  test('is deterministic and reports drawdown and losing-streak percentiles', () => {
+    const rs = series([1.5, -1, -1, 1.5, -1], 60).map((r) => r.rMultiple);
+    const first = monteCarloRiskReport(rs, { simulations: 200, riskPerTradePercent: 0.5 });
+    const second = monteCarloRiskReport(rs, { simulations: 200, riskPerTradePercent: 0.5 });
+
+    expect(first).not.toBeNull();
+    expect(first).toEqual(second);
+    expect(first!.simulations).toBe(200);
+    expect(first!.trades).toBe(60);
+    expect(first!.maxDrawdownPercent.p95).toBeGreaterThanOrEqual(first!.maxDrawdownPercent.median);
+    expect(first!.losingStreak.p95).toBeGreaterThanOrEqual(first!.losingStreak.median);
+    expect(first!.probabilityOfRuinPercent).toBeGreaterThanOrEqual(0);
+    expect(first!.probabilityOfRuinPercent).toBeLessThanOrEqual(100);
+  });
+
+  test('waits for enough trades before making a sequence-risk claim', () => {
+    expect(monteCarloRiskReport(Array.from({ length: MIN_INTERVAL_TRADES - 1 }, () => 1))).toBeNull();
   });
 });
 

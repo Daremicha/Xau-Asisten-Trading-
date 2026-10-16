@@ -46,6 +46,19 @@ export interface RobustnessReport {
   explanation: string;
 }
 
+export interface MonteCarloReport {
+  simulations: number;
+  trades: number;
+  riskPerTradePercent: number;
+  ruinDrawdownPercent: number;
+  /** Median, 95th percentile, and worst simulated maximum drawdown. */
+  maxDrawdownPercent: { median: number; p95: number; worst: number };
+  /** Median, 95th percentile, and worst simulated losing streak. */
+  losingStreak: { median: number; p95: number; worst: number };
+  /** Share of simulations whose maximum drawdown reached the ruin threshold. */
+  probabilityOfRuinPercent: number;
+}
+
 /** Fewer trades than this in a quarter and its result is not counted either way. */
 export const MIN_QUARTER_TRADES = 10;
 /** Fewer trades than this and no range is worth quoting. */
@@ -54,6 +67,12 @@ export const MIN_INTERVAL_TRADES = 20;
 export const STRESS_EXTRA_DOLLARS = 0.3;
 
 const round = (v: number, places = 3) => Math.round(v * 10 ** places) / 10 ** places;
+
+function percentile(values: number[], fraction: number): number {
+  if (values.length === 0) return 0;
+  const index = Math.min(values.length - 1, Math.max(0, Math.floor((values.length - 1) * fraction)));
+  return values[index];
+}
 
 function profitFactor(rs: number[]): number | null {
   const won = rs.filter((r) => r > 0).reduce((a, r) => a + r, 0);
@@ -122,6 +141,84 @@ export function stressed(results: RResult[], extraDollars = STRESS_EXTRA_DOLLARS
   return results.map((r) =>
     r.riskDistance && r.riskDistance > 0 ? r.rMultiple - extraDollars / r.riskDistance : r.rMultiple
   );
+}
+
+export interface MonteCarloOptions {
+  simulations?: number;
+  /** Used only to convert R multiples into a compounded equity curve. */
+  riskPerTradePercent?: number;
+  /** Drawdown threshold used for the probability-of-ruin label. */
+  ruinDrawdownPercent?: number;
+  seed?: number;
+}
+
+/**
+ * Shuffle the observed R results without replacement and measure account paths.
+ * This tests sequence risk, not future profitability: it cannot fix selection bias,
+ * missing costs, or a mismatch between historical and live market data.
+ */
+export function monteCarloRiskReport(
+  rMultiples: number[],
+  options: MonteCarloOptions = {}
+): MonteCarloReport | null {
+  const results = rMultiples.filter(Number.isFinite);
+  if (results.length < MIN_INTERVAL_TRADES) return null;
+
+  const simulations = Math.max(100, Math.floor(options.simulations ?? 2_000));
+  const riskPerTradePercent = Math.max(0.01, options.riskPerTradePercent ?? 0.5);
+  const ruinDrawdownPercent = Math.max(1, options.ruinDrawdownPercent ?? 30);
+  const random = mulberry32(options.seed ?? 19);
+  const drawdowns: number[] = [];
+  const streaks: number[] = [];
+  let ruinCount = 0;
+
+  for (let simulation = 0; simulation < simulations; simulation += 1) {
+    const shuffled = [...results];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    let equity = 1;
+    let peak = 1;
+    let maxDrawdown = 0;
+    let currentStreak = 0;
+    let worstStreak = 0;
+    for (const rMultiple of shuffled) {
+      equity *= Math.max(0.01, 1 + (rMultiple * riskPerTradePercent) / 100);
+      peak = Math.max(peak, equity);
+      maxDrawdown = Math.max(maxDrawdown, peak > 0 ? ((peak - equity) / peak) * 100 : 100);
+      if (rMultiple <= 0) {
+        currentStreak += 1;
+        worstStreak = Math.max(worstStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    }
+    drawdowns.push(maxDrawdown);
+    streaks.push(worstStreak);
+    if (maxDrawdown >= ruinDrawdownPercent) ruinCount += 1;
+  }
+
+  drawdowns.sort((a, b) => a - b);
+  streaks.sort((a, b) => a - b);
+  return {
+    simulations,
+    trades: results.length,
+    riskPerTradePercent: round(riskPerTradePercent, 2),
+    ruinDrawdownPercent: round(ruinDrawdownPercent, 1),
+    maxDrawdownPercent: {
+      median: round(percentile(drawdowns, 0.5), 1),
+      p95: round(percentile(drawdowns, 0.95), 1),
+      worst: round(drawdowns[drawdowns.length - 1], 1),
+    },
+    losingStreak: {
+      median: Math.round(percentile(streaks, 0.5)),
+      p95: Math.round(percentile(streaks, 0.95)),
+      worst: Math.round(streaks[streaks.length - 1]),
+    },
+    probabilityOfRuinPercent: round((ruinCount / simulations) * 100, 1),
+  };
 }
 
 export function robustnessReport(results: RResult[], extraDollars = STRESS_EXTRA_DOLLARS): RobustnessReport {

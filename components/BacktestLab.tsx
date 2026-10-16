@@ -49,7 +49,7 @@ import { normalisePrior, type PriorWeights } from '@/lib/learning-engine';
 import { factorReliability, NOISE_BAR_STANDARD_ERRORS } from '@/lib/factor-learning';
 import { AccountType, BrokerId, TradingStyle } from '@/lib/types';
 import RobustnessCard from '@/components/RobustnessCard';
-import type { RResult } from '@/lib/robustness';
+import { monteCarloRiskReport, type MonteCarloReport, type RResult } from '@/lib/robustness';
 import type { WalkForwardResult } from '@/lib/walk-forward';
 import { stressCostScenarios, type CostStressReport } from '@/lib/cost-stress';
 
@@ -289,6 +289,16 @@ export default function BacktestLab({
         .filter((t) => t.filled)
         .map((t) => ({ openedAt: t.openedAt, rMultiple: t.rMultiple, riskDistance: Math.abs(t.fillPrice - t.stopLoss) })),
     [result]
+  );
+  const monteCarlo = useMemo<MonteCarloReport | null>(
+    () =>
+      result
+        ? monteCarloRiskReport(
+            result.control.trades.filter((trade) => trade.filled).map((trade) => trade.rMultiple),
+            { riskPerTradePercent: riskPercentage, ruinDrawdownPercent: 30 }
+          )
+        : null,
+    [result, riskPercentage]
   );
   const costStress = useMemo<CostStressReport[]>(
     () =>
@@ -766,6 +776,50 @@ export default function BacktestLab({
 
           {/* The fixed run pushed harder: by quarter, with a range, with worse costs. */}
           <RobustnessCard results={robustResults} theme={theme} />
+
+          <div className={`border rounded-xl p-4 ${panel}`} id="monte-carlo-risk-card">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="w-4 h-4 text-rose-400" />
+              <h3 className={`text-sm font-bold ${strong}`}>Monte Carlo: risiko urutan trade</h3>
+            </div>
+            <p className={`text-[11px] ${muted} mb-3`}>
+              {monteCarlo
+                ? `${monteCarlo.simulations.toLocaleString('id-ID')} simulasi mengacak ulang ${monteCarlo.trades} trade terisi tanpa mengganti hasilnya. Model memakai risiko ${monteCarlo.riskPerTradePercent}% per trade dan ambang drawdown ${monteCarlo.ruinDrawdownPercent}%.`
+                : 'Butuh minimal 20 trade terisi untuk mengukur risiko urutan secara bermakna.'}{' '}
+              Ini bukan prediksi profit dan tidak menggantikan validasi out-of-sample atau data broker.
+            </p>
+            {monteCarlo ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <div className={muted}>Peluang DD ≥ {monteCarlo.ruinDrawdownPercent}%</div>
+                  <div className={`font-mono font-bold ${monteCarlo.probabilityOfRuinPercent > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {monteCarlo.probabilityOfRuinPercent}%
+                  </div>
+                </div>
+                <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <div className={muted}>DD median / P95</div>
+                  <div className={`font-mono font-bold ${strong}`}>
+                    {monteCarlo.maxDrawdownPercent.median}% / {monteCarlo.maxDrawdownPercent.p95}%
+                  </div>
+                </div>
+                <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <div className={muted}>Losing streak P95</div>
+                  <div className={`font-mono font-bold ${strong}`}>{monteCarlo.losingStreak.p95} trade</div>
+                </div>
+                <div className={`rounded-lg border p-2 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <div className={muted}>DD terburuk simulasi</div>
+                  <div className={`font-mono font-bold ${strong}`}>{monteCarlo.maxDrawdownPercent.worst}%</div>
+                </div>
+              </div>
+            ) : (
+              <div className={`rounded-lg border p-2 text-xs ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                Jalankan backtest dengan setidaknya 20 trade terisi untuk melihat simulasi sequence risk.
+              </div>
+            )}
+            <p className={`text-[10px] mt-3 ${muted}`}>
+              Risiko forward test yang lebih konservatif biasanya 0,25–0,50% per trade. Angka ini hanya panduan pengendalian risiko, bukan jaminan hasil.
+            </p>
+          </div>
 
           <div className={`border rounded-xl p-4 ${panel}`}>
             <div className="flex items-center gap-2 mb-1">
