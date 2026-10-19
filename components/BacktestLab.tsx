@@ -455,6 +455,14 @@ export default function BacktestLab({
             <p className={`text-xs ${muted}`}>
               Menjalankan ulang engine live di data historis asli, men-trade-nya dua kali, dan mengukur apakah belajar dari setiap hasil membuat sinyal berikutnya lebih baik.
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 font-semibold text-sky-300">
+                Histori Exness XAUUSDc
+              </span>
+              <span className={`rounded-full border px-2 py-0.5 font-semibold ${isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                Spread Bid/Ask historis dinamis
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -720,6 +728,19 @@ export default function BacktestLab({
                 {formatDate(result.coverage.from)} → {formatDate(result.coverage.to)} •{' '}
                 {result.coverage.bars.toLocaleString('en-US')} candle • {result.coverage.monthsCovered} bulan
               </span>
+            </div>
+            <div className={`mb-2 rounded-lg border px-2.5 py-2 text-[11px] ${
+              result.coverage.provider?.includes('Exness')
+                ? isDark
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : isDark
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}>
+              {result.coverage.provider?.includes('Exness')
+                ? 'Aktif: candle Exness XAUUSDc dan spread historis per candle dipakai dalam simulasi entry, exit, TP, SL, dan sizing lot.'
+                : 'Catatan: provider histori saat ini bukan Exness, sehingga backtest memakai model biaya provider fallback.'}
             </div>
             <p className={muted}>
               {result.control.summary.minConviction > 0 &&
