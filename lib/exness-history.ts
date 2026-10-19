@@ -17,8 +17,9 @@ function loadCandles(): Candle[] {
   if (!Array.isArray(rows)) return [];
   cached = rows
     .filter((row): row is ExnessRow => Array.isArray(row) && row.length >= 6)
-    .map(([time, open, high, low, close, ticks]) => ({
+    .map(([time, open, high, low, close, ticks, spread]) => ({
       time, open, high, low, close, volume: ticks,
+      ...(typeof spread === 'number' && Number.isFinite(spread) && spread >= 0 ? { spread } : {}),
     }))
     .filter((c) => [c.time, c.open, c.high, c.low, c.close, c.volume].every(Number.isFinite))
     .sort((a, b) => a.time - b.time);

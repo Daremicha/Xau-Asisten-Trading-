@@ -11,6 +11,8 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
+  /** Average Bid/Ask spread in price units when supplied by a broker archive. */
+  spread?: number;
 }
 
 export interface SwingPoint {
@@ -206,12 +208,18 @@ export function resample(candles: Candle[], bucketMs: number): Candle[] {
     const key = Math.floor(c.time / bucketMs) * bucketMs;
     const existing = byBucket.get(key);
     if (!existing) {
-      byBucket.set(key, { time: key, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume });
+      byBucket.set(key, { time: key, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume, spread: c.spread });
     } else {
       existing.high = Math.max(existing.high, c.high);
       existing.low = Math.min(existing.low, c.low);
       existing.close = c.close;
       existing.volume += c.volume;
+      if (c.spread !== undefined) {
+        const priorWeight = existing.volume - c.volume;
+        existing.spread = existing.spread === undefined
+          ? c.spread
+          : (existing.spread * priorWeight + c.spread * c.volume) / existing.volume;
+      }
     }
   }
 

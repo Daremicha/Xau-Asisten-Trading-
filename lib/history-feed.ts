@@ -256,10 +256,10 @@ export function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
 }
 
 /** Compact wire form, so a two year download is numbers rather than JSON keys. */
-export type WireCandle = [number, number, number, number, number, number];
+export type WireCandle = [number, number, number, number, number, number, number?];
 
 export function toWire(candles: Candle[]): WireCandle[] {
-  return candles.map((c) => [c.time, c.open, c.high, c.low, c.close, c.volume ?? 0]);
+  return candles.map((c) => [c.time, c.open, c.high, c.low, c.close, c.volume ?? 0, c.spread]);
 }
 
 export function fromWire(rows: unknown): Candle[] {
@@ -267,11 +267,15 @@ export function fromWire(rows: unknown): Candle[] {
   const candles: Candle[] = [];
   for (const row of rows) {
     if (!Array.isArray(row) || row.length < 5) continue;
-    const [time, open, high, low, close, volume] = row as number[];
+    const [time, open, high, low, close, volume, spread] = row as number[];
     if (![time, open, high, low, close].every((v) => typeof v === 'number' && Number.isFinite(v))) {
       continue;
     }
-    candles.push({ time, open, high, low, close, volume: Number.isFinite(volume) ? volume : 0 });
+    candles.push({
+      time, open, high, low, close,
+      volume: Number.isFinite(volume) ? volume : 0,
+      ...(Number.isFinite(spread) && spread >= 0 ? { spread } : {}),
+    });
   }
   return candles.sort((a, b) => a.time - b.time);
 }

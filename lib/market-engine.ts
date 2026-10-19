@@ -85,7 +85,8 @@ export function calculateXAUUSDLotSize(
   stopLossPrice: number,
   accountType: AccountType = 'Standard',
   tradingStyle: TradingStyle = 'Intraday',
-  brokerId: BrokerId = 'EXNESS'
+  brokerId: BrokerId = 'EXNESS',
+  historicalSpreadPrice?: number
 ): {
   lotSize: number;
   /** The risk the user asked for. */
@@ -125,7 +126,10 @@ export function calculateXAUUSDLotSize(
   // A stop loses more than its distance: the spread is paid on the way in and
   // the stop can slip on the way out. Sizing on the distance alone let the
   // real loss run past the budget the user set, so the lot is sized on both.
-  const lossPerOz = validDistance + specs.typicalSpreadPips * 0.1 + STOP_SLIPPAGE_DOLLARS;
+  const spreadPips = historicalSpreadPrice !== undefined
+    ? Math.max(0, historicalSpreadPrice * 10)
+    : specs.typicalSpreadPips;
+  const lossPerOz = validDistance + spreadPips * 0.1 + STOP_SLIPPAGE_DOLLARS;
 
   // Four decimals, not two. On a cent account two decimals of a dollar is a
   // whole cent, so a budget of 4.5 cent was being rounded to 5 and the number

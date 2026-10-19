@@ -382,6 +382,12 @@ export interface OrderPlan {
  */
 export const DEFAULT_SLIPPAGE_DOLLARS = 0.2;
 
+function halfSpread(candle: Candle): number {
+  return candle.spread !== undefined && Number.isFinite(candle.spread)
+    ? Math.max(0, candle.spread) / 2
+    : 0;
+}
+
 export type OrderOutcome =
   | { kind: 'missed'; index: number; reason: string }
   | {
@@ -416,12 +422,17 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
   if (!plan.instant) {
     for (let j = plan.decidedAt + 1; j < candles.length; j++) {
       const c = candles[j];
-      if (c.low <= plan.entryPrice && plan.entryPrice <= c.high) {
+      const half = halfSpread(c);
+      const bidLow = c.low - half;
+      const bidHigh = c.high - half;
+      const askLow = c.low + half;
+      const askHigh = c.high + half;
+      if (isLong ? askLow <= plan.entryPrice && plan.entryPrice <= askHigh : bidLow <= plan.entryPrice && plan.entryPrice <= bidHigh) {
         fillIndex = j;
         break;
       }
       // The same three ways the live app calls a resting order dead.
-      if (isLong ? c.low <= plan.stopLoss : c.high >= plan.stopLoss) {
+      if (isLong ? bidLow <= plan.stopLoss : askHigh >= plan.stopLoss) {
         return {
           kind: 'missed',
           index: j,
@@ -431,7 +442,7 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
       // The same rule the live app uses: a full stop distance beyond the entry
       // without a fill means the move happened without the trade.
       const risk = Math.abs(plan.entryPrice - plan.stopLoss);
-      const ranPast = isLong ? c.high - plan.entryPrice : plan.entryPrice - c.low;
+      const ranPast = isLong ? bidHigh - plan.entryPrice : plan.entryPrice - askLow;
       if (risk > 0 && ranPast >= risk * (plan.missAtR ?? 1)) {
         return {
           kind: 'missed',
@@ -451,11 +462,12 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
   // Market fills go against the trader; a resting limit fills at its price.
   const adverseEntry = isLong ? slip : -slip;
   const adverseExit = isLong ? -slip : slip;
+  const entryHalf = halfSpread(fillBar);
   const fillPrice = plan.instant
-    ? decisionBar.close + adverseEntry
+    ? decisionBar.close + (isLong ? entryHalf : -entryHalf) + adverseEntry
     : plan.stopEntry
-      ? plan.entryPrice + adverseEntry
-      : plan.entryPrice;
+      ? plan.entryPrice + (isLong ? entryHalf : -entryHalf) + adverseEntry
+      : plan.entryPrice + (isLong ? entryHalf : -entryHalf);
   const riskDistance = Math.abs(fillPrice - plan.stopLoss);
   const armAt = plan.breakEvenAtR && plan.breakEvenAtR > 0 && riskDistance > 0
     ? riskDistance * plan.breakEvenAtR
@@ -471,19 +483,24 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
 
   for (let j = scanStart; j < candles.length; j++) {
     const c = candles[j];
+    const half = halfSpread(c);
+    const bidLow = c.low - half;
+    const bidHigh = c.high - half;
+    const askLow = c.low + half;
+    const askHigh = c.high + half;
     // The order of events inside a bar cannot be recovered from open, high, low
     // and close, so the losing side is assumed to come first.
-    if (isLong ? c.low <= stop : c.high >= stop) {
+    if (isLong ? bidLow <= stop : askHigh >= stop) {
       // A bar that opens beyond the stop, after a weekend or a release, fills
       // the stop at that open, not at the level. The fill bar of a resting
       // order is excluded: its open came before the entry, not after.
-      const gapped = j > fillIndex && (isLong ? c.open < stop : c.open > stop);
+      const gapped = j > fillIndex && (isLong ? c.open - half < stop : c.open + half > stop);
       return {
         kind: 'filled',
         fillIndex,
         fillPrice,
         exitIndex: j,
-        exitPrice: (gapped ? c.open : stop) + adverseExit,
+        exitPrice: (gapped ? c.open + (isLong ? -half : half) : stop) + adverseExit,
         outcome: 'SL',
         reason: protectedStop
           ? 'Harga kembali ke entry setelah stop dipindah ke sana, jadi trade hanya memakan spread.'
@@ -495,13 +512,13 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
     // reaches the trigger and the old stop is taken as a loss. The intrabar
     // order is unknown and the simulator does not get to guess in its favour.
     if (armAt !== null && !protectedStop) {
-      const travelled = isLong ? c.high - fillPrice : fillPrice - c.low;
+      const travelled = isLong ? bidHigh - fillPrice : fillPrice - askLow;
       if (travelled >= armAt) {
         stop = fillPrice;
         protectedStop = true;
       }
     }
-    if (isLong ? c.high >= plan.takeProfit1 : c.low <= plan.takeProfit1) {
+    if (isLong ? bidHigh >= plan.takeProfit1 : askLow <= plan.takeProfit1) {
       return {
         kind: 'filled',
         fillIndex,
@@ -513,13 +530,14 @@ export function simulateOrder(candles: Candle[], plan: OrderPlan): OrderOutcome 
       };
     }
     if (c.time >= deadline) {
-      const profitable = isLong ? c.close > fillPrice : c.close < fillPrice;
+      const marketExit = c.close + (isLong ? -half : half) + adverseExit;
+      const profitable = isLong ? marketExit > fillPrice : marketExit < fillPrice;
       return {
         kind: 'filled',
         fillIndex,
         fillPrice,
         exitIndex: j,
-        exitPrice: c.close + adverseExit,
+        exitPrice: marketExit,
         outcome: profitable ? 'TP' : 'SL',
         reason: `Ditutup di harga market setelah batas waktu ${Math.round(plan.maxHoldMs / 3_600_000)} jam.`,
       };
@@ -776,7 +794,8 @@ export function createBacktest(config: BacktestConfig): Runner {
             decision.stopLoss,
             accountType,
             tradingStyle,
-            brokerId
+            brokerId,
+            candles[i].spread
           ),
           expiresAt: bar.time + validity.validForMinutes * MINUTE_MS,
           stopEntry: false,
@@ -881,9 +900,14 @@ export function createBacktest(config: BacktestConfig): Runner {
       contractSpecs: lot.contractSpecs,
     };
     const gross = resultFromMove(sized, outcome.exitPrice, order.direction);
-    // Spread is paid once, on entry, across the whole position.
-    const spreadCost =
-      lot.contractSpecs.typicalSpreadPips * 0.1 * lot.lotSize * lot.contractSpecs.contractSizeOz;
+    // With broker candles, Bid/Ask execution is reflected in the adjusted fill
+    // and exit prices, so the gross move already contains the dynamic spread.
+    // Older/fallback candles retain the established static broker cost model.
+    const dynamicSpread =
+      candles[outcome.fillIndex].spread !== undefined || candles[outcome.exitIndex].spread !== undefined;
+    const spreadCost = dynamicSpread
+      ? 0
+      : lot.contractSpecs.typicalSpreadPips * 0.1 * lot.lotSize * lot.contractSpecs.contractSizeOz;
     const net = roundMoney(gross.dollars - spreadCost);
     // The label follows the money: a target reached by a hair that costs more in
     // spread than it paid is not a win.

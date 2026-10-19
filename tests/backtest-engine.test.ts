@@ -76,6 +76,17 @@ describe('slippage and gaps', () => {
     expect(trade.exitPrice).toBe(2015);
   });
 
+  test('historical spread uses Ask on long entry and Bid on long exit', () => {
+    const candles = [
+      { ...bar(0, 2003, 2004, 2002, 2003), spread: 0.4 },
+      { ...bar(1, 2002, 2003, 1999, 2001), spread: 0.4 },
+      { ...bar(2, 2001, 2016, 2000, 2015), spread: 0.4 },
+    ];
+    const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0 })));
+    expect(trade.fillPrice).toBeCloseTo(2000.2, 6);
+    expect(trade.exitPrice).toBeCloseTo(2015, 6);
+  });
+
   test('a stop fills past its level by the slippage', () => {
     const candles = [bar(0, 2003, 2004, 2002, 2003), bar(1, 2002, 2003, 1999, 2001), bar(2, 2000, 2001, 1989, 1990)];
     const trade = filled(simulateOrder(candles, plan({ slippageDollars: 0.2 })));
