@@ -7,6 +7,7 @@ import {
   type HistoryPage,
   type HistorySymbol,
 } from '@/lib/history-feed';
+import { exnessHistoryPage } from '@/lib/exness-history';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +82,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const page = await fetchHistoryPage(interval, before, symbol);
+    // The broker archive is the closest available source to the live Cent
+    // account. Other providers remain available for symbols/intervals not
+    // covered by the supplied Exness archive.
+    const brokerPage = symbol === 'XAU/USD' ? exnessHistoryPage(interval, before) : null;
+    const page = brokerPage ?? (await fetchHistoryPage(interval, before, symbol));
     remember(key, page);
 
     // A rate limit is not an error the caller should give up on, so it comes

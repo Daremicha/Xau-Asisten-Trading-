@@ -1,0 +1,19 @@
+{
+  "provider": "Exness",
+  "symbol": "XAUUSDc",
+  "instrument": "spot",
+  "interval": "15min",
+  "price": "midpoint((Bid+Ask)/2)",
+  "spread": "available in source ticks; summarized during preprocessing",
+  "sourceFiles": [
+    "Exness_XAUUSDc_2024.zip",
+    "Exness_XAUUSDc_2025.zip",
+    "Exness_XAUUSDc_2026.zip"
+  ],
+  "bars": 38028,
+  "invalidTicks": 0,
+  "outOfOrderTicks": 9,
+  "from": "2024-01-01T23:00:00+00:00",
+  "to": "2026-04-19T23:45:00+00:00",
+  "note": "Gaps are preserved. No tick, candle, or price is forward-filled."
+}
