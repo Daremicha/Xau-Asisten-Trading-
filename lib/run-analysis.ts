@@ -35,6 +35,7 @@ import { InstitutionalTradingSetup, EngineGenerationMetadata, EngineInputUsed } 
 import type { ValidatedAnalyzeRequest } from './request-validation';
 import { learningInput } from './tested-configuration';
 import { closedResults, dailyLossLimitReached, dailyLossNote, netToday, nextTradingDayStart } from './daily-loss';
+import { signSetup } from './setup-signature';
 
 
 export interface AnalysisReply {
@@ -823,6 +824,7 @@ Reply with JSON only:
       engineMetadata,
       modelProposal: proposalOutcome,
     };
+    setupPayload.setupSignature = signSetup(setupPayload);
 
     return reply({
       success: true,

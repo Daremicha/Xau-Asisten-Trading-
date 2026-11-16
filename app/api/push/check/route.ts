@@ -17,6 +17,7 @@ import { newSetupAlert } from '@/lib/trade-alerts';
 import { reviewOnce } from '@/lib/ai-review-store';
 import type { InstitutionalTradingSetup } from '@/lib/types';
 import { sendPush, vapidPublicKey } from '@/lib/push-send';
+import { rateLimit } from '@/lib/rate-limit';
 import {
   claimCheck,
   claimScan,
@@ -46,7 +47,12 @@ const CHECK_GAP_SECONDS = 45;
  * CHECK_GAP_SECONDS apart, so an outside caller cannot burn the quote budget.
  */
 async function run(request: Request) {
+  const quota = await rateLimit(request, 'push-check', 4, 60);
+  if (!quota.allowed) return NextResponse.json({ success: false, error: 'Batas pemeriksaan push tercapai.' }, { status: 429, headers: { 'Retry-After': String(quota.retryAfterSeconds) } });
   const secret = process.env.PUSH_CRON_SECRET?.trim();
+  if (!secret && process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, error: 'PUSH_CRON_SECRET wajib diatur di production.' }, { status: 503 });
+  }
   if (secret) {
     const url = new URL(request.url);
     const presented =

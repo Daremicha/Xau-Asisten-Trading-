@@ -480,6 +480,8 @@ export interface EngineGenerationMetadata {
 
 export interface InstitutionalTradingSetup {
   id: string;
+  /** HMAC issued by the server; required for production learning writes. */
+  setupSignature?: string;
   userId: string;
   symbol: 'XAUUSD';
   timestamp: string;

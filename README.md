@@ -315,11 +315,12 @@ not:
 | It earned more by at least 5% of what the defaults made | A hair's margin over one period is luck, not an edge |
 | Its worst drawdown is no deeper | A rougher ride for the same edge is not an improvement |
 
-A period is still a single sample. When the button does open, running the same
-test at 12 months, or on the other base timeframe, and seeing it win there too
-is what separates a real improvement from a fit to one stretch of chart. Live analysis then shrinks toward
-those instead of the built-in defaults, and your real trades keep adjusting
-from there. The choice is stored with your profile and can be reverted.
+A period is still a single sample and is not proof of future profitability. A
+walk-forward run and a locked holdout must be reviewed before adopting learned
+parameters. Run the test at another period/timeframe and confirm that the edge
+survives cost stress; the app should be used for research and paper trading
+until those checks pass. The choice is stored with your profile and can be
+reverted.
 
 ### What the replay does and does not model
 
@@ -335,6 +336,22 @@ from there. The choice is stored with your profile and can be reverted.
 - Historical economic releases are not available to the app, so the news shield
   is inactive for the whole replay.
 - Slippage, execution gaps over the weekend and swap are not modelled.
+
+The replay is therefore not a broker execution simulator. Import the target
+broker's contract specification and stress the result with wider spread,
+slippage, commission, financing and news/weekend gaps before risking capital.
+
+### Production security requirements
+
+- Set `SETUP_SIGNING_SECRET` to a random 32-byte secret. Production learning
+  rejects records whose setup was not issued and signed by the server.
+- Configure Upstash Redis (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, or the
+  `UPSTASH_REDIS_REST_*` aliases) so rate limits are shared across serverless
+  instances. Without Redis, development uses an in-memory limiter.
+- Set `PUSH_CRON_SECRET` in production. `/api/push/check` refuses to run without
+  it and should be called with `Authorization: Bearer <secret>`.
+- Rate limiting reduces abuse but does not replace authentication, provider
+  quotas, monitoring, or a financial risk kill switch.
 
 ### Choosing which setups are worth taking
 

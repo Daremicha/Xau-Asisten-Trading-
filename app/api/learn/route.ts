@@ -5,12 +5,21 @@ import { validateLearnBody } from '@/lib/request-validation';
 import { computeTradeResult } from '@/lib/trade-result';
 import { publicErrorMessage } from '@/lib/safe-error';
 import { sanitiseFactorVotes } from '@/lib/factor-learning';
+import { verifySetupSignature } from '@/lib/setup-signature';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const quota = await rateLimit(request, 'learn', 60, 60);
+  if (!quota.allowed) {
+    return NextResponse.json({ success: false, error: 'Batas learning tercapai. Coba lagi nanti.' }, { status: 429, headers: { 'Retry-After': String(quota.retryAfterSeconds) } });
+  }
   let rawBody: unknown;
   try {
+    if (Number(request.headers.get('content-length') ?? 0) > 750_000) {
+      return NextResponse.json({ success: false, error: 'Isi permintaan terlalu besar.' }, { status: 413 });
+    }
     rawBody = await request.json();
   } catch {
     return NextResponse.json({ success: false, error: 'Isi permintaan bukan JSON yang valid.' }, { status: 400 });
@@ -19,6 +28,9 @@ export async function POST(request: Request) {
   const { value: input, errors } = validateLearnBody(rawBody);
   if (!input) {
     return NextResponse.json({ success: false, error: errors.join(' ') }, { status: 400 });
+  }
+  if (!verifySetupSignature(input.setup)) {
+    return NextResponse.json({ success: false, error: 'Setup tidak memiliki signature server yang valid; learning ditolak.' }, { status: 403 });
   }
   const { setup, outcome, closedPrice, missCause, autoResolved } = input;
 

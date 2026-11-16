@@ -39,6 +39,13 @@ export interface WalkForwardResult {
   testTrades: BacktestTrade[];
   controlStats: BacktestStats | null;
   frozenStats: BacktestStats | null;
+  /** Sequential test equity, carrying the prior fold's ending equity forward. */
+  sequential: {
+    startingEquity: number;
+    finalEquity: number;
+    netDollars: number;
+    maxDrawdownPercent: number;
+  } | null;
   message: string;
 }
 
@@ -112,11 +119,16 @@ export function runWalkForward(
       testTrades: [],
       controlStats: null,
       frozenStats: null,
+      sequential: null,
       message: 'Data tidak cukup untuk satu fold train-validation-test.',
     };
   }
 
   const folds: WalkForwardFold[] = [];
+  const sequentialStartingEquity = baseConfig.startingEquity;
+  let sequentialEquity = sequentialStartingEquity;
+  let sequentialPeak = sequentialEquity;
+  let sequentialMaxDrawdown = 0;
   for (const window of windows) {
     const trainingCandles = sliceWindow(candles, window.train);
     const testCandles = sliceWindow(candles, {
@@ -125,8 +137,9 @@ export function runWalkForward(
     });
     const testWarmupBars = window.validation.end - window.train.start;
 
+    const foldConfig = { ...baseConfig, startingEquity: sequentialEquity };
     const training = runBacktest({
-      ...baseConfig,
+      ...foldConfig,
       candles: trainingCandles,
       adaptive: true,
       startingPrior: null,
@@ -135,10 +148,17 @@ export function runWalkForward(
         trainingCandles.length - 1
       ),
     });
-    const control = runBacktest(testConfig(baseConfig, testCandles, testWarmupBars));
+    const control = runBacktest(testConfig(foldConfig, testCandles, testWarmupBars));
     const frozen = runBacktest(
-      testConfig(baseConfig, testCandles, testWarmupBars, training.finalWeights)
+      testConfig(foldConfig, testCandles, testWarmupBars, training.finalWeights)
     );
+
+    for (const trade of frozen.trades) {
+      if (!trade.filled) continue;
+      sequentialEquity += trade.netDollars;
+      sequentialPeak = Math.max(sequentialPeak, sequentialEquity);
+      if (sequentialPeak > 0) sequentialMaxDrawdown = Math.max(sequentialMaxDrawdown, ((sequentialPeak - sequentialEquity) / sequentialPeak) * 100);
+    }
 
     folds.push({
       index: window.index,
@@ -146,8 +166,8 @@ export function runWalkForward(
       training,
       control,
       frozen,
-      controlStats: summariseTrades(control.trades, baseConfig.startingEquity),
-      frozenStats: summariseTrades(frozen.trades, baseConfig.startingEquity),
+      controlStats: summariseTrades(control.trades, foldConfig.startingEquity),
+      frozenStats: summariseTrades(frozen.trades, foldConfig.startingEquity),
     });
   }
 
@@ -165,6 +185,12 @@ export function runWalkForward(
     testTrades,
     controlStats,
     frozenStats,
-    message: `${folds.length} fold out-of-sample selesai. Hanya trade test masuk agregat.`,
+    sequential: {
+      startingEquity: sequentialStartingEquity,
+      finalEquity: sequentialEquity,
+      netDollars: sequentialEquity - sequentialStartingEquity,
+      maxDrawdownPercent: Number(sequentialMaxDrawdown.toFixed(2)),
+    },
+    message: `${folds.length} fold out-of-sample selesai. Agregat trade dan equity sequential ditampilkan terpisah; hanya trade test masuk agregat.`,
   };
 }

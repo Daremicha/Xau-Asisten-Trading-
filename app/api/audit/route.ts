@@ -18,6 +18,7 @@ import {
 } from '@/lib/record-audit';
 import { publicErrorMessage } from '@/lib/safe-error';
 import type { SelfLearningMemoryRecord } from '@/lib/types';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,8 +42,15 @@ function looksLikeRecord(value: unknown): value is SelfLearningMemoryRecord {
 }
 
 export async function POST(request: Request) {
+  const quota = await rateLimit(request, 'audit', 10, 60);
+  if (!quota.allowed) {
+    return NextResponse.json({ success: false, error: 'Batas audit tercapai. Coba lagi nanti.' }, { status: 429, headers: { 'Retry-After': String(quota.retryAfterSeconds) } });
+  }
   let body: unknown;
   try {
+    if (Number(request.headers.get('content-length') ?? 0) > 1_000_000) {
+      return NextResponse.json({ success: false, error: 'Isi permintaan terlalu besar.' }, { status: 413 });
+    }
     body = await request.json();
   } catch {
     return NextResponse.json({ success: false, error: 'Isi permintaan bukan JSON yang valid.' }, { status: 400 });
