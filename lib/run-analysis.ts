@@ -220,12 +220,7 @@ export async function runAnalysis(input: ValidatedAnalyzeRequest): Promise<Analy
       reviewed?: boolean;
     } = { attempted: false, accepted: false, reasons: [] };
 
-    const hasProviderKey = [
-      process.env.GEMINI_API_KEY,
-      process.env.OPENAI_API_KEY,
-      process.env.ANTHROPIC_API_KEY,
-      process.env.CLAUDE_API_KEY,
-    ].some((k) => typeof k === 'string' && k.trim().length > 0);
+    const hasProviderKey = Boolean(process.env.GEMINI_API_KEY?.trim());
 
     // Price levels come from the tested engine. A language model may propose
     // its own only when AI_PRICE_PROPOSALS is turned on: its orders were never

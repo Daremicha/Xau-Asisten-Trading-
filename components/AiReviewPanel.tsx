@@ -14,7 +14,7 @@ interface AiReviewPanelProps {
 }
 
 /**
- * What Gemini, ChatGPT and Claude each made of the setup. An opinion only:
+ * What Gemini made of the setup. An opinion only:
  * the prices on the card are the tested engine's, and whether the models'
  * agreement means anything is read from the recorded trades later.
  */
@@ -49,7 +49,7 @@ export default function AiReviewPanel({ review, onRetry, theme = 'dark' }: AiRev
       </div>
 
       {review === undefined ? (
-        <p className={`text-xs ${muted}`}>Menanyakan Gemini, ChatGPT, dan Claude…</p>
+        <p className={`text-xs ${muted}`}>Menanyakan Gemini…</p>
       ) : (
         <ul className="space-y-1.5">
           {review.reviews.map((r) => (

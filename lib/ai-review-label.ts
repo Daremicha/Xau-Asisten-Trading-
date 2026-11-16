@@ -5,7 +5,7 @@
 
 import type { AiReview, ReviewProvider } from './types';
 
-/** A short label, e.g. "AI: 2 of 3 agree". Null when no model answered. */
+/** A short label for the single Gemini opinion. */
 export function reviewLabel(review: AiReview | null | undefined): string | null {
   if (!review || review.answered === 0) return null;
   return `AI: ${review.agree} of ${review.answered} agree`;
@@ -13,6 +13,4 @@ export function reviewLabel(review: AiReview | null | undefined): string | null 
 
 export const PROVIDER_NAMES: Record<ReviewProvider, string> = {
   gemini: 'Gemini',
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
 };

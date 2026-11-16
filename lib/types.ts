@@ -455,7 +455,7 @@ export interface ClosedTrade {
   record: SelfLearningMemoryRecord;
 }
 
-export type EngineProvider = 'gemini' | 'openai' | 'claude' | 'algorithmic';
+export type EngineProvider = 'gemini' | 'algorithmic';
 
 /** Outcome of checking a language model's proposed order against real structure. */
 export interface ModelProposalOutcome {
@@ -577,7 +577,7 @@ export interface InstitutionalTradingSetup {
 }
 
 /** The language models that give a second opinion on a setup. */
-export type ReviewProvider = 'gemini' | 'chatgpt' | 'claude';
+export type ReviewProvider = 'gemini';
 
 export interface ProviderReview {
   provider: ReviewProvider;

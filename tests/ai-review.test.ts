@@ -75,27 +75,28 @@ describe('asking the models', () => {
     expect(await reviewSetup(setup, null)).toBeNull();
   });
 
-  test('counts the answers of the providers that are configured', async () => {
-    delete process.env.GEMINI_API_KEY;
+  test('uses Gemini only', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test';
+    delete process.env.OPENAI_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.CLAUDE_API_KEY;
-    process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.GEMINI_REVIEW_MODEL = 'gemini-test-model';
     globalThis.fetch = (async () =>
       new Response(
-        JSON.stringify({ choices: [{ message: { content: '{"verdict":"agree","confidence":70,"reason":"Oke."}' } }] }),
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"verdict":"agree","confidence":70,"reason":"Oke."}' }] } }] }),
         { status: 200 }
       )) as unknown as typeof fetch;
     const result = await reviewSetup(setup, 4284.1);
     expect(result?.agree).toBe(1);
     expect(result?.answered).toBe(1);
-    expect(result?.reviews[0]).toMatchObject({ provider: 'chatgpt', verdict: 'agree', reason: 'Oke.' });
+    expect(result?.reviews[0]).toMatchObject({ provider: 'gemini', verdict: 'agree', reason: 'Oke.' });
   });
 
-  test('a provider that fails says why without spoiling the count', async () => {
-    delete process.env.GEMINI_API_KEY;
+  test('a Gemini failure says why without spoiling the count', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test';
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.CLAUDE_API_KEY;
-    process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.GEMINI_REVIEW_MODEL = 'gemini-test-model';
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ error: { message: 'model not found' } }), { status: 404 })) as unknown as typeof fetch;
     const result = await reviewSetup(setup, null);
@@ -167,10 +168,7 @@ describe('the trade summary', () => {
 
 describe('a provider failure, in words a trader can act on', () => {
   test('an empty API balance says where to top it up', () => {
-    expect(
-      explainFailure('claude', '400 {"error":{"message":"Your credit balance is too low to access the Anthropic API."}}')
-    ).toContain('console.anthropic.com');
-    expect(explainFailure('chatgpt', 'HTTP 429: You have no credits remaining.')).toContain('platform.openai.com');
+    expect(explainFailure('gemini', 'HTTP 429: RESOURCE_EXHAUSTED')).toContain('Google AI Studio');
   });
 
   test('an overloaded model is called temporary', () => {
@@ -180,7 +178,7 @@ describe('a provider failure, in words a trader can act on', () => {
   });
 
   test('a rejected key and a missing model are named', () => {
-    expect(explainFailure('chatgpt', 'HTTP 401: Incorrect API key provided')).toContain('key');
+    expect(explainFailure('gemini', 'HTTP 401: Incorrect API key provided')).toContain('key');
     expect(explainFailure('gemini', '404 models/gemini-x is not found')).toContain('REVIEW_MODEL');
   });
 });

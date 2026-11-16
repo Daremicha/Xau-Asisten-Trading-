@@ -210,10 +210,10 @@ rather than inventing a schedule.
 Nothing is hardcoded to a particular price, so the engine works whether gold
 trades at 1,200 or 7,500.
 
-**Language models are optional and only write prose.** If you set
-`GEMINI_API_KEY`, `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, a model writes the
-narrative around the setup. It never sets a price. The app is fully functional
-with none of them.
+**Gemini is optional and only writes prose.** If you set `GEMINI_API_KEY`,
+Gemini writes the narrative and gives an optional second opinion. It never sets
+a price. OpenAI and Claude are not called by this application. The app is fully
+functional without a Gemini key.
 
 **Targets sit on levels, not on multiples of the stop.** A take profit at 2.6
 times the risk describes the trade; it says nothing about whether price goes

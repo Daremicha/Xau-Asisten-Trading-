@@ -199,22 +199,6 @@ export default function SignalCard({
           label: `Google Gemini (${metadata.model})`,
           isFallback: false,
         };
-      case 'openai':
-        return {
-          bg: isDark
-            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-            : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          label: `ChatGPT (${metadata.model})`,
-          isFallback: true,
-        };
-      case 'claude':
-        return {
-          bg: isDark
-            ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
-            : 'bg-orange-50 text-orange-700 border-orange-200',
-          label: `Claude (${metadata.model})`,
-          isFallback: true,
-        };
       case 'algorithmic':
       default:
         return {
@@ -351,7 +335,7 @@ Siap dieksekusi langsung di MetaTrader 5.`;
               <span className="font-semibold text-slate-300">Narasi:</span>
               <span className="flex items-center gap-1 text-blue-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Gemini &rarr; ChatGPT &rarr; Claude, opsional
+                Gemini, opsional
               </span>
             </div>
           </div>

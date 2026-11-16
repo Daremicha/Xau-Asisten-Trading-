@@ -89,13 +89,8 @@ export async function POST(request: Request) {
     let newsFilterWeightDelta = isProfit ? 0.01 : isMissed ? 0.01 : 0.03;
     let atrBufferMultiplier = isProfit ? 1.0 : isMissed ? 1.0 : 1.15;
 
-    // Utilize generative model with automatic failover (Gemini -> OpenAI -> Claude)
-    const hasAnyProviderKey = Boolean(
-      (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0) ||
-      (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim().length > 0) ||
-      (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim().length > 0) ||
-      (process.env.CLAUDE_API_KEY && process.env.CLAUDE_API_KEY.trim().length > 0)
-    );
+    // Gemini-only narrative; deterministic fallback remains authoritative.
+    const hasAnyProviderKey = Boolean(process.env.GEMINI_API_KEY?.trim());
 
     if (hasAnyProviderKey) {
       try {
