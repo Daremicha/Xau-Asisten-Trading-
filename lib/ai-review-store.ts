@@ -71,7 +71,9 @@ export type CachedReview =
   /** The hourly ceiling was reached. */
   | { status: 'busy' };
 
-const key = (id: string) => `ai-review:${id}`;
+// Version bump prevents cached multi-provider reviews from appearing after the
+// application switched to Gemini-only mode.
+const key = (id: string) => `ai-review:v2:${id}`;
 
 export async function storedReview(id: string): Promise<AiReview | null | undefined> {
   if (!redisConfigured()) return undefined;
